@@ -1,4 +1,5 @@
 import GlassCard from "../../components/GlassCard";
+import PlanButton from "../../components/PlanButton";
 import { C } from "../../lib/constants";
 
 const plans = [
@@ -13,6 +14,7 @@ const plans = [
  ],
  cta: "Start gratis",
  href: "/login",
+ planId: null,
  highlight: false,
  },
  {
@@ -28,6 +30,7 @@ const plans = [
  ],
  cta: "Kies Compleet",
  href: "/login",
+ planId: "compleet",
  highlight: true,
  },
  {
@@ -41,6 +44,7 @@ const plans = [
  ],
  cta: "Kies Pro",
  href: "/login",
+ planId: "pro",
  highlight: false,
  },
  {
@@ -54,6 +58,7 @@ const plans = [
  ],
  cta: "Kies Accountant",
  href: "/login",
+ planId: "accountant",
  highlight: false,
  },
 ];
@@ -116,6 +121,17 @@ export default function PrijzenPage() {
  ))}
  </ul>
 
+ {plan.planId ? (
+ <PlanButton
+ plan={plan.planId}
+ label={plan.cta}
+ style={{
+ background: plan.highlight ? `linear-gradient(135deg, ${C.blue}, ${C.indigo})` : "#6366f1",
+ border: plan.highlight ? "1px solid transparent" : `1px solid ${C.border}`,
+ borderRadius: 10,
+ }}
+ />
+ ) : (
  <a href={plan.href} style={{
  display: "block",
  textAlign: "center",
@@ -130,6 +146,7 @@ export default function PrijzenPage() {
  }}>
  {plan.cta}
  </a>
+ )}
  </div>
  </GlassCard>
  ))}
