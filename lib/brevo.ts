@@ -8,7 +8,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
  "Content-Type": "application/json",
  },
  body: JSON.stringify({
- sender: { name: "PeppolPro", email: "noreply@peppolpro.nl" },
+ sender: { name: "PeppolPro", email: "info@synqlayer.com" },
  to: [{ email: to, name }],
  subject: "Welkom bij PeppolPro — je account staat klaar",
  htmlContent: `
