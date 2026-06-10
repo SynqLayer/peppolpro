@@ -1,10 +1,39 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { parseInvoicePDF } from "../../../lib/invoice-parser";
-import { generateUBL } from "../../../lib/ubl-generator";
+import { ParsedInvoice, parseInvoicePDF } from "../../../lib/invoice-parser";
+import { generateUBL, InvoiceData } from "../../../lib/ubl-generator";
 
 export const maxDuration = 60;
+
+function parsedToInvoiceData(parsed: ParsedInvoice): InvoiceData {
+ return {
+ supplierName: parsed.seller.name || "",
+ supplierAddress: parsed.seller.address || "",
+ supplierCity: parsed.seller.city || "",
+ supplierCountry: parsed.seller.country || "NL",
+ supplierVatNr: parsed.seller.btw_number || "",
+ supplierKvkKbo: parsed.seller.kvk_number || "",
+ supplierIban: parsed.seller.iban || "",
+ customerName: parsed.buyer.name || "",
+ customerAddress: parsed.buyer.address || "",
+ customerCity: parsed.buyer.city || "",
+ customerCountry: parsed.buyer.country || "NL",
+ customerVatNr: parsed.buyer.btw_number || "",
+ buyerReference: parsed.invoice.reference || undefined,
+ invoiceNumber: parsed.invoice.number || "factuur",
+ invoiceDate: parsed.invoice.date || new Date().toISOString().slice(0, 10),
+ dueDate: parsed.invoice.due_date || parsed.invoice.date || new Date().toISOString().slice(0, 10),
+ currency: parsed.invoice.currency || "EUR",
+ lines: parsed.lines.map((line, index) => ({
+ id: String(index + 1),
+ description: line.description,
+ quantity: line.quantity,
+ unitPrice: line.unit_price,
+ vatPct: line.vat_rate,
+ })),
+ };
+}
 
 export async function POST(request: NextRequest) {
  try {
@@ -84,7 +113,7 @@ export async function POST(request: NextRequest) {
  }
 
  // Generate UBL
- const ublXml = generateUBL(parsed);
+ const ublXml = generateUBL(parsedToInvoiceData(parsed));
 
  // Use credit
  await supabase.rpc("use_credit", { p_user_id: user.id });

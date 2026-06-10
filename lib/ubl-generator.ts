@@ -1,98 +1,176 @@
-import { ParsedInvoice } from "./invoice-parser";
-
-function esc(val: string | null | undefined): string {
- if (!val) return "";
- return val.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+export interface InvoiceLine {
+ id: string;
+ description: string;
+ quantity: number;
+ unitPrice: number;
+ vatPct: number;
 }
 
-function today(): string {
- return new Date().toISOString().split("T")[0];
+export interface InvoiceData {
+ // Leverancier
+ supplierName: string;
+ supplierAddress: string;
+ supplierCity: string;
+ supplierCountry: string;
+ supplierVatNr: string;
+ supplierKvkKbo: string;
+ supplierIban: string;
+ supplierPeppolId?: string;
+ // Klant
+ customerName: string;
+ customerAddress: string;
+ customerCity: string;
+ customerCountry: string;
+ customerVatNr: string;
+ customerKvkKbo?: string;
+ customerPeppolId?: string;
+ buyerReference?: string;
+ // Factuur
+ invoiceNumber: string;
+ invoiceDate: string;
+ dueDate: string;
+ currency: string;
+ lines: InvoiceLine[];
 }
 
-export function generateUBL(data: ParsedInvoice): string {
- const inv = data.invoice;
- const seller = data.seller;
- const buyer = data.buyer;
+function schemeForCountry(country: string): string {
+ return country?.toUpperCase() === "BE" ? "0208" : "0106";
+}
 
- const linesXml = data.lines
- .map(
- (line, i) => 
- `<cac:InvoiceLine>
- <cbc:ID>${i + 1}</cbc:ID>
+function escapeXml(s: string | number | null | undefined): string {
+ return String(s ?? "")
+ .replace(/&/g, "&amp;")
+ .replace(/</g, "&lt;")
+ .replace(/>/g, "&gt;")
+ .replace(/"/g, "&quot;")
+ .replace(/'/g, "&apos;");
+}
+
+export function generateUBL(d: InvoiceData): string {
+ const lineTotals = d.lines.map((line) => ({
+ ...line,
+ lineExcl: Math.round(line.quantity * line.unitPrice * 100) / 100,
+ lineVat: Math.round(line.quantity * line.unitPrice * (line.vatPct / 100) * 100) / 100,
+ }));
+
+ const totalExcl = lineTotals.reduce((sum, line) => sum + line.lineExcl, 0);
+ const totalVat = lineTotals.reduce((sum, line) => sum + line.lineVat, 0);
+ const totalIncl = Math.round((totalExcl + totalVat) * 100) / 100;
+
+ const vatGroups: Record<number, { taxable: number; tax: number }> = {};
+ lineTotals.forEach((line) => {
+ if (!vatGroups[line.vatPct]) vatGroups[line.vatPct] = { taxable: 0, tax: 0 };
+ vatGroups[line.vatPct].taxable += line.lineExcl;
+ vatGroups[line.vatPct].tax += line.lineVat;
+ });
+
+ const supScheme = schemeForCountry(d.supplierCountry);
+ const cusScheme = schemeForCountry(d.customerCountry);
+ const supEndpoint = d.supplierPeppolId || d.supplierKvkKbo;
+ const cusEndpoint = d.customerPeppolId || d.customerKvkKbo || d.customerVatNr;
+
+ const taxSubtotals = Object.entries(vatGroups)
+ .map(([pct, value]) => `
+ <cac:TaxSubtotal>
+ <cbc:TaxableAmount currencyID="${escapeXml(d.currency)}">${value.taxable.toFixed(2)}</cbc:TaxableAmount>
+ <cbc:TaxAmount currencyID="${escapeXml(d.currency)}">${value.tax.toFixed(2)}</cbc:TaxAmount>
+ <cac:TaxCategory>
+ <cbc:ID>${Number(pct) === 0 ? "Z" : "S"}</cbc:ID>
+ <cbc:Percent>${pct}</cbc:Percent>
+ <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+ </cac:TaxCategory>
+ </cac:TaxSubtotal>`)
+ .join("");
+
+ const invoiceLines = lineTotals
+ .map((line, index) => `
+ <cac:InvoiceLine>
+ <cbc:ID>${index + 1}</cbc:ID>
  <cbc:InvoicedQuantity unitCode="C62">${line.quantity}</cbc:InvoicedQuantity>
- <cbc:LineExtensionAmount currencyID="${esc(inv.currency)}">${line.unit_price * line.quantity}</cbc:LineExtensionAmount>
+ <cbc:LineExtensionAmount currencyID="${escapeXml(d.currency)}">${line.lineExcl.toFixed(2)}</cbc:LineExtensionAmount>
  <cac:Item>
- <cbc:Name>${esc(line.description)}</cbc:Name>
+ <cbc:Description>${escapeXml(line.description)}</cbc:Description>
+ <cbc:Name>${escapeXml(line.description)}</cbc:Name>
  <cac:ClassifiedTaxCategory>
- <cbc:ID>S</cbc:ID>
- <cbc:Percent>${line.vat_rate}</cbc:Percent>
+ <cbc:ID>${line.vatPct === 0 ? "Z" : "S"}</cbc:ID>
+ <cbc:Percent>${line.vatPct}</cbc:Percent>
  <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
  </cac:ClassifiedTaxCategory>
  </cac:Item>
  <cac:Price>
- <cbc:PriceAmount currencyID="${esc(inv.currency)}">${line.unit_price}</cbc:PriceAmount>
+ <cbc:PriceAmount currencyID="${escapeXml(d.currency)}">${line.unitPrice.toFixed(2)}</cbc:PriceAmount>
  </cac:Price>
- </cac:InvoiceLine>`
- )
- .join("\n");
+ </cac:InvoiceLine>`)
+ .join("");
 
  return `<?xml version="1.0" encoding="UTF-8"?>
-<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+<ubl:Invoice xmlns:ubl="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+ <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
  <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:CustomizationID>
  <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
- <cbc:ID>${esc(inv.number)}</cbc:ID>
- <cbc:IssueDate>${esc(inv.date) || today()}</cbc:IssueDate>
- <cbc:DueDate>${esc(inv.due_date) || ""}</cbc:DueDate>
+ <cbc:ID>${escapeXml(d.invoiceNumber)}</cbc:ID>
+ <cbc:IssueDate>${escapeXml(d.invoiceDate)}</cbc:IssueDate>
+ <cbc:DueDate>${escapeXml(d.dueDate)}</cbc:DueDate>
  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
- <cbc:DocumentCurrencyCode>${esc(inv.currency) || "EUR"}</cbc:DocumentCurrencyCode>
+ <cbc:DocumentCurrencyCode>${escapeXml(d.currency)}</cbc:DocumentCurrencyCode>
+ ${d.buyerReference ? `<cbc:BuyerReference>${escapeXml(d.buyerReference)}</cbc:BuyerReference>` : "<cbc:BuyerReference>N/A</cbc:BuyerReference>"}
  <cac:AccountingSupplierParty>
  <cac:Party>
- <cac:PartyName><cbc:Name>${esc(seller.name)}</cbc:Name></cac:PartyName>
+ <cbc:EndpointID schemeID="${supScheme}">${escapeXml(supEndpoint)}</cbc:EndpointID>
+ <cac:PartyName><cbc:Name>${escapeXml(d.supplierName)}</cbc:Name></cac:PartyName>
  <cac:PostalAddress>
- <cbc:StreetName>${esc(seller.address)}</cbc:StreetName>
- <cbc:CityName>${esc(seller.city)}</cbc:CityName>
- <cbc:PostalZone>${esc(seller.postal_code)}</cbc:PostalZone>
- <cac:Country><cbc:IdentificationCode>${esc(seller.country)}</cbc:IdentificationCode></cac:Country>
+ <cbc:StreetName>${escapeXml(d.supplierAddress)}</cbc:StreetName>
+ <cbc:CityName>${escapeXml(d.supplierCity)}</cbc:CityName>
+ <cac:Country><cbc:IdentificationCode>${escapeXml(d.supplierCountry)}</cbc:IdentificationCode></cac:Country>
  </cac:PostalAddress>
  <cac:PartyTaxScheme>
- <cbc:CompanyID>${esc(seller.btw_number)}</cbc:CompanyID>
+ <cbc:CompanyID>${escapeXml(d.supplierVatNr)}</cbc:CompanyID>
  <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
  </cac:PartyTaxScheme>
  <cac:PartyLegalEntity>
- <cbc:RegistrationName>${esc(seller.name)}</cbc:RegistrationName>
- <cbc:CompanyID>${esc(seller.kvk_number)}</cbc:CompanyID>
+ <cbc:RegistrationName>${escapeXml(d.supplierName)}</cbc:RegistrationName>
+ <cbc:CompanyID>${escapeXml(d.supplierKvkKbo)}</cbc:CompanyID>
  </cac:PartyLegalEntity>
  </cac:Party>
  </cac:AccountingSupplierParty>
  <cac:AccountingCustomerParty>
  <cac:Party>
- <cac:PartyName><cbc:Name>${esc(buyer.name)}</cbc:Name></cac:PartyName>
+ <cbc:EndpointID schemeID="${cusScheme}">${escapeXml(cusEndpoint)}</cbc:EndpointID>
+ <cac:PartyName><cbc:Name>${escapeXml(d.customerName)}</cbc:Name></cac:PartyName>
  <cac:PostalAddress>
- <cbc:StreetName>${esc(buyer.address)}</cbc:StreetName>
- <cbc:CityName>${esc(buyer.city)}</cbc:CityName>
- <cbc:PostalZone>${esc(buyer.postal_code)}</cbc:PostalZone>
- <cac:Country><cbc:IdentificationCode>${esc(buyer.country)}</cbc:IdentificationCode></cac:Country>
+ <cbc:StreetName>${escapeXml(d.customerAddress)}</cbc:StreetName>
+ <cbc:CityName>${escapeXml(d.customerCity)}</cbc:CityName>
+ <cac:Country><cbc:IdentificationCode>${escapeXml(d.customerCountry)}</cbc:IdentificationCode></cac:Country>
  </cac:PostalAddress>
  <cac:PartyTaxScheme>
- <cbc:CompanyID>${esc(buyer.btw_number)}</cbc:CompanyID>
+ <cbc:CompanyID>${escapeXml(d.customerVatNr)}</cbc:CompanyID>
  <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
  </cac:PartyTaxScheme>
  <cac:PartyLegalEntity>
- <cbc:RegistrationName>${esc(buyer.name)}</cbc:RegistrationName>
+ <cbc:RegistrationName>${escapeXml(d.customerName)}</cbc:RegistrationName>
+ ${d.customerKvkKbo ? `<cbc:CompanyID>${escapeXml(d.customerKvkKbo)}</cbc:CompanyID>` : ""}
  </cac:PartyLegalEntity>
  </cac:Party>
  </cac:AccountingCustomerParty>
- ${linesXml}
+ <cac:PaymentMeans>
+ <cbc:PaymentMeansCode>30</cbc:PaymentMeansCode>
+ <cbc:PaymentDueDate>${escapeXml(d.dueDate)}</cbc:PaymentDueDate>
+ <cac:PayeeFinancialAccount>
+ <cbc:ID>${escapeXml(d.supplierIban)}</cbc:ID>
+ </cac:PayeeFinancialAccount>
+ </cac:PaymentMeans>
  <cac:TaxTotal>
- <cbc:TaxAmount currencyID="${esc(inv.currency) || "EUR"}">${data.totals.total_vat}</cbc:TaxAmount>
+ <cbc:TaxAmount currencyID="${escapeXml(d.currency)}">${totalVat.toFixed(2)}</cbc:TaxAmount>
+ ${taxSubtotals}
  </cac:TaxTotal>
  <cac:LegalMonetaryTotal>
- <cbc:LineExtensionAmount currencyID="${esc(inv.currency) || "EUR"}">${data.totals.subtotal}</cbc:LineExtensionAmount>
- <cbc:TaxExclusiveAmount currencyID="${esc(inv.currency) || "EUR"}">${data.totals.subtotal}</cbc:TaxExclusiveAmount>
- <cbc:TaxInclusiveAmount currencyID="${esc(inv.currency) || "EUR"}">${data.totals.total}</cbc:TaxInclusiveAmount>
- <cbc:PayableAmount currencyID="${esc(inv.currency) || "EUR"}">${data.totals.total}</cbc:PayableAmount>
+ <cbc:LineExtensionAmount currencyID="${escapeXml(d.currency)}">${totalExcl.toFixed(2)}</cbc:LineExtensionAmount>
+ <cbc:TaxExclusiveAmount currencyID="${escapeXml(d.currency)}">${totalExcl.toFixed(2)}</cbc:TaxExclusiveAmount>
+ <cbc:TaxInclusiveAmount currencyID="${escapeXml(d.currency)}">${totalIncl.toFixed(2)}</cbc:TaxInclusiveAmount>
+ <cbc:PayableAmount currencyID="${escapeXml(d.currency)}">${totalIncl.toFixed(2)}</cbc:PayableAmount>
  </cac:LegalMonetaryTotal>
-</Invoice>`;
+ ${invoiceLines}
+</ubl:Invoice>`;
 }
