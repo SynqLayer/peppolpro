@@ -2,14 +2,36 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
- title: "PeppolPro — Van PDF naar Peppol in seconden",
- description: "Upload je PDF-factuur, AI leest alles automatisch, download UBL 2.1 XML of verzend direct via Peppol. De simpelste e-facturatie tool van Nederland.",
- keywords: ["peppolpro", "peppol", "e-facturatie", "ubl", "pdf naar peppol", "factuur converter", "nederland", "belgie"],
+ metadataBase: new URL("https://peppolpro.nl"),
+ title: {
+ default: "PeppolPro — Peppol-facturen versturen en ontvangen zonder boekhoudpakket",
+ template: "%s | PeppolPro",
+ },
+ description: "Verstuur en ontvang Peppol BIS 3.0 facturen in 60 seconden. Geen boekhoudpakket nodig. Verplicht in België sinds 2026. Gratis proberen.",
+ keywords: ["peppol", "e-facturatie", "ubl factuur", "peppol verplicht belgie", "pdf naar ubl", "peppol factuur versturen", "e-invoice belgie"],
+ authors: [{ name: "SynqLayer", url: "https://synqlayer.com" }],
+ creator: "SynqLayer",
  openGraph: {
- title: "PeppolPro — Van PDF naar Peppol in seconden",
- description: "Upload je PDF-factuur, AI leest alles, download UBL of verzend via Peppol.",
  type: "website",
  locale: "nl_NL",
+ url: "https://peppolpro.nl",
+ siteName: "PeppolPro",
+ title: "PeppolPro — Peppol-facturen zonder boekhoudpakket",
+ description: "Verstuur en ontvang Peppol BIS 3.0 facturen in 60 seconden. Verplicht in België sinds 2026.",
+ images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "PeppolPro" }],
+ },
+ twitter: {
+ card: "summary_large_image",
+ title: "PeppolPro — Peppol-facturen zonder boekhoudpakket",
+ description: "Verstuur en ontvang Peppol BIS 3.0 facturen in 60 seconden.",
+ },
+ robots: {
+ index: true,
+ follow: true,
+ googleBot: { index: true, follow: true },
+ },
+ alternates: {
+ canonical: "https://peppolpro.nl",
  },
 };
 
