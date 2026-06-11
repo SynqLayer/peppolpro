@@ -1,19 +1,31 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "../../lib/supabase-server";
+import { createClient } from "@supabase/supabase-js";
 import AdminClient from "./AdminClient";
 
-export default async function AdminPage() {
- const supabase = await createServerSupabase();
- const { data: { user } } = await supabase.auth.getUser();
- if (!user) redirect("/login");
+type AdminPageProps = {
+ searchParams?: Promise<{ secret?: string | string[] }>;
+};
 
- const { data: profile } = await supabase
- .from("user_profiles")
- .select("is_admin")
- .eq("id", user.id)
- .single();
+export default async function AdminPage({ searchParams }: AdminPageProps) {
+ const resolvedSearchParams = (await searchParams) || {};
+ const secret = Array.isArray(resolvedSearchParams.secret)
+ ? resolvedSearchParams.secret[0]
+ : resolvedSearchParams.secret;
 
- if (!profile?.is_admin) redirect("/dashboard");
+ if (!process.env.ADMIN_SECRET || secret !== process.env.ADMIN_SECRET) {
+ redirect("/dashboard");
+ }
+
+ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role;
+ if (!serviceKey) {
+ throw new Error("SUPABASE_SERVICE_ROLE_KEY ontbreekt");
+ }
+
+ const supabase = createClient(
+ process.env.NEXT_PUBLIC_SUPABASE_URL!,
+ serviceKey,
+ { auth: { persistSession: false } }
+ );
 
  const { data: users } = await supabase
  .from("user_profiles")
