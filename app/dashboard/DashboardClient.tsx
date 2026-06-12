@@ -229,7 +229,7 @@ export default function DashboardClient({
  if (oldDrafts > 0) tasks.push({ title: `${oldDrafts} concept${oldDrafts === 1 ? "" : "en"} ouder dan 3 dagen`, detail: "Rond deze facturen af of verwijder ze uit je workflow.", href: "/nieuw", tone: "amber" });
  if (failedCount > 0) tasks.push({ title: `${failedCount} verzending${failedCount === 1 ? "" : "en"} mislukt`, detail: "Controleer de gegevens en verstuur opnieuw.", href: "/convert", tone: "red" });
  if (!completeProfile) tasks.push({ title: "Profiel onvolledig", detail: "KvK/KBO, BTW-nummer of adres ontbreekt nog.", href: "/onboarding", tone: "blue" });
- if (isFree) tasks.push({ title: "Peppol Inbox niet geactiveerd", detail: "Activeer Compleet om inkomende Peppol-facturen te ontvangen.", href: "/prijzen", tone: "blue" });
+ if (isFree) tasks.push({ title: "Peppol Inbox niet geactiveerd", detail: "Activeer Compleet om inkomende Peppol-facturen te ontvangen.", href: "/upgrade", tone: "blue" });
 
  const onboardingSteps = [
  { title: "Bedrijfsgegevens invullen", done: completeProfile, href: "/onboarding", cta: "Bedrijfsgegevens" },
@@ -301,7 +301,7 @@ export default function DashboardClient({
  </div>
  </div>
  <div className="header-actions">
- <Link href="/prijzen" className="btn btn-primary"><ArrowUpRight size={16} />Upgrade</Link>
+ <Link href="/upgrade" className="btn btn-primary"><ArrowUpRight size={16} />Upgrade</Link>
  <Link href="/nieuw" className="btn btn-green"><FilePlus2 size={16} />Nieuwe factuur</Link>
  </div>
  </header>
@@ -497,7 +497,7 @@ export default function DashboardClient({
  {!inboxActive ? (
  <div>
  <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Ontvang Peppol-facturen direct in je account met Compleet.</p>
- <Link href="/prijzen" className="btn btn-primary">Activeer Compleet</Link>
+ <Link href="/upgrade" className="btn btn-primary">Activeer Compleet</Link>
  </div>
  ) : inbox.length === 0 ? (
  <div style={{ color: "#94a3b8", fontSize: 14 }}>Nog geen ontvangen facturen.</div>

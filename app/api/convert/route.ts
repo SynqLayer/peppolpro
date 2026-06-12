@@ -62,8 +62,13 @@ export async function POST(request: NextRequest) {
  .eq("id", user.id)
  .single();
 
- if (!profile || profile.credits <= 0) {
- return NextResponse.json({ error: "Geen credits meer. Upgrade je plan of koop losse credits." }, { status: 403 });
+ if (!profile) {
+ return NextResponse.json({ error: "Profiel niet gevonden" }, { status: 403 });
+ }
+
+ const plan = profile.plan || "free";
+ if (plan === "free" && (profile.credits ?? 0) <= 0) {
+ return NextResponse.json({ error: "Geen credits meer. Upgrade naar Compleet voor onbeperkt gebruik." }, { status: 403 });
  }
 
  // Get PDF from form data
@@ -117,8 +122,10 @@ export async function POST(request: NextRequest) {
  const ublXml = generateUBL(invoiceData);
  const summary = parseUblSummary(ublXml);
 
- // Use credit
+ // Use credits only on the free plan. Compleet is unlimited.
+ if (plan === "free") {
  await supabase.rpc("use_credit", { p_user_id: user.id });
+ }
 
  // Update conversion record
  await supabase
