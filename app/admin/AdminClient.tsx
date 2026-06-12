@@ -97,11 +97,11 @@ export default function AdminClient({ users, conversions, messages, payments }: 
  return (
  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
  <div>
- <div style={{ fontWeight: 600 }}>{conv.original_filename || "—"}</div>
+ <div style={{ fontWeight: 600 }}>{conv.filename || "—"}</div>
  <div style={{ color: C.dim, fontSize: 12 }}>{conv.invoice_number || "—"} · {new Date(conv.created_at as string).toLocaleDateString("nl-NL")}</div>
  </div>
  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
- {conv.invoice_total && <span>€{conv.invoice_total}</span>}
+ {conv.total_amount && <span>{new Intl.NumberFormat("nl-NL", { style: "currency", currency: conv.currency || "EUR" }).format(Number(conv.total_amount))}</span>}
  <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: conv.status === "success" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", color: conv.status === "success" ? "#10b981" : "#ef4444" }}>
  {conv.status}
  </span>

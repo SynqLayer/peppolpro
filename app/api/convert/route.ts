@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { ParsedInvoice, parseInvoicePDF } from "../../../lib/invoice-parser";
 import { generateUBL, InvoiceData } from "../../../lib/ubl-generator";
+import { parseUblSummary } from "../../../lib/ubl-summary";
 
 export const maxDuration = 60;
 
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
  // Create conversion record
  const { data: conversion, error: convError } = await supabase
  .from("conversions")
- .insert({ user_id: user.id, original_filename: filename, status: "processing" })
+ .insert({ user_id: user.id, filename, status: "processing" })
  .select("id")
  .single();
 
@@ -104,16 +105,17 @@ export async function POST(request: NextRequest) {
  try {
  parsed = await parseInvoicePDF(base64);
  } catch (parseError: unknown) {
- const msg = parseError instanceof Error ? parseError.message : "Onbekende fout";
  await supabase
- .from("conversions")
- .update({ status: "failed", error_message: `AI parsing mislukt: ${msg}` })
- .eq("id", conversion.id);
+  .from("conversions")
+  .update({ status: "failed" })
+  .eq("id", conversion.id);
  return NextResponse.json({ error: "Kon de factuur niet lezen. Probeer een ander bestand." }, { status: 422 });
  }
 
  // Generate UBL
- const ublXml = generateUBL(parsedToInvoiceData(parsed));
+ const invoiceData = parsedToInvoiceData(parsed);
+ const ublXml = generateUBL(invoiceData);
+ const summary = parseUblSummary(ublXml);
 
  // Use credit
  await supabase.rpc("use_credit", { p_user_id: user.id });
@@ -123,25 +125,19 @@ export async function POST(request: NextRequest) {
  .from("conversions")
  .update({
  status: "success",
- parsed_data: parsed,
  ubl_xml: ublXml,
- seller_name: parsed.seller.name,
- seller_btw: parsed.seller.btw_number,
- buyer_name: parsed.buyer.name,
- buyer_btw: parsed.buyer.btw_number,
- invoice_number: parsed.invoice.number,
- invoice_date: parsed.invoice.date,
- invoice_total: parsed.totals.total,
- invoice_currency: parsed.invoice.currency,
+ customer_name: summary.customerName || parsed.buyer.name || null,
+ total_amount: summary.totalAmount ?? parsed.totals.total ?? null,
+ invoice_number: summary.invoiceNumber || parsed.invoice.number || null,
+ currency: summary.currency || parsed.invoice.currency || "EUR",
  })
  .eq("id", conversion.id);
 
  // Log
  await supabase.from("scan_logs").insert({
  user_id: user.id,
- conversion_id: conversion.id,
  action: "convert_success",
- metadata: { filename, total: parsed.totals.total },
+ meta: { conversion_id: conversion.id, filename, total: parsed.totals.total },
  });
 
  return NextResponse.json({

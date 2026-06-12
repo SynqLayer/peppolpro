@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { generateUBL, InvoiceData } from "@/lib/ubl-generator";
 import { validateInvoiceData } from "@/lib/ubl-validator";
+import { parseUblSummary, summarizeInvoiceData } from "@/lib/ubl-summary";
 
 export async function POST(req: NextRequest) {
  try {
@@ -13,6 +14,10 @@ export async function POST(req: NextRequest) {
  if (!valid) {
  return NextResponse.json({ error: "Validatiefout", errors }, { status: 400 });
  }
+
+ const xml = generateUBL(invoiceData);
+ const summary = parseUblSummary(xml);
+ const fallbackSummary = summarizeInvoiceData(invoiceData);
 
  if (user) {
  const { data: profile } = await supabase
@@ -36,11 +41,14 @@ export async function POST(req: NextRequest) {
  user_id: user.id,
  filename: `peppolpro-${invoiceData.invoiceNumber}.xml`,
  status: "done",
- ubl_xml: null,
+ ubl_xml: xml,
+ customer_name: summary.customerName || fallbackSummary.customerName,
+ total_amount: summary.totalAmount ?? fallbackSummary.totalAmount,
+ invoice_number: summary.invoiceNumber || fallbackSummary.invoiceNumber,
+ currency: summary.currency || fallbackSummary.currency,
  });
  }
 
- const xml = generateUBL(invoiceData);
  return NextResponse.json({ xml });
  } catch (err) {
  console.error("Generate error:", err);
