@@ -35,7 +35,10 @@ export default function PrivacyPage() {
  <h2 style={h2}>8. Cookies</h2>
  <p style={p}>Wij gebruiken alleen functionele cookies voor authenticatie. Geen tracking cookies, geen advertentie cookies.</p>
 
- <h2 style={h2}>9. Contact</h2>
+ <h2 style={h2}>9. Webstatistieken</h2>
+ <p style={p}>Wij gebruiken een eigen, cookieloze webstatistiek (synq-analytics) om bezoekersaantallen en herkomst te meten. Er worden geen cookies geplaatst en geen IP-adressen opgeslagen; gegevens worden in de EU (Frankfurt) verwerkt.</p>
+
+ <h2 style={h2}>10. Contact</h2>
  <p style={p}>Voor vragen over privacy: privacy@synqlayer.com</p>
  </div>
  </div>

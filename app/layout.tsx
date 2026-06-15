@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Script from "next/script";
 
 export const metadata: Metadata = {
  metadataBase: new URL("https://peppolpro.nl"),
@@ -38,7 +39,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
  return (
  <html lang="nl">
- <body>{children}</body>
+ <body>
+   {children}
+   <Script src="https://synq-analytics-ingest.vercel.app/synq.js" data-site="peppolpro" strategy="afterInteractive" />
+  </body>
  </html>
  );
 }
