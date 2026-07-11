@@ -24,7 +24,8 @@ export default function OverOnsPage() {
  <h2 style={{ fontSize: 20, fontWeight: 700, marginTop: 32, marginBottom: 12, color: "#f8fafc" }}>Contact</h2>
  <p>Email: info@synqlayer.com</p>
  <p>Website: synqlayer.com</p>
- <p>KvK: [VOLGT]</p>
+ <p>KvK: 42041391</p>
+ <p>BTW: NL005450830B62</p>
  </div>
  </div>
  </div>

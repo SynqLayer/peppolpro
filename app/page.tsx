@@ -385,7 +385,7 @@ export default function Home() {
  </div>
  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
  <span style={{ fontSize: 11, color: `${C.dim}55` }}>© 2026 PeppolPro — SynqLayer. Alle rechten voorbehouden.</span>
- <span style={{ fontSize: 11, color: `${C.dim}55` }}>KvK: [VOLGT] | BTW: [VOLGT]</span>
+ <span style={{ fontSize: 11, color: `${C.dim}55` }}>KvK: 42041391 | BTW: NL005450830B62</span>
  </div>
  </div>
  </footer>

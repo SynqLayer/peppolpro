@@ -39,5 +39,5 @@ export const FAQ = [
  { q: "Moet ik als NL-ondernemer al Peppol gebruiken?", a: "Als je naar Belgische klanten factureert: ja. Voor binnenlandse NL-facturen nog niet, maar de EU-verplichting (ViDA) komt in 2030." },
  { q: "Welke PDF-facturen worden ondersteund?", a: "Alle PDF-facturen — Word-export, Excel-template, of professioneel opgemaakt. Onze AI herkent en extraheert de velden ongeacht het formaat." },
  { q: "Wat gebeurt er met mijn data?", a: "Factuurdata wordt alleen tijdelijk verwerkt en daarna verwijderd. We slaan niets op. Volledig AVG/GDPR compliant." },
- { q: "Kan ik PeppolPro koppelen aan mijn boekhoudpakket?", a: "API is beschikbaar op Business- en Accountant-plan. Integraties met Moneybird, Exact Online en e-Boekhouden staan op de roadmap." },
+ { q: "Kan ik PeppolPro koppelen aan mijn boekhoudpakket?", a: "API-toegang is beschikbaar op het Accountant-plan. Integraties met Moneybird, Exact Online en e-Boekhouden staan op de roadmap." },
 ];

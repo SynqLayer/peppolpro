@@ -310,8 +310,8 @@ const FAQ = [
     a: "Factuurdata wordt alleen tijdelijk verwerkt en daarna verwijderd. We slaan niets op. Volledig AVG/GDPR compliant.",
   },
   {
-    q: "Kan ik Billzo koppelen aan mijn boekhoudpakket?",
-    a: "API is beschikbaar op Business- en Accountant-plan. Integraties met Moneybird, Exact Online en e-Boekhouden staan op de roadmap.",
+    q: "Kan ik PeppolPro koppelen aan mijn boekhoudpakket?",
+    a: "API-toegang is beschikbaar op het Accountant-plan. Integraties met Moneybird, Exact Online en e-Boekhouden staan op de roadmap.",
   },
 ];
 

@@ -12,7 +12,7 @@ export default function PrivacyPage() {
  <p style={{ fontSize: 13, color: "#475569", marginBottom: 32 }}>Laatst bijgewerkt: april 2026</p>
 
  <h2 style={h2}>1. Wie zijn wij</h2>
- <p style={p}>PeppolPro is een product van SynqLayer, gevestigd in Nederland. KvK-nummer: [VOLGT]. Wij zijn verantwoordelijk voor de verwerking van persoonsgegevens zoals beschreven in deze privacyverklaring.</p>
+ <p style={p}>PeppolPro is een product van SynqLayer, gevestigd in Nederland. KvK-nummer: 42041391. BTW-nummer: NL005450830B62. Wij zijn verantwoordelijk voor de verwerking van persoonsgegevens zoals beschreven in deze privacyverklaring.</p>
 
  <h2 style={h2}>2. Welke gegevens verwerken wij</h2>
  <p style={p}>Bij registratie: e-mailadres, bedrijfsnaam, KvK/KBO-nummer, BTW-nummer. Bij gebruik: geüploade PDF-facturen (tijdelijk), gegenereerde UBL XML-bestanden, IP-adres en browsergegevens voor beveiliging.</p>
