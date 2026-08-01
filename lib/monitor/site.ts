@@ -57,4 +57,9 @@ export const routes = [
   "/monitor/ben-ik-verplicht-te-e-factureren",
   "/monitor/peppol-id-opzoeken",
   "/monitor/wat-is-peppol",
+  "/monitor/peppol-verplicht-boekhouder",
+  "/monitor/peppol-verplicht-webshop",
+  "/monitor/peppol-verplicht-zzp",
+  "/monitor/peppol-niet-aangesloten-wat-nu",
+  "/monitor/klanten-controleren-op-peppol",
 ];

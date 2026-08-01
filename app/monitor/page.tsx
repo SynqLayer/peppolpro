@@ -1,4 +1,5 @@
 import { CheckTool } from "./_components/CheckTool";
+import { RelatedLinks } from "./_components/Page";
 import { pageMetadata } from "@/lib/monitor/site";
 
 export const metadata = pageMetadata({
@@ -21,6 +22,11 @@ export default function Home() {
         </p>
       </section>
       <CheckTool />
+      <RelatedLinks links={[
+        { href: "/monitor/peppol-verplicht-zzp", title: "Peppol verplicht voor zzp?", description: "Nuchtere uitleg voor zelfstandigen zonder harde datums te verzinnen." },
+        { href: "/monitor/peppol-verplicht-webshop", title: "Peppol verplicht voor webshops?", description: "Wanneer e-facturatie relevant wordt voor B2B-webshops." },
+        { href: "/monitor/peppol-niet-aangesloten-wat-nu", title: "Niet aangesloten: wat nu?", description: "Welke stappen je kunt nemen na een niet-gevonden resultaat." },
+      ]} />
     </main>
   );
 }

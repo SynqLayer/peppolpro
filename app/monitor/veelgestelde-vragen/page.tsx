@@ -18,9 +18,23 @@ const faqs = [
   ["Welke documenttypen worden getoond?", "We tonen documenttypen zoals die door de Directory terugkomen, bijvoorbeeld UBL Invoice of CreditNote varianten als ze bij een match staan."],
 ];
 
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map(([question, answer]) => ({
+    "@type": "Question",
+    name: question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: answer,
+    },
+  })),
+};
+
 export default function Page() {
   return (
     <InfoPage eyebrow="FAQ" title="Veelgestelde vragen" intro="Korte antwoorden voor ondernemers die willen weten wat Peppol betekent voor e-facturatie en mogelijke verplichtingen.">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <div className="space-y-6">
         {faqs.map(([question, answer]) => (
           <section key={question}>
