@@ -30,6 +30,8 @@ const invoicePdfLib = readFileSync(new URL('../lib/invoice-pdf.ts', import.meta.
 const invoiceRoute = readFileSync(new URL('../app/api/invoices/[invoiceId]/route.ts', import.meta.url), 'utf8');
 const cancelSubscriptionRoute = readFileSync(new URL('../app/api/subscription/cancel/route.ts', import.meta.url), 'utf8');
 const retentionCleanupRoute = readFileSync(new URL('../app/api/cron/retention-cleanup/route.ts', import.meta.url), 'utf8');
+const onboardingPage = readFileSync(new URL('../app/onboarding/page.tsx', import.meta.url), 'utf8');
+const migration0009 = readFileSync(new URL('../supabase/migrations/0009_payments_mollie_payment_id_unique_constraint.sql', import.meta.url), 'utf8');
 
 test('monitoring tiers are configured with limits and frequencies', () => {
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
@@ -238,4 +240,18 @@ test('subscription cancel route cancels at Mollie but keeps access until period 
  assert.match(retentionCleanupRoute, /cancel_at_period_end/);
  assert.match(retentionCleanupRoute, /subscription_status: "expired"/);
  assert.match(retentionCleanupRoute, /update\(\{ plan: "free" \}\)/);
+});
+
+test('onboarding writes existing user_profiles columns', () => {
+ assert.match(onboardingPage, /kvk_kbo:\s*country === "NL" \? kvk : kbo/);
+ assert.match(onboardingPage, /btw_nr:\s*btw/);
+ assert.doesNotMatch(onboardingPage, /kvk_number:\s*/);
+ assert.doesNotMatch(onboardingPage, /kbo_number:\s*/);
+ assert.doesNotMatch(onboardingPage, /btw_number:\s*/);
+});
+
+test('payments upsert has a real unique constraint for mollie_payment_id', () => {
+ assert.match(migration0009, /alter table public\.payments[\s\S]*add constraint payments_mollie_payment_id_key[\s\S]*unique \(mollie_payment_id\)/i);
+ assert.match(checkoutRoute, /onConflict: "mollie_payment_id"/);
+ assert.match(mollieWebhookRoute, /onConflict: "mollie_payment_id"/);
 });
