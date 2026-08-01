@@ -32,9 +32,8 @@ export default function OnboardingPage() {
  .update({
  company_name: companyName,
  country,
- kvk_number: country === "NL" ? kvk : null,
- kbo_number: country === "BE" ? kbo : null,
- btw_number: btw,
+ kvk_kbo: country === "NL" ? kvk : kbo,
+ btw_nr: btw,
  onboarding_complete: true,
  })
  .eq("id", user.id);
