@@ -25,6 +25,8 @@ export async function POST(req: NextRequest) {
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
  const body = await req.json().catch(() => ({}));
  const rawUrl = clean(body.webhook_url);
+ const disclaimerAccepted = body.disclaimer_accepted === true;
+ if (!disclaimerAccepted) return NextResponse.json({ error: "Bevestig eerst de webhook-disclaimer." }, { status: 400 });
  if (!rawUrl) return NextResponse.json({ error: "webhook_url is verplicht" }, { status: 400 });
  let webhook_url: string;
  try {
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
  }
  const { data, error } = await supabase
  .from("monitoring_webhook_configs")
- .upsert({ user_id: user.id, webhook_url, updated_at: new Date().toISOString(), revoked_at: null }, { onConflict: "user_id" })
+ .upsert({ user_id: user.id, webhook_url, updated_at: new Date().toISOString(), revoked_at: null, disclaimer_accepted_at: new Date().toISOString() }, { onConflict: "user_id" })
  .select("id, webhook_url, created_at, updated_at, revoked_at")
  .single();
  if (error) return NextResponse.json({ error: "Webhook-config opslaan mislukt" }, { status: 500 });

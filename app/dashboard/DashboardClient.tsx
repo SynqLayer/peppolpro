@@ -234,6 +234,7 @@ export default function DashboardClient({
  const [activeOpsTab, setActiveOpsTab] = useState<"team" | "api">("team");
  const [inviteEmail, setInviteEmail] = useState("");
  const [webhookUrl, setWebhookUrl] = useState(webhookConfig?.webhook_url || "");
+ const [webhookDisclaimerAccepted, setWebhookDisclaimerAccepted] = useState(false);
  const [opsStatus, setOpsStatus] = useState<string | null>(null);
 
  const isFree = !profile?.plan || profile.plan === "free";
@@ -319,7 +320,7 @@ export default function DashboardClient({
  const res = await fetch("/api/monitoring/webhook-config", {
  method: "POST",
  headers: { "Content-Type": "application/json" },
- body: JSON.stringify({ webhook_url: webhookUrl }),
+ body: JSON.stringify({ webhook_url: webhookUrl, disclaimer_accepted: webhookDisclaimerAccepted }),
  });
  const data = await res.json().catch(() => ({}));
  setOpsStatus(res.ok ? "Webhook opgeslagen." : data.error || "Webhook opslaan mislukt");
@@ -681,7 +682,11 @@ export default function DashboardClient({
  <div style={{ display: "grid", gap: 12 }}>
  <form onSubmit={handleWebhookSave} style={{ display: "grid", gap: 8 }}>
  <input className="small-input" type="url" value={webhookUrl} onChange={(event) => setWebhookUrl(event.target.value)} placeholder="https://example.nl/webhooks/peppolpro" />
- <button className="btn btn-primary" type="submit">Webhook opslaan</button>
+ <label style={{ display: "grid", gridTemplateColumns: "18px 1fr", gap: 8, alignItems: "start", border: "1px solid rgba(248,113,113,0.28)", background: "rgba(127,29,29,0.16)", borderRadius: 8, padding: 10, color: "#fecaca", fontSize: 12, lineHeight: 1.5 }}>
+ <input type="checkbox" checked={webhookDisclaimerAccepted} onChange={(event) => setWebhookDisclaimerAccepted(event.target.checked)} style={{ marginTop: 3 }} />
+ <span>U bent zelf verantwoordelijk voor de beveiliging van dit eindpunt. SynqLayer is niet aansprakelijk voor wat er met de doorgestuurde data gebeurt nadat deze uw eigen systeem bereikt.</span>
+ </label>
+ <button className="btn btn-primary" type="submit" disabled={!webhookDisclaimerAccepted} style={{ opacity: webhookDisclaimerAccepted ? 1 : 0.55, cursor: webhookDisclaimerAccepted ? "pointer" : "not-allowed" }}>Webhook opslaan</button>
  </form>
  <div style={{ color: "#94a3b8", fontSize: 12, lineHeight: 1.5 }}>Warning/critical monitoring-events worden als JSON POST verzonden naar deze URL.</div>
  <div style={{ border: "1px solid rgba(148,163,184,0.12)", background: "rgba(2,6,23,0.32)", borderRadius: 8, padding: 12 }}>

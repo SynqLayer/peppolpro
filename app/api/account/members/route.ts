@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
  }
  const { data, error } = await supabase
  .from("account_members")
- .insert({ account_owner_id: user.id, invite_email, role })
+ .insert({ account_owner_id: user.id, invite_email, role, status: "pending" })
  .select("id, account_owner_id, member_user_id, invite_email, role, invited_at, accepted_at")
  .single();
  if (error) return NextResponse.json({ error: "Uitnodiging kon niet worden vastgelegd" }, { status: 500 });
@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest) {
  if (!id) return NextResponse.json({ error: "Invite-id ontbreekt" }, { status: 400 });
  const { data, error } = await supabase
  .from("account_members")
- .update({ member_user_id: user.id, accepted_at: new Date().toISOString() })
+ .update({ member_user_id: user.id, accepted_at: new Date().toISOString(), status: "accepted" })
  .eq("id", id)
  .is("accepted_at", null)
  .select("id, account_owner_id, member_user_id, invite_email, role, invited_at, accepted_at")

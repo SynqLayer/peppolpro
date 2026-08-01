@@ -12,6 +12,12 @@ const migration0005 = readFileSync(new URL('../supabase/migrations/0005_monitori
 const reportRoute = readFileSync(new URL('../app/api/monitoring/report/[targetId]/route.ts', import.meta.url), 'utf8');
 const webhookRoute = readFileSync(new URL('../app/api/monitoring/webhook-config/route.ts', import.meta.url), 'utf8');
 const workflow = readFileSync(new URL('../.github/workflows/monitoring-cron.yml', import.meta.url), 'utf8');
+const migration0006 = readFileSync(new URL('../supabase/migrations/0006_retention_cleanup.sql', import.meta.url), 'utf8');
+const cleanupRoute = readFileSync(new URL('../app/api/cron/retention-cleanup/route.ts', import.meta.url), 'utf8');
+const reportLib = readFileSync(new URL('../lib/monitoring-report-pdf.ts', import.meta.url), 'utf8');
+const memberDeleteRoute = readFileSync(new URL('../app/api/account/members/[memberId]/route.ts', import.meta.url), 'utf8');
+const dashboard = readFileSync(new URL('../app/dashboard/DashboardClient.tsx', import.meta.url), 'utf8');
+const privacyPage = readFileSync(new URL('../app/privacy/page.tsx', import.meta.url), 'utf8');
 
 test('monitoring tiers are configured with limits and frequencies', () => {
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
@@ -73,4 +79,54 @@ test('webhook and team migration creates secure integration tables and shared ta
 test('webhook config route validates https webhook URLs', () => {
  assert.match(webhookRoute, /normalizeWebhookUrl/);
  assert.match(webhookRoute, /monitoring_webhook_configs/);
+});
+
+test('retention cleanup deletes old monitoring events and expires pending invites without retaining email PII', () => {
+ assert.match(migration0006, /monitoring-events.*12 months|12 maanden|Monitoring event history is retained for 12 months/is);
+ assert.match(migration0006, /alter table public\.account_members[\s\S]*status text/);
+ assert.match(migration0006, /alter table public\.account_members[\s\S]*invite_email drop not null/);
+ assert.match(cleanupRoute, /from\("monitoring_events"\)[\s\S]*\.delete\(\{ count: "exact" \}\)[\s\S]*\.lt\("created_at", eventCutoff\)/);
+ assert.match(cleanupRoute, /from\("account_members"\)[\s\S]*status: "expired", invite_email: null/);
+ assert.match(cleanupRoute, /Bearer \$\{secret\}/);
+});
+
+test('workflow runs monitoring hourly and retention cleanup as a separate daily step', () => {
+ assert.match(workflow, /cron:\s*"0 \* \* \* \*"/);
+ assert.match(workflow, /api\/cron\/monitoring-check/);
+ assert.match(workflow, /Daily retention cleanup/);
+ assert.match(workflow, /api\/cron\/retention-cleanup/);
+ assert.match(workflow, /date -u \+%H/);
+ assert.match(workflow, /secrets\.CRON_SECRET/);
+});
+
+test('PDF report is generated as a response only without server-side storage or cache', () => {
+ const combined = `${reportRoute}\n${reportLib}`;
+ assert.match(reportRoute, /new NextResponse\(pdf/);
+ assert.match(reportRoute, /"Cache-Control": "no-store"/);
+ assert.doesNotMatch(combined, /writeFile|createWriteStream|\.from\("storage"\)|supabase\.storage|revalidate|unstable_cache|cacheTag/);
+});
+
+test('webhook UI requires active disclaimer confirmation before saving', () => {
+ assert.match(dashboard, /U bent zelf verantwoordelijk voor de beveiliging van dit eindpunt/);
+ assert.match(dashboard, /webhookDisclaimerAccepted/);
+ assert.match(dashboard, /disabled=\{!webhookDisclaimerAccepted\}/);
+ assert.match(dashboard, /disclaimer_accepted: webhookDisclaimerAccepted/);
+ assert.match(webhookRoute, /disclaimer_accepted/);
+ assert.match(webhookRoute, /Bevestig eerst de webhook-disclaimer/);
+});
+
+test('team member delete route removes membership and RLS access depends on accepted row presence', () => {
+ assert.match(memberDeleteRoute, /export async function DELETE/);
+ assert.match(memberDeleteRoute, /isOwner/);
+ assert.match(memberDeleteRoute, /isSelf/);
+ assert.match(memberDeleteRoute, /from\("account_members"\)[\s\S]*\.delete\(\)/);
+ assert.match(memberDeleteRoute, /accessRevoked: true/);
+ assert.match(migration0006, /am\.status = 'accepted'/);
+ assert.match(migration0006, /exists \([\s\S]*from public\.account_members am[\s\S]*am\.member_user_id = auth\.uid\(\)/);
+});
+
+test('privacy page documents monitoring retention, team invite expiry and webhook forwarding', () => {
+ assert.match(privacyPage, /Monitoring-events.*maximaal 12 maanden/);
+ assert.match(privacyPage, /Team-uitnodigingen.*maximaal 30 dagen/);
+ assert.match(privacyPage, /webhook-URL instelt[\s\S]*op jouw verzoek/);
 });

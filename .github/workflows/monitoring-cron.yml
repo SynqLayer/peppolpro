@@ -16,3 +16,15 @@ jobs:
             --header "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             --header "Content-Type: application/json" \
             https://peppolpro.nl/api/cron/monitoring-check
+      - name: Daily retention cleanup
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 * * * *'
+        run: |
+          if [ "$(date -u +%H)" = "02" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            curl --fail --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              --header "Content-Type: application/json" \
+              https://peppolpro.nl/api/cron/retention-cleanup
+          else
+            echo "Retention cleanup skipped; runs daily at 02:00 UTC."
+          fi
