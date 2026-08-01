@@ -35,9 +35,25 @@ export async function POST(req: NextRequest) {
  .lt("invited_at", inviteCutoff);
  if (inviteError) return NextResponse.json({ error: "Team-invites cleanup mislukt" }, { status: 500 });
 
+ const { data: endedSubscriptions, error: subscriptionError } = await supabase
+ .from("subscriptions")
+ .select("user_id")
+ .eq("cancel_at_period_end", true)
+ .eq("subscription_status", "active")
+ .lt("current_period_end", new Date().toISOString());
+ if (subscriptionError) return NextResponse.json({ error: "Abonnement-cleanup mislukt" }, { status: 500 });
+ const endedUserIds = (endedSubscriptions || []).map((subscription) => subscription.user_id).filter(Boolean);
+ if (endedUserIds.length > 0) {
+ const { error: profileError } = await supabase.from("user_profiles").update({ plan: "free" }).in("id", endedUserIds);
+ if (profileError) return NextResponse.json({ error: "Plan-cleanup mislukt" }, { status: 500 });
+ const { error: subUpdateError } = await supabase.from("subscriptions").update({ subscription_status: "expired", updated_at: new Date().toISOString() }).in("user_id", endedUserIds);
+ if (subUpdateError) return NextResponse.json({ error: "Subscription-status cleanup mislukt" }, { status: 500 });
+ }
+
  return NextResponse.json({
  deletedMonitoringEvents: deletedMonitoringEvents || 0,
  expiredInvites: expiredInvites || 0,
+ endedSubscriptions: endedUserIds.length,
  retention: {
  monitoringEvents: "12 maanden",
  pendingInvites: "30 dagen",

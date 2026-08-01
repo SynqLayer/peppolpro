@@ -88,6 +88,14 @@ export type ApiKeyRecord = {
  revoked_at?: string | null;
 };
 
+export type SubscriptionState = {
+ id?: string | null;
+ subscription_status?: string | null;
+ current_period_end?: string | null;
+ cancel_at_period_end?: boolean | null;
+ canceled_at?: string | null;
+};
+
 type Task = {
  title: string;
  detail: string;
@@ -215,6 +223,7 @@ export default function DashboardClient({
  teamMembers,
  webhookConfig,
  apiKeys,
+ subscription,
 }: {
  user: { id: string; email: string };
  profile: Profile | null;
@@ -226,6 +235,7 @@ export default function DashboardClient({
  teamMembers: TeamMember[];
  webhookConfig: WebhookConfig | null;
  apiKeys: ApiKeyRecord[];
+ subscription: SubscriptionState | null;
 }) {
  const [query, setQuery] = useState("");
  const [filter, setFilter] = useState("all");
@@ -325,6 +335,17 @@ export default function DashboardClient({
  const data = await res.json().catch(() => ({}));
  setOpsStatus(res.ok ? "Webhook opgeslagen." : data.error || "Webhook opslaan mislukt");
  }
+
+ async function handleSubscriptionCancel() {
+ if (!window.confirm("Weet je zeker dat je het Monitoring-abonnement wilt opzeggen? Toegang blijft actief tot het einde van de huidige periode.")) return;
+ setOpsStatus("Abonnement opzeggen...");
+ const res = await fetch("/api/subscription/cancel", { method: "POST" });
+ const data = await res.json().catch(() => ({}));
+ setOpsStatus(res.ok ? `Opgezegd. Actief tot ${formatDate(data.current_period_end || subscription?.current_period_end)}.` : data.error || "Opzegging mislukt");
+ }
+
+ const subscriptionCanceledAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
+ const subscriptionPeriodEndLabel = formatDate(subscription?.current_period_end);
 
  const tasks: Task[] = [];
  const threeDaysAgo = now.getTime() - 3 * 24 * 60 * 60 * 1000;
@@ -602,6 +623,14 @@ export default function DashboardClient({
  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Monitoring</h2>
  <span style={{ color: "#64748b", fontSize: 12, fontWeight: 900 }}>{isMonitoringAccountant ? "Dagelijks · onbeperkt" : isMonitoring ? "Wekelijks · max 10" : "Upgrade nodig"}</span>
  </div>
+ {isMonitoring && (
+ <div style={{ border: "1px solid rgba(148,163,184,0.12)", background: subscriptionCanceledAtPeriodEnd ? "rgba(245,158,11,0.10)" : "rgba(16,185,129,0.08)", borderRadius: 8, padding: 10, marginBottom: 12, color: subscriptionCanceledAtPeriodEnd ? "#fbbf24" : "#86efac", fontSize: 12, lineHeight: 1.45 }}>
+ {subscriptionCanceledAtPeriodEnd ? `Opgezegd, actief tot ${subscriptionPeriodEndLabel}.` : `Abonnement actief tot ${subscriptionPeriodEndLabel}.`}
+ {!subscriptionCanceledAtPeriodEnd && subscription?.id && (
+ <button type="button" onClick={handleSubscriptionCancel} className="action-link" style={{ display: "block", background: "transparent", border: 0, padding: 0, marginTop: 8, cursor: "pointer" }}>Abonnement opzeggen</button>
+ )}
+ </div>
+ )}
  {!isMonitoring ? (
  <div>
  <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Bewaking van Peppol-registraties en signalen is beschikbaar in het Monitoring-plan.</p>

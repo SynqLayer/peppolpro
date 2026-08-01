@@ -1,7 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { redirect } from "next/navigation";
-import DashboardClient, { ApiKeyRecord, Conversion, InboxMessage, MonitoringEvent, MonitoringTarget, Profile, TeamMember, WebhookConfig } from "./DashboardClient";
+import DashboardClient, { ApiKeyRecord, Conversion, InboxMessage, MonitoringEvent, MonitoringTarget, Profile, SubscriptionState, TeamMember, WebhookConfig } from "./DashboardClient";
 
 export default async function DashboardPage({
  searchParams,
@@ -72,6 +72,12 @@ export default async function DashboardPage({
  .order("created_at", { ascending: false })
  .limit(10);
 
+ const { data: subscriptionData } = await supabase
+ .from("subscriptions")
+ .select("id, subscription_status, current_period_end, cancel_at_period_end, canceled_at")
+ .eq("user_id", user.id)
+ .maybeSingle();
+
  const effectiveProfile = monitoringAccess.ok && profile ? { ...profile, plan: monitoringAccess.entitlement.plan.id } : profile;
 
  return (
@@ -85,6 +91,7 @@ export default async function DashboardPage({
  teamMembers={(teamMembersData || []) as TeamMember[]}
  webhookConfig={(webhookConfigData || null) as WebhookConfig | null}
  apiKeys={(apiKeysData || []) as ApiKeyRecord[]}
+ subscription={(subscriptionData || null) as SubscriptionState | null}
  paid={params.betaald === "1"}
  />
  );

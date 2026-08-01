@@ -24,6 +24,12 @@ const mollieWebhookRoute = readFileSync(new URL('../app/api/mollie/webhook/route
 const monitoringAccess = readFileSync(new URL('../lib/monitoring-access.ts', import.meta.url), 'utf8');
 const migration0007 = readFileSync(new URL('../supabase/migrations/0007_mollie_subscriptions.sql', import.meta.url), 'utf8');
 const dashboardPage = readFileSync(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
+const migration0008 = readFileSync(new URL('../supabase/migrations/0008_billing_invoices_webhook_events.sql', import.meta.url), 'utf8');
+const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
+const invoicePdfLib = readFileSync(new URL('../lib/invoice-pdf.ts', import.meta.url), 'utf8');
+const invoiceRoute = readFileSync(new URL('../app/api/invoices/[invoiceId]/route.ts', import.meta.url), 'utf8');
+const cancelSubscriptionRoute = readFileSync(new URL('../app/api/subscription/cancel/route.ts', import.meta.url), 'utf8');
+const retentionCleanupRoute = readFileSync(new URL('../app/api/cron/retention-cleanup/route.ts', import.meta.url), 'utf8');
 
 test('monitoring tiers are configured with limits and frequencies', () => {
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
@@ -178,4 +184,58 @@ test('central monitoring entitlement requires active subscription and unexpired 
  assert.match(monitoringAccess, /resolveAccountOwnerId/);
  assert.match(dashboardPage, /assertMonitoringAccess\(user\.id\)/);
  assert.match(dashboardPage, /monitoringOwnerId \? \(await supabase/);
+});
+
+
+test('billing migration adds invoice numbering, credit invoices and webhook event idempotency', () => {
+ assert.match(migration0008, /invoice_number_sequences/);
+ assert.match(migration0008, /next_billing_invoice_number/);
+ assert.match(migration0008, /invoice_kind in \('sales','subscription','credit'\)/);
+ assert.match(migration0008, /original_invoice_number text/);
+ assert.match(migration0008, /create table if not exists public\.webhook_events/);
+ assert.match(migration0008, /event_key text not null unique/);
+ assert.match(migration0008, /status text not null default 'processing' check \(status in \('processing','processed','failed'\)\)/);
+});
+
+test('paid subscription payments create invoices and refunds create separate credit invoices', () => {
+ assert.match(billingLib, /export async function ensurePaymentInvoice/);
+ assert.match(billingLib, /invoice_kind: "subscription"/);
+ assert.match(billingLib, /next_billing_invoice_number/);
+ assert.match(billingLib, /export async function ensureCreditInvoice/);
+ assert.match(billingLib, /invoice_kind: "credit"/);
+ assert.match(billingLib, /original_invoice_number/);
+ assert.match(mollieWebhookRoute, /ensurePaymentInvoice/);
+ assert.match(mollieWebhookRoute, /ensureCreditInvoice/);
+});
+
+test('invoice route downloads only own on-the-fly PDFs without server-side cache', () => {
+ assert.match(invoiceRoute, /export async function GET/);
+ assert.match(invoiceRoute, /eq\("user_id", user\.id\)/);
+ assert.match(invoiceRoute, /generateBillingInvoicePdf/);
+ assert.match(invoiceRoute, /Content-Type": "application\/pdf"/);
+ assert.match(invoiceRoute, /"Cache-Control": "no-store"/);
+ assert.match(invoicePdfLib, /PDFDocument\.create/);
+ assert.doesNotMatch(`${invoiceRoute}\n${invoicePdfLib}`, /writeFile|createWriteStream|supabase\.storage|\.from\("storage"\)/);
+});
+
+test('mollie webhook records idempotency events and failed handler errors durably', () => {
+ assert.match(mollieWebhookRoute, /startWebhook/);
+ assert.match(mollieWebhookRoute, /eventKey = `\$\{payment\.id\}:\$\{payment\.status\}`/);
+ assert.match(mollieWebhookRoute, /duplicate: true/);
+ assert.match(mollieWebhookRoute, /markWebhook\(supabase, eventKey, "processed"\)/);
+ assert.match(mollieWebhookRoute, /markWebhook\(supabase, eventKey, "failed", message\)/);
+ assert.match(mollieWebhookRoute, /failed_preprocess/);
+});
+
+test('subscription cancel route cancels at Mollie but keeps access until period end', () => {
+ assert.match(cancelSubscriptionRoute, /export async function POST/);
+ assert.match(cancelSubscriptionRoute, /cancelSubscription\(subscription\.mollie_customer_id, subscription\.mollie_subscription_id\)/);
+ assert.match(cancelSubscriptionRoute, /cancel_at_period_end: true/);
+ assert.doesNotMatch(cancelSubscriptionRoute, /plan: "free"/);
+ assert.match(dashboard, /Opgezegd, actief tot/);
+ assert.match(dashboard, /handleSubscriptionCancel/);
+ assert.match(dashboardPage, /select\("id, subscription_status, current_period_end, cancel_at_period_end, canceled_at"\)/);
+ assert.match(retentionCleanupRoute, /cancel_at_period_end/);
+ assert.match(retentionCleanupRoute, /subscription_status: "expired"/);
+ assert.match(retentionCleanupRoute, /update\(\{ plan: "free" \}\)/);
 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { cancelSubscription, createSubscription, getPayment, getSubscription, MolliePayment } from "@/lib/mollie";
+import { ensureCreditInvoice, ensurePaymentInvoice } from "@/lib/billing";
+import { cancelSubscription, createSubscription, getPayment, getSubscription, MolliePayment, MollieSubscription } from "@/lib/mollie";
 import { getPlan, isMonitoringPlan } from "@/lib/plans";
 
 const GRACE_DAYS = 7;
@@ -23,6 +24,11 @@ function addDays(date: Date, days: number) {
  return copy;
 }
 
+function periodEndFromSubscription(subscription?: MollieSubscription | null) {
+ if (subscription?.nextPaymentDate) return new Date(subscription.nextPaymentDate).toISOString();
+ return addMonths(new Date(), 1).toISOString();
+}
+
 function paymentType(payment: MolliePayment) {
  if (payment.status === "refunded") return "refund";
  if (payment.status === "charged_back") return "chargeback";
@@ -32,7 +38,24 @@ function paymentType(payment: MolliePayment) {
 
 async function setFree(supabase: ReturnType<typeof createAdminClient>, userId: string, subscriptionStatus: "canceled" | "suspended" | "expired") {
  await supabase.from("user_profiles").update({ plan: "free" }).eq("id", userId);
- await supabase.from("subscriptions").update({ subscription_status: subscriptionStatus, updated_at: new Date().toISOString() }).eq("user_id", userId);
+ await supabase.from("subscriptions").update({ subscription_status: subscriptionStatus, cancel_at_period_end: false, updated_at: new Date().toISOString() }).eq("user_id", userId);
+}
+
+async function markWebhook(supabase: ReturnType<typeof createAdminClient>, eventKey: string, status: "processed" | "failed", errorMessage?: string) {
+ await supabase.from("webhook_events").update({ status, error_message: errorMessage || null, processed_at: new Date().toISOString() }).eq("event_key", eventKey);
+}
+
+async function startWebhook(supabase: ReturnType<typeof createAdminClient>, payment: MolliePayment) {
+ const eventKey = `${payment.id}:${payment.status}`;
+ const { data, error } = await supabase
+ .from("webhook_events")
+ .insert({ event_key: eventKey, mollie_payment_id: payment.id, payment_status: payment.status, status: "processing" })
+ .select("event_key")
+ .maybeSingle();
+ if (error?.code === "23505") return { eventKey, duplicate: true };
+ if (error) throw error;
+ if (!data) return { eventKey, duplicate: true };
+ return { eventKey, duplicate: false };
 }
 
 async function cancelKnownSubscription(supabase: ReturnType<typeof createAdminClient>, userId: string) {
@@ -64,10 +87,10 @@ async function ensureRecurringSubscription({
  if (!customerId || !isMonitoringPlan(planConfig.id)) return null;
  const { data: existing } = await supabase
  .from("subscriptions")
- .select("mollie_subscription_id, current_period_end")
+ .select("id, mollie_subscription_id, current_period_end")
  .eq("user_id", userId)
  .maybeSingle();
- if (existing?.mollie_subscription_id) return existing.mollie_subscription_id as string;
+ if (existing?.mollie_subscription_id) return existing;
  const firstPeriodEnd = addMonths(new Date(), 1);
  const subscription = await createSubscription({
  customerId,
@@ -78,41 +101,52 @@ async function ensureRecurringSubscription({
  startDate: firstPeriodEnd.toISOString().slice(0, 10),
  metadata: { user_id: userId, plan: planConfig.id },
  });
- await supabase.from("subscriptions").upsert({
+ const { data: row, error } = await supabase.from("subscriptions").upsert({
  user_id: userId,
  plan: planConfig.id,
  mollie_customer_id: customerId,
  mollie_subscription_id: subscription.id,
  mollie_mandate_id: payment.mandateId || subscription.mandateId || null,
  current_period_start: new Date().toISOString(),
- current_period_end: firstPeriodEnd.toISOString(),
- subscription_status: subscription.status === "active" ? "active" : "active",
+ current_period_end: periodEndFromSubscription(subscription),
+ subscription_status: subscription.status === "canceled" || subscription.status === "suspended" ? subscription.status : "active",
+ cancel_at_period_end: false,
  last_payment_id: payment.id,
  last_webhook_status: payment.status,
  updated_at: new Date().toISOString(),
- }, { onConflict: "user_id" });
- return subscription.id;
+ }, { onConflict: "user_id" }).select("id, user_id, plan, mollie_subscription_id").single();
+ if (error) throw error;
+ return row;
 }
 
 export async function POST(req: NextRequest) {
+ const supabase = createAdminClient();
+ let eventKey: string | null = null;
+ let paymentId: string | null = null;
  try {
  const body = await req.formData();
- const paymentId = body.get("id") as string | null;
+ paymentId = body.get("id") as string | null;
  if (!paymentId) return NextResponse.json({ ok: false }, { status: 400 });
 
  const payment = await getPayment(paymentId);
- const supabase = createAdminClient();
+ const event = await startWebhook(supabase, payment);
+ eventKey = event.eventKey;
+ if (event.duplicate) return NextResponse.json({ ok: true, duplicate: true });
+
  const { data: existingPayment } = await supabase
  .from("payments")
- .select("status, mollie_subscription_id")
+ .select("id, status, mollie_subscription_id")
  .eq("mollie_payment_id", paymentId)
  .maybeSingle();
  const { user_id: metadataUserId, plan: metadataPlan } = payment.metadata || {};
  const userId = metadataUserId;
  const planConfig = getPlan(metadataPlan);
- if (!userId || !planConfig.paid) return NextResponse.json({ ok: false }, { status: 400 });
+ if (!userId || !planConfig.paid) {
+ await markWebhook(supabase, eventKey, "failed", "Ontbrekende user_id of betaald plan in Mollie metadata");
+ return NextResponse.json({ ok: false }, { status: 400 });
+ }
 
- await supabase.from("payments").upsert({
+ const { data: paymentRow, error: paymentError } = await supabase.from("payments").upsert({
  user_id: userId,
  type: paymentType(payment),
  mollie_payment_id: payment.id,
@@ -125,23 +159,30 @@ export async function POST(req: NextRequest) {
  sequence_type: payment.sequenceType || (payment.subscriptionId ? "recurring" : "first"),
  plan: planConfig.id,
  metadata: payment.metadata || null,
- }, { onConflict: "mollie_payment_id" });
-
- if (existingPayment?.status === payment.status && existingPayment?.mollie_subscription_id && payment.status === "paid") {
- return NextResponse.json({ ok: true, duplicate: true });
- }
+ }, { onConflict: "mollie_payment_id" }).select("id, user_id, amount, mollie_payment_id, mollie_subscription_id, plan, status").single();
+ if (paymentError) throw paymentError;
 
  if (payment.status === "refunded" || payment.status === "charged_back") {
+ const { data: subscription } = await supabase.from("subscriptions").select("id, user_id, plan").eq("user_id", userId).maybeSingle();
+ await ensureCreditInvoice({ supabase, payment, paymentRow, subscription });
  await cancelKnownSubscription(supabase, userId);
  await setFree(supabase, userId, "canceled");
+ await markWebhook(supabase, eventKey, "processed");
  return NextResponse.json({ ok: true });
  }
 
+ let mollieSubscription: MollieSubscription | null = null;
  if (payment.subscriptionId && payment.customerId) {
  try {
- const subscription = await getSubscription(payment.customerId, payment.subscriptionId);
- if (subscription.status === "canceled" || subscription.status === "suspended") {
- await setFree(supabase, userId, subscription.status);
+ mollieSubscription = await getSubscription(payment.customerId, payment.subscriptionId);
+ if (mollieSubscription.status === "canceled" || mollieSubscription.status === "suspended") {
+ const { data: localSub } = await supabase.from("subscriptions").select("cancel_at_period_end").eq("user_id", userId).maybeSingle();
+ if (mollieSubscription.status === "canceled" && localSub?.cancel_at_period_end) {
+ await supabase.from("subscriptions").update({ last_payment_id: payment.id, last_webhook_status: payment.status, updated_at: new Date().toISOString() }).eq("user_id", userId);
+ } else {
+ await setFree(supabase, userId, mollieSubscription.status);
+ }
+ await markWebhook(supabase, eventKey, "processed");
  return NextResponse.json({ ok: true });
  }
  } catch (err) {
@@ -151,22 +192,31 @@ export async function POST(req: NextRequest) {
 
  if (payment.status === "paid") {
  await supabase.from("user_profiles").update({ plan: planConfig.id }).eq("id", userId);
- if (!isMonitoringPlan(planConfig.id)) return NextResponse.json({ ok: true });
- const subscriptionId = payment.subscriptionId || await ensureRecurringSubscription({ supabase, payment, userId, plan: planConfig.id, baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://peppolpro.nl" });
- const periodEnd = addMonths(new Date(), 1).toISOString();
- await supabase.from("subscriptions").upsert({
+ if (!isMonitoringPlan(planConfig.id)) {
+ await markWebhook(supabase, eventKey, "processed");
+ return NextResponse.json({ ok: true });
+ }
+ const ensured = payment.subscriptionId
+ ? null
+ : await ensureRecurringSubscription({ supabase, payment, userId, plan: planConfig.id, baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://peppolpro.nl" });
+ const periodEnd = periodEndFromSubscription(mollieSubscription);
+ const { data: subscription, error: subError } = await supabase.from("subscriptions").upsert({
  user_id: userId,
  plan: planConfig.id,
  mollie_customer_id: payment.customerId || null,
- mollie_subscription_id: subscriptionId || payment.subscriptionId || null,
- mollie_mandate_id: payment.mandateId || null,
+ mollie_subscription_id: payment.subscriptionId || ensured?.mollie_subscription_id || null,
+ mollie_mandate_id: payment.mandateId || mollieSubscription?.mandateId || null,
  current_period_start: new Date().toISOString(),
  current_period_end: periodEnd,
  subscription_status: "active",
+ cancel_at_period_end: false,
  last_payment_id: payment.id,
  last_webhook_status: payment.status,
  updated_at: new Date().toISOString(),
- }, { onConflict: "user_id" });
+ }, { onConflict: "user_id" }).select("id, user_id, plan, mollie_subscription_id").single();
+ if (subError) throw subError;
+ await ensurePaymentInvoice({ supabase, payment, paymentRow, subscription });
+ await markWebhook(supabase, eventKey, "processed");
  return NextResponse.json({ ok: true });
  }
 
@@ -178,12 +228,20 @@ export async function POST(req: NextRequest) {
  last_webhook_status: payment.status,
  updated_at: new Date().toISOString(),
  }).eq("user_id", userId);
+ await markWebhook(supabase, eventKey, "processed");
  return NextResponse.json({ ok: true });
  }
 
+ await markWebhook(supabase, eventKey, "processed");
  return NextResponse.json({ ok: true });
  } catch (err) {
+ const message = err instanceof Error ? err.message : "Onbekende webhook fout";
  console.error("Mollie webhook error:", err);
+ if (eventKey) {
+ await markWebhook(supabase, eventKey, "failed", message);
+ } else if (paymentId) {
+ await supabase.from("webhook_events").upsert({ event_key: `${paymentId}:failed_preprocess`, mollie_payment_id: paymentId, status: "failed", error_message: message, processed_at: new Date().toISOString() }, { onConflict: "event_key" });
+ }
  return NextResponse.json({ error: "Webhook fout" }, { status: 500 });
  }
 }
