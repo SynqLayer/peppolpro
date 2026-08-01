@@ -1,6 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
-import DashboardClient, { Conversion, InboxMessage, Profile } from "./DashboardClient";
+import DashboardClient, { Conversion, InboxMessage, MonitoringEvent, MonitoringTarget, Profile } from "./DashboardClient";
 
 export default async function DashboardPage({
  searchParams,
@@ -33,12 +33,28 @@ export default async function DashboardPage({
  .order("received_at", { ascending: false })
  .limit(5);
 
+ const { data: monitoringTargetsData } = await supabase
+ .from("monitoring_targets")
+ .select("id, identifier_type, identifier_value, label, status, last_checked_at, created_at")
+ .eq("user_id", user.id)
+ .order("created_at", { ascending: false })
+ .limit(10);
+
+ const { data: monitoringEventsData } = await supabase
+ .from("monitoring_events")
+ .select("id, event_type, severity, payload, created_at, monitoring_targets(label, identifier_value)")
+ .eq("user_id", user.id)
+ .order("created_at", { ascending: false })
+ .limit(5);
+
  return (
  <DashboardClient
  user={{ id: user.id, email: user.email || "" }}
  profile={profile}
  conversions={(conversionsData || []) as Conversion[]}
  inbox={(inboxData || []) as InboxMessage[]}
+ monitoringTargets={(monitoringTargetsData || []) as MonitoringTarget[]}
+ monitoringEvents={(monitoringEventsData || []) as MonitoringEvent[]}
  paid={params.betaald === "1"}
  />
  );

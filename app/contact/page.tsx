@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "../../lib/supabase-client";
 import { C } from "../../lib/constants";
@@ -37,7 +38,7 @@ export default function ContactPage() {
  return (
  <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'Plus Jakarta Sans', sans-serif", color: C.white }}>
  <div style={{ maxWidth: 520, margin: "0 auto", padding: "100px 24px 60px" }}>
- <a href="/" style={{ fontSize: 13, color: C.dim, textDecoration: "none", marginBottom: 20, display: "block" }}>← Terug naar home</a>
+ <Link href="/" style={{ fontSize: 13, color: C.dim, textDecoration: "none", marginBottom: 20, display: "block" }}>← Terug naar home</Link>
  <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>Contact</h1>
  <p style={{ fontSize: 15, color: C.dim, marginBottom: 32 }}>Heb je een vraag of wil je samenwerken? Stuur ons een bericht.</p>
 

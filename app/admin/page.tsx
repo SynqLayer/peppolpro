@@ -51,12 +51,26 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
  .order("created_at", { ascending: false })
  .limit(20);
 
+ const { data: monitoringTargets } = await supabase
+ .from("monitoring_targets")
+ .select("id, user_id, identifier_type, identifier_value, label, status, last_checked_at, created_at")
+ .order("created_at", { ascending: false })
+ .limit(50);
+
+ const { data: monitoringEvents } = await supabase
+ .from("monitoring_events")
+ .select("id, target_id, user_id, event_type, severity, created_at")
+ .order("created_at", { ascending: false })
+ .limit(50);
+
  return (
  <AdminClient
  users={users || []}
  conversions={conversions || []}
  messages={messages || []}
  payments={payments || []}
+ monitoringTargets={monitoringTargets || []}
+ monitoringEvents={monitoringEvents || []}
  />
  );
 }

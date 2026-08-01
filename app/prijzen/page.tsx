@@ -1,3 +1,4 @@
+import Link from "next/link";
 import GlassCard from "../../components/GlassCard";
 import PlanButton from "../../components/PlanButton";
 import { C } from "../../lib/constants";
@@ -84,7 +85,7 @@ export default function PrijzenPage() {
  }
  `}</style>
  <div style={{ maxWidth: 1180, margin: "0 auto", padding: "92px 24px 64px" }}>
- <a href="/" style={{ fontSize: 13, color: C.dim, textDecoration: "none", marginBottom: 24, display: "inline-block" }}>← Terug naar home</a>
+ <Link href="/" style={{ fontSize: 13, color: C.dim, textDecoration: "none", marginBottom: 24, display: "inline-block" }}>← Terug naar home</Link>
 
  <div style={{ maxWidth: 760, marginBottom: 38 }}>
  <h1 style={{ fontSize: 44, fontWeight: 800, marginBottom: 12, letterSpacing: 0 }}>Prijzen</h1>
@@ -132,7 +133,7 @@ export default function PrijzenPage() {
  }}
  />
  ) : (
- <a href={plan.href} style={{
+ <Link href={plan.href} style={{
  display: "block",
  textAlign: "center",
  textDecoration: "none",
@@ -145,7 +146,7 @@ export default function PrijzenPage() {
  borderRadius: 10,
  }}>
  {plan.cta}
- </a>
+ </Link>
  )}
  </div>
  </GlassCard>

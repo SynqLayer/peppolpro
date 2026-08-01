@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowUpRight, CheckCircle2, FilePlus2, Filter, Inbox, Search, Send, XCircle } from "lucide-react";
+import { ArrowUpRight, BellRing, CheckCircle2, FilePlus2, Filter, Inbox, Search, Send, XCircle } from "lucide-react";
 import { C } from "@/lib/constants";
 
 export type Profile = {
@@ -40,6 +40,28 @@ export type InboxMessage = {
  amount?: number | string | null;
  status?: string | null;
  received_at?: string | null;
+};
+
+export type MonitoringTarget = {
+ id?: string | null;
+ identifier_type?: string | null;
+ identifier_value?: string | null;
+ label?: string | null;
+ status?: string | null;
+ last_checked_at?: string | null;
+ created_at?: string | null;
+};
+
+export type MonitoringEvent = {
+ id?: string | null;
+ event_type?: string | null;
+ severity?: string | null;
+ payload?: Record<string, unknown> | null;
+ created_at?: string | null;
+ monitoring_targets?: {
+  label?: string | null;
+  identifier_value?: string | null;
+ } | null;
 };
 
 type Task = {
@@ -164,21 +186,26 @@ export default function DashboardClient({
  conversions,
  inbox,
  paid,
+ monitoringTargets,
+ monitoringEvents,
 }: {
  user: { id: string; email: string };
  profile: Profile | null;
  conversions: Conversion[];
  inbox: InboxMessage[];
  paid: boolean;
+ monitoringTargets: MonitoringTarget[];
+ monitoringEvents: MonitoringEvent[];
 }) {
  const [query, setQuery] = useState("");
  const [filter, setFilter] = useState("all");
  const [showAll, setShowAll] = useState(false);
 
  const isFree = !profile?.plan || profile.plan === "free";
+ const isMonitoring = profile?.plan === "monitoring";
  const inboxActive = !isFree;
  const hasInvoices = conversions.length > 0;
- const now = new Date();
+ const now = useMemo(() => new Date(), []);
  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
  const completeProfile = profileComplete(profile);
  const currency = conversions.find((conversion) => conversion.currency)?.currency || "EUR";
@@ -224,7 +251,7 @@ export default function DashboardClient({
  const visibleConversions = showAll ? filteredConversions : filteredConversions.slice(0, 10);
 
  const tasks: Task[] = [];
- const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+ const threeDaysAgo = now.getTime() - 3 * 24 * 60 * 60 * 1000;
  const oldDrafts = conversions.filter((conversion) => isDraft(conversion.status) && conversion.created_at && new Date(conversion.created_at).getTime() < threeDaysAgo).length;
  if (oldDrafts > 0) tasks.push({ title: `${oldDrafts} concept${oldDrafts === 1 ? "" : "en"} ouder dan 3 dagen`, detail: "Rond deze facturen af of verwijder ze uit je workflow.", href: "/nieuw", tone: "amber" });
  if (failedCount > 0) tasks.push({ title: `${failedCount} verzending${failedCount === 1 ? "" : "en"} mislukt`, detail: "Controleer de gegevens en verstuur opnieuw.", href: "/convert", tone: "red" });
@@ -485,6 +512,42 @@ export default function DashboardClient({
  </div>
  );
  })}
+ </div>
+ )}
+ </section>
+
+ <section style={{ ...cardStyle, padding: 18 }}>
+ <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+ <span style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(59,130,246,0.12)", color: "#93c5fd", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><BellRing size={16} /></span>
+ <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Monitoring</h2>
+ </div>
+ {!isMonitoring ? (
+ <div>
+ <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Bewaking van Peppol-registraties en signalen is beschikbaar in het Monitoring-plan.</p>
+ <Link href="/upgrade" className="btn btn-primary">Monitoring instellen</Link>
+ </div>
+ ) : monitoringTargets.length === 0 ? (
+ <div>
+ <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Monitoring is actief. Voeg je eerste target toe om checks te starten.</p>
+ <Link href="/upgrade" className="btn btn-primary">Monitoring instellen</Link>
+ </div>
+ ) : (
+ <div style={{ display: "grid", gap: 13 }}>
+ <div style={{ color: "#94a3b8", fontSize: 13 }}>{monitoringTargets.length} actieve target{monitoringTargets.length === 1 ? "" : "s"}</div>
+ {monitoringTargets.slice(0, 4).map((target, index) => (
+ <div key={target.id || index} style={{ border: "1px solid rgba(148,163,184,0.12)", background: "rgba(2,6,23,0.32)", borderRadius: 8, padding: 12 }}>
+ <div style={{ display: "flex", justifyContent: "space-between", gap: 10, color: "#f8fafc", fontSize: 13, fontWeight: 900 }}>
+ <span>{target.label || target.identifier_value || "Monitoring target"}</span>
+ <span style={{ color: target.status === "error" ? "#f87171" : "#34d399" }}>{target.status || "active"}</span>
+ </div>
+ <div style={{ color: "#64748b", fontSize: 12, marginTop: 5 }}>Laatste check: {formatDate(target.last_checked_at)}</div>
+ </div>
+ ))}
+ {monitoringEvents.slice(0, 3).map((event, index) => (
+ <div key={event.id || index} style={{ borderLeft: `3px solid ${event.severity === "critical" ? "#ef4444" : event.severity === "warning" ? "#f59e0b" : "#38bdf8"}`, paddingLeft: 10, color: "#cbd5e1", fontSize: 12 }}>
+ {(event.monitoring_targets?.label || event.monitoring_targets?.identifier_value || "Target")} · {event.event_type || "event"} · {formatDate(event.created_at)}
+ </div>
+ ))}
  </div>
  )}
  </section>

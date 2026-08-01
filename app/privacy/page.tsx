@@ -1,4 +1,4 @@
-import { C } from "../../lib/constants";
+import Link from "next/link";
 
 export default function PrivacyPage() {
  const h2 = { fontSize: 20, fontWeight: 700 as const, marginTop: 32, marginBottom: 12, color: "#f8fafc" };
@@ -7,7 +7,7 @@ export default function PrivacyPage() {
  return (
  <div style={{ background: "#020617", minHeight: "100vh", fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#f8fafc" }}>
  <div style={{ maxWidth: 700, margin: "0 auto", padding: "100px 24px 60px" }}>
- <a href="/" style={{ fontSize: 13, color: "#475569", textDecoration: "none", marginBottom: 20, display: "block" }}>← Terug naar home</a>
+ <Link href="/" style={{ fontSize: 13, color: "#475569", textDecoration: "none", marginBottom: 20, display: "block" }}>← Terug naar home</Link>
  <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>Privacyverklaring</h1>
  <p style={{ fontSize: 13, color: "#475569", marginBottom: 32 }}>Laatst bijgewerkt: april 2026</p>
 

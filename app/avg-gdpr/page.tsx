@@ -1,4 +1,4 @@
-import { C } from "../../lib/constants";
+import Link from "next/link";
 
 export default function GDPRPage() {
  const h2 = { fontSize: 20, fontWeight: 700 as const, marginTop: 32, marginBottom: 12, color: "#f8fafc" };
@@ -7,7 +7,7 @@ export default function GDPRPage() {
  return (
  <div style={{ background: "#020617", minHeight: "100vh", fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#f8fafc" }}>
  <div style={{ maxWidth: 700, margin: "0 auto", padding: "100px 24px 60px" }}>
- <a href="/" style={{ fontSize: 13, color: "#475569", textDecoration: "none", marginBottom: 20, display: "block" }}>← Terug naar home</a>
+ <Link href="/" style={{ fontSize: 13, color: "#475569", textDecoration: "none", marginBottom: 20, display: "block" }}>← Terug naar home</Link>
  <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>AVG/GDPR Compliance</h1>
  <p style={{ fontSize: 13, color: "#475569", marginBottom: 32 }}>Laatst bijgewerkt: april 2026</p>
 
@@ -19,7 +19,7 @@ export default function GDPRPage() {
  <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Inzage in je gegevens</li>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Correctie of aanvulling</li>
- <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Verwijdering ("recht op vergetelheid")</li>
+ <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Verwijdering (&quot;recht op vergetelheid&quot;)</li>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Beperking van verwerking</li>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Dataportabiliteit</li>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Bezwaar tegen verwerking</li>

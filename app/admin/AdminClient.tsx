@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState } from "react";
 import { C } from "../../lib/constants";
@@ -7,10 +8,14 @@ interface Props {
  conversions: Array<Record<string, unknown>>;
  messages: Array<Record<string, unknown>>;
  payments: Array<Record<string, unknown>>;
+ monitoringTargets: Array<Record<string, unknown>>;
+ monitoringEvents: Array<Record<string, unknown>>;
 }
 
-export default function AdminClient({ users, conversions, messages, payments }: Props) {
- const [tab, setTab] = useState<"overview" | "users" | "conversions" | "messages" | "payments">("overview");
+type Tab = "overview" | "users" | "conversions" | "messages" | "payments" | "monitoring";
+
+export default function AdminClient({ users, conversions, messages, payments, monitoringTargets, monitoringEvents }: Props) {
+ const [tab, setTab] = useState<Tab>("overview");
 
  const card = (label: string, value: string | number, color: string) => (
  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px 20px", backdropFilter: "blur(20px)" }}>
@@ -32,6 +37,12 @@ export default function AdminClient({ users, conversions, messages, payments }: 
  const failedCount = conversions.filter(c => c.status === "failed").length;
  const paidUsers = users.filter(u => u.plan !== "free").length;
  const newMessages = messages.filter(m => m.status === "new").length;
+ const criticalAlerts = monitoringEvents.filter(event => event.severity === "critical").length;
+ const lastMonitoringCheck = monitoringTargets
+ .map(target => target.last_checked_at as string | null | undefined)
+ .filter(Boolean)
+ .sort()
+ .at(-1);
 
  return (
  <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'Plus Jakarta Sans', sans-serif", color: C.white }}>
@@ -61,6 +72,8 @@ export default function AdminClient({ users, conversions, messages, payments }: 
  {card("Geslaagd", successCount, "#10b981")}
  {card("Mislukt", failedCount, "#ef4444")}
  {card("Nieuwe berichten", newMessages, "#f59e0b")}
+ {card("Monitoring targets", monitoringTargets.length, C.blue)}
+ {card("Critical alerts", criticalAlerts, criticalAlerts > 0 ? "#ef4444" : "#10b981")}
  </div>
 
  {/* Tabs */}
@@ -70,6 +83,7 @@ export default function AdminClient({ users, conversions, messages, payments }: 
  {tabBtn("conversions", `Conversies (${conversions.length})`)}
  {tabBtn("messages", `Berichten (${newMessages})`)}
  {tabBtn("payments", `Betalingen (${payments.length})`)}
+ {tabBtn("monitoring", `Monitoring (${monitoringTargets.length})`)}
  </div>
 
  {/* Tab content */}
@@ -142,6 +156,41 @@ export default function AdminClient({ users, conversions, messages, payments }: 
  <div style={{ padding: 32, textAlign: "center" }}>
  <span style={{ fontSize: 40, display: "block", marginBottom: 12 }}>📊</span>
  <p style={{ fontSize: 15, color: C.dim }}>Selecteer een tab hierboven om gegevens te bekijken.</p>
+ {lastMonitoringCheck && <p style={{ fontSize: 13, color: C.dim }}>Laatste monitoring-check: {new Date(lastMonitoringCheck).toLocaleString("nl-NL")}</p>}
+ </div>
+ )}
+
+ {tab === "monitoring" && (
+ <div>
+ <div style={{ padding: "14px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.dim }}>
+ Targets: {monitoringTargets.length} · Critical alerts: {criticalAlerts} · Laatste check: {lastMonitoringCheck ? new Date(lastMonitoringCheck).toLocaleString("nl-NL") : "—"}
+ </div>
+ {monitoringTargets.map((t, i) => {
+ const target = t as any;
+ return (
+ <div key={target.id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
+ <div>
+ <div style={{ fontWeight: 600 }}>{target.label || target.identifier_value || "—"}</div>
+ <div style={{ color: C.dim, fontSize: 12 }}>{target.identifier_type || "—"} · {target.identifier_value || "—"}</div>
+ </div>
+ <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+ <span style={{ color: C.dim }}>{target.last_checked_at ? new Date(target.last_checked_at as string).toLocaleString("nl-NL") : "Nog niet gecheckt"}</span>
+ <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: target.status === "error" ? "rgba(239,68,68,0.1)" : "rgba(16,185,129,0.1)", color: target.status === "error" ? "#ef4444" : "#10b981" }}>
+ {target.status || "active"}
+ </span>
+ </div>
+ </div>
+ );
+ })}
+ {monitoringEvents.slice(0, 10).map((e, i) => {
+ const event = e as any;
+ return (
+ <div key={event.id || `event-${i}`} style={{ padding: "12px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
+ <div style={{ fontWeight: 600 }}>{event.event_type || "event"} · {event.severity || "info"}</div>
+ <div style={{ color: C.dim, fontSize: 12 }}>{event.created_at ? new Date(event.created_at as string).toLocaleString("nl-NL") : "—"}</div>
+ </div>
+ );
+ })}
  </div>
  )}
  </div>

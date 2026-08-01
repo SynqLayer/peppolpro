@@ -4,13 +4,13 @@ import { C } from "@/lib/constants";
 import { PLANS } from "@/lib/plans";
 
 export default function UpgradePage() {
- const plans = [PLANS.free, PLANS.compleet];
+ const plans = [PLANS.free, PLANS.compleet, PLANS.monitoring];
 
  return (
  <main style={{ minHeight: "100vh", background: `radial-gradient(circle at 30% 0%, rgba(59,130,246,0.12), transparent 32%), ${C.bg}`, color: C.white, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
  <style>{`
- .upgrade-shell { max-width: 980px; margin: 0 auto; padding: 42px 20px 72px; }
- .plan-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+ .upgrade-shell { max-width: 1120px; margin: 0 auto; padding: 42px 20px 72px; }
+ .plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
  .plan-card { border-radius: 8px; padding: 22px; background: linear-gradient(180deg, rgba(15,23,42,0.86), rgba(15,23,42,0.62)); border: 1px solid rgba(148,163,184,0.13); box-shadow: 0 18px 60px rgba(0,0,0,0.26); }
  .plan-card.highlight { border-color: rgba(59,130,246,0.42); box-shadow: 0 18px 70px rgba(59,130,246,0.18); }
  .feature-list { list-style: none; padding: 0; margin: 24px 0; display: grid; gap: 12px; }
@@ -21,9 +21,9 @@ export default function UpgradePage() {
  <div className="upgrade-shell">
  <Link href="/dashboard" className="back-link">← Terug naar dashboard</Link>
  <div style={{ maxWidth: 680, marginTop: 28, marginBottom: 28 }}>
- <h1 style={{ margin: 0, fontSize: 42, lineHeight: 1.08, fontWeight: 900 }}>Upgrade naar Compleet</h1>
+ <h1 style={{ margin: 0, fontSize: 42, lineHeight: 1.08, fontWeight: 900 }}>Upgrade je PeppolPro-account</h1>
  <p style={{ margin: "14px 0 0", color: "#94a3b8", fontSize: 16, lineHeight: 1.7 }}>
- Gratis is ideaal om te starten. Compleet haalt de limiet weg en activeert Peppol Inbox.
+ Gratis is ideaal om te starten. Compleet haalt de limiet weg en Monitoring voegt actieve bewaking toe.
  </p>
  </div>
 
