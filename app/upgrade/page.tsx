@@ -4,13 +4,13 @@ import { C } from "@/lib/constants";
 import { PLANS } from "@/lib/plans";
 
 export default function UpgradePage() {
- const plans = [PLANS.free, PLANS.compleet, PLANS.monitoring];
+ const plans = [PLANS.free, PLANS.compleet, PLANS.monitoring, PLANS.monitoring_accountant];
 
  return (
  <main style={{ minHeight: "100vh", background: `radial-gradient(circle at 30% 0%, rgba(59,130,246,0.12), transparent 32%), ${C.bg}`, color: C.white, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
  <style>{`
- .upgrade-shell { max-width: 1120px; margin: 0 auto; padding: 42px 20px 72px; }
- .plan-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+ .upgrade-shell { max-width: 1280px; margin: 0 auto; padding: 42px 20px 72px; }
+ .plan-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
  .plan-card { border-radius: 8px; padding: 22px; background: linear-gradient(180deg, rgba(15,23,42,0.86), rgba(15,23,42,0.62)); border: 1px solid rgba(148,163,184,0.13); box-shadow: 0 18px 60px rgba(0,0,0,0.26); }
  .plan-card.highlight { border-color: rgba(59,130,246,0.42); box-shadow: 0 18px 70px rgba(59,130,246,0.18); }
  .feature-list { list-style: none; padding: 0; margin: 24px 0; display: grid; gap: 12px; }

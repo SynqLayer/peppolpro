@@ -200,9 +200,11 @@ export default function DashboardClient({
  const [query, setQuery] = useState("");
  const [filter, setFilter] = useState("all");
  const [showAll, setShowAll] = useState(false);
+ const [bulkStatus, setBulkStatus] = useState<string | null>(null);
 
  const isFree = !profile?.plan || profile.plan === "free";
- const isMonitoring = profile?.plan === "monitoring";
+ const isMonitoring = profile?.plan === "monitoring" || profile?.plan === "monitoring_accountant";
+ const isMonitoringAccountant = profile?.plan === "monitoring_accountant";
  const inboxActive = !isFree;
  const hasInvoices = conversions.length > 0;
  const now = useMemo(() => new Date(), []);
@@ -249,6 +251,20 @@ export default function DashboardClient({
  }, [conversions, filter, query]);
 
  const visibleConversions = showAll ? filteredConversions : filteredConversions.slice(0, 10);
+
+ async function handleBulkImport(event: React.ChangeEvent<HTMLInputElement>) {
+ const file = event.target.files?.[0];
+ if (!file) return;
+ setBulkStatus("Importeren...");
+ const res = await fetch("/api/monitoring/bulk-import", {
+ method: "POST",
+ headers: { "Content-Type": "text/csv" },
+ body: await file.text(),
+ });
+ const data = await res.json().catch(() => ({}));
+ setBulkStatus(res.ok ? `${data.imported || 0} targets geïmporteerd. Ververs het dashboard voor de actuele lijst.` : data.error || "Bulk-import mislukt");
+ event.target.value = "";
+ }
 
  const tasks: Task[] = [];
  const threeDaysAgo = now.getTime() - 3 * 24 * 60 * 60 * 1000;
@@ -520,6 +536,7 @@ export default function DashboardClient({
  <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
  <span style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(59,130,246,0.12)", color: "#93c5fd", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><BellRing size={16} /></span>
  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Monitoring</h2>
+ <span style={{ color: "#64748b", fontSize: 12, fontWeight: 900 }}>{isMonitoringAccountant ? "Dagelijks · onbeperkt" : isMonitoring ? "Wekelijks · max 10" : "Upgrade nodig"}</span>
  </div>
  {!isMonitoring ? (
  <div>
@@ -530,6 +547,14 @@ export default function DashboardClient({
  <div>
  <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Monitoring is actief. Voeg je eerste target toe om checks te starten.</p>
  <Link href="/upgrade" className="btn btn-primary">Monitoring instellen</Link>
+ {isMonitoringAccountant && (
+ <div style={{ marginTop: 14, border: "1px dashed rgba(56,189,248,0.38)", borderRadius: 8, padding: 12, background: "rgba(14,165,233,0.08)" }}>
+ <div style={{ color: "#f8fafc", fontSize: 13, fontWeight: 900, marginBottom: 8 }}>CSV-bulk-import</div>
+ <p style={{ margin: "0 0 10px", color: "#94a3b8", fontSize: 12, lineHeight: 1.5 }}>Upload CSV met kolommen: identifier_type,identifier_value,label.</p>
+ <input type="file" accept=".csv,text/csv" onChange={handleBulkImport} style={{ color: "#cbd5e1", fontSize: 12 }} />
+ {bulkStatus && <div style={{ color: "#93c5fd", fontSize: 12, marginTop: 8 }}>{bulkStatus}</div>}
+ </div>
+ )}
  </div>
  ) : (
  <div style={{ display: "grid", gap: 13 }}>
@@ -548,6 +573,14 @@ export default function DashboardClient({
  {(event.monitoring_targets?.label || event.monitoring_targets?.identifier_value || "Target")} · {event.event_type || "event"} · {formatDate(event.created_at)}
  </div>
  ))}
+ {isMonitoringAccountant && (
+ <div style={{ border: "1px dashed rgba(56,189,248,0.38)", borderRadius: 8, padding: 12, background: "rgba(14,165,233,0.08)" }}>
+ <div style={{ color: "#f8fafc", fontSize: 13, fontWeight: 900, marginBottom: 8 }}>CSV-bulk-import</div>
+ <p style={{ margin: "0 0 10px", color: "#94a3b8", fontSize: 12, lineHeight: 1.5 }}>Upload CSV met kolommen: identifier_type,identifier_value,label.</p>
+ <input type="file" accept=".csv,text/csv" onChange={handleBulkImport} style={{ color: "#cbd5e1", fontSize: 12 }} />
+ {bulkStatus && <div style={{ color: "#93c5fd", fontSize: 12, marginTop: 8 }}>{bulkStatus}</div>}
+ </div>
+ )}
  </div>
  )}
  </section>

@@ -1,4 +1,5 @@
-export type PlanId = "free" | "compleet" | "monitoring";
+export type PlanId = "free" | "compleet" | "monitoring" | "monitoring_accountant";
+export type CheckFrequency = "weekly" | "daily";
 
 export type PlanConfig = {
  id: PlanId;
@@ -11,6 +12,8 @@ export type PlanConfig = {
  features: string[];
  cta: string;
  paid: boolean;
+ maxTargets?: number | null;
+ checkFrequency?: CheckFrequency;
 };
 
 export const PLANS: Record<PlanId, PlanConfig> = {
@@ -50,24 +53,54 @@ export const PLANS: Record<PlanId, PlanConfig> = {
  monitoring: {
  id: "monitoring",
  name: "Monitoring",
- price: "€19",
- amount: "19.00",
+ price: "€9",
+ amount: "9.00",
  period: "/maand",
- description: "Voor ondernemers die Peppol-registraties actief willen bewaken.",
- checkoutDescription: "PeppolPro Monitoring €19/mnd",
+ description: "Voor ondernemers die tot 10 Peppol-registraties wekelijks willen bewaken.",
+ checkoutDescription: "PeppolPro Monitoring €9/mnd",
  features: [
- "Alles uit Compleet",
- "Monitoring targets voor KvK, btw of Peppol ID",
+ "Maximaal 10 monitoring targets",
+ "Wekelijkse Peppol Directory-check",
  "Alerts bij statuswijzigingen of fouten",
- "Monitoring-overzicht in dashboard en admin",
+ "Monitoring-overzicht in dashboard",
  ],
  cta: "Activeer Monitoring",
  paid: true,
+ maxTargets: 10,
+ checkFrequency: "weekly",
+ },
+ monitoring_accountant: {
+ id: "monitoring_accountant",
+ name: "Monitoring Accountant",
+ price: "€39",
+ amount: "39.00",
+ period: "/maand",
+ description: "Voor kantoren die onbeperkt Peppol-registraties dagelijks willen bewaken.",
+ checkoutDescription: "PeppolPro Monitoring Accountant €39/mnd",
+ features: [
+ "Onbeperkt monitoring targets",
+ "Dagelijkse Peppol Directory-check",
+ "CSV-bulk-import voor targets",
+ "Admin-overzicht met critical alerts",
+ ],
+ cta: "Activeer Accountant Monitoring",
+ paid: true,
+ maxTargets: null,
+ checkFrequency: "daily",
  },
 };
 
 export const paidPlans = Object.values(PLANS).filter((plan) => plan.paid);
+export const monitoringPlans = [PLANS.monitoring, PLANS.monitoring_accountant];
 
 export function getPlan(plan: string | null | undefined) {
  return PLANS[(plan || "free") as PlanId] || PLANS.free;
+}
+
+export function isMonitoringPlan(plan: string | null | undefined) {
+ return plan === "monitoring" || plan === "monitoring_accountant";
+}
+
+export function isMonitoringAccountantPlan(plan: string | null | undefined) {
+ return plan === "monitoring_accountant";
 }
