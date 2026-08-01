@@ -18,6 +18,12 @@ const reportLib = readFileSync(new URL('../lib/monitoring-report-pdf.ts', import
 const memberDeleteRoute = readFileSync(new URL('../app/api/account/members/[memberId]/route.ts', import.meta.url), 'utf8');
 const dashboard = readFileSync(new URL('../app/dashboard/DashboardClient.tsx', import.meta.url), 'utf8');
 const privacyPage = readFileSync(new URL('../app/privacy/page.tsx', import.meta.url), 'utf8');
+const mollieLib = readFileSync(new URL('../lib/mollie.ts', import.meta.url), 'utf8');
+const checkoutRoute = readFileSync(new URL('../app/api/checkout/route.ts', import.meta.url), 'utf8');
+const mollieWebhookRoute = readFileSync(new URL('../app/api/mollie/webhook/route.ts', import.meta.url), 'utf8');
+const monitoringAccess = readFileSync(new URL('../lib/monitoring-access.ts', import.meta.url), 'utf8');
+const migration0007 = readFileSync(new URL('../supabase/migrations/0007_mollie_subscriptions.sql', import.meta.url), 'utf8');
+const dashboardPage = readFileSync(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
 
 test('monitoring tiers are configured with limits and frequencies', () => {
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
@@ -42,14 +48,17 @@ test('migration 0004 adds accountant tier without database target limit', () => 
 });
 
 test('target API enforces monitoring limit while accountant bulk import is gated', () => {
+ assert.match(targetsRoute, /assertMonitoringAccess\(user\.id\)/);
  assert.match(targetsRoute, /plan\.maxTargets/);
  assert.match(targetsRoute, /Upgrade naar Monitoring Accountant/);
- assert.match(bulkRoute, /isMonitoringAccountantPlan/);
+ assert.match(bulkRoute, /assertMonitoringAccess\(user\.id, \{ requireAccountant: true \}\)/);
  assert.match(bulkRoute, /identifier_type, identifier_value,label/);
 });
 
-test('cron monitoring check respects frequency and writes events', () => {
- assert.match(cronRoute, /shouldCheck\(target\.last_checked_at, plan\.checkFrequency\)/);
+test('cron monitoring check respects entitlement frequency and writes events', () => {
+ assert.match(cronRoute, /getMonitoringEntitlement\(target\.user_id\)/);
+ assert.match(cronRoute, /entitlement\.hasAccess/);
+ assert.match(cronRoute, /shouldCheck\(target\.last_checked_at, entitlement\.plan\.checkFrequency\)/);
  assert.match(cronRoute, /from\("monitoring_events"\)\.insert/);
  assert.match(cronRoute, /directory\.peppol\.eu\/search\/1\.0\/json/);
 });
@@ -60,10 +69,10 @@ test('GitHub Actions workflow triggers monitoring cron hourly with CRON_SECRET',
  assert.match(workflow, /secrets\.CRON_SECRET/);
 });
 
-test('monitoring report route is PDF gated by monitoring plan', () => {
+test('monitoring report route is PDF gated by central monitoring entitlement', () => {
  assert.match(reportRoute, /generateMonitoringReportPdf/);
  assert.match(reportRoute, /Content-Type": "application\/pdf"/);
- assert.match(reportRoute, /isMonitoringPlan/);
+ assert.match(reportRoute, /assertMonitoringAccess\(user\.id\)/);
 });
 
 test('webhook and team migration creates secure integration tables and shared target RLS', () => {
@@ -129,4 +138,44 @@ test('privacy page documents monitoring retention, team invite expiry and webhoo
  assert.match(privacyPage, /Monitoring-events.*maximaal 12 maanden/);
  assert.match(privacyPage, /Team-uitnodigingen.*maximaal 30 dagen/);
  assert.match(privacyPage, /webhook-URL instelt[\s\S]*op jouw verzoek/);
+});
+
+
+test('mollie subscriptions infrastructure creates customers, first payments and recurring subscriptions', () => {
+ assert.match(migration0007, /create table if not exists public\.subscriptions/);
+ assert.match(migration0007, /mollie_customer_id text not null/);
+ assert.match(migration0007, /mollie_subscription_id text/);
+ assert.match(migration0007, /mollie_mandate_id text/);
+ assert.match(migration0007, /current_period_end timestamptz/);
+ assert.match(migration0007, /subscription_status text not null default 'pending'/);
+ assert.match(mollieLib, /export async function createCustomer/);
+ assert.match(mollieLib, /export async function createSubscription/);
+ assert.match(mollieLib, /export async function cancelSubscription/);
+ assert.match(checkoutRoute, /createCustomer/);
+ assert.match(checkoutRoute, /sequenceType: customerId \? "first"/);
+ assert.match(checkoutRoute, /type: customerId \? "subscription_first"/);
+ assert.match(checkoutRoute, /from\("subscriptions"\)\.upsert/);
+});
+
+test('mollie webhook handles subscription renewals, grace period, cancellation and refunds', () => {
+ assert.match(mollieWebhookRoute, /payment\.subscriptionId/);
+ assert.match(mollieWebhookRoute, /getSubscription/);
+ assert.match(mollieWebhookRoute, /createSubscription/);
+ assert.match(mollieWebhookRoute, /subscription_status: "active"/);
+ assert.match(mollieWebhookRoute, /GRACE_DAYS/);
+ assert.match(mollieWebhookRoute, /current_period_end: addDays\(new Date\(\), GRACE_DAYS\)/);
+ assert.match(mollieWebhookRoute, /payment\.status === "refunded" \|\| payment\.status === "charged_back"/);
+ assert.match(mollieWebhookRoute, /cancelKnownSubscription/);
+ assert.match(mollieWebhookRoute, /setFree\(supabase, userId, "canceled"\)/);
+ assert.match(mollieWebhookRoute, /subscription\.status === "canceled" \|\| subscription\.status === "suspended"/);
+});
+
+test('central monitoring entitlement requires active subscription and unexpired current period', () => {
+ assert.match(monitoringAccess, /export async function assertMonitoringAccess\(userId/);
+ assert.match(monitoringAccess, /subscription\?\.subscription_status === "active"/);
+ assert.match(monitoringAccess, /periodIsValid\(subscription\.current_period_end\)/);
+ assert.match(monitoringAccess, /isMonitoringPlan\(plan\.id\)/);
+ assert.match(monitoringAccess, /resolveAccountOwnerId/);
+ assert.match(dashboardPage, /assertMonitoringAccess\(user\.id\)/);
+ assert.match(dashboardPage, /monitoringOwnerId \? \(await supabase/);
 });

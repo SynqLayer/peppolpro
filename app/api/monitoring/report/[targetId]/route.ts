@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { isMonitoringPlan } from "@/lib/plans";
+import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { generateMonitoringReportPdf } from "@/lib/monitoring-report-pdf";
 
 export const runtime = "nodejs";
 
 type Params = { params: Promise<{ targetId: string }> };
-
-type ProfileRow = { company_name?: string | null; plan?: string | null };
 
 export async function GET(_req: Request, { params }: Params) {
  const { targetId } = await params;
@@ -15,15 +13,11 @@ export async function GET(_req: Request, { params }: Params) {
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
 
- const { data: profile } = await supabase
- .from("user_profiles")
- .select("company_name, plan")
- .eq("id", user.id)
- .single<ProfileRow>();
-
- if (!isMonitoringPlan(profile?.plan)) {
- return NextResponse.json({ error: "Compliancerapporten zijn alleen beschikbaar met Monitoring." }, { status: 403 });
+ const access = await assertMonitoringAccess(user.id);
+ if (!access.ok) {
+ return NextResponse.json({ error: "Compliancerapporten zijn alleen beschikbaar met een actief Monitoring-abonnement.", reason: access.entitlement.reason }, { status: 403 });
  }
+ const profile = access.entitlement.profile;
 
  const { data: target, error: targetError } = await supabase
  .from("monitoring_targets")

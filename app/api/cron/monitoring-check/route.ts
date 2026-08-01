@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getPlan } from "@/lib/plans";
+import { getMonitoringEntitlement } from "@/lib/monitoring-access";
 import { dispatchMonitoringWebhook } from "@/lib/monitoring-webhooks";
 
 const DIRECTORY_URL = "https://directory.peppol.eu/search/1.0/json";
@@ -15,8 +15,6 @@ type MonitoringTargetRow = {
  status: string | null;
  last_checked_at: string | null;
 };
-
-type ProfileRow = { id: string; plan: string | null };
 
 function createServiceClient() {
  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -75,13 +73,6 @@ export async function POST(req: NextRequest) {
  if (targetError) return NextResponse.json({ error: "Targets ophalen mislukt" }, { status: 500 });
 
  const userIds = Array.from(new Set((targets || []).map((target: MonitoringTargetRow) => target.user_id)));
- const { data: profiles, error: profileError } = await supabase
- .from("user_profiles")
- .select("id, plan")
- .in("id", userIds.length ? userIds : ["00000000-0000-0000-0000-000000000000"]);
- if (profileError) return NextResponse.json({ error: "Profielen ophalen mislukt" }, { status: 500 });
-
- const profileById = new Map((profiles || []).map((profile: ProfileRow) => [profile.id, profile]));
  const { data: webhookConfigs } = await supabase
  .from("monitoring_webhook_configs")
  .select("user_id, webhook_url, revoked_at")
@@ -93,8 +84,8 @@ export async function POST(req: NextRequest) {
  let failed = 0;
 
  for (const target of (targets || []) as MonitoringTargetRow[]) {
- const plan = getPlan(profileById.get(target.user_id)?.plan);
- if (!plan.checkFrequency || !shouldCheck(target.last_checked_at, plan.checkFrequency)) {
+ const entitlement = await getMonitoringEntitlement(target.user_id);
+ if (!entitlement.hasAccess || !entitlement.plan.checkFrequency || !shouldCheck(target.last_checked_at, entitlement.plan.checkFrequency)) {
  skipped += 1;
  continue;
  }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { getPlan, isMonitoringPlan } from "@/lib/plans";
+import { assertMonitoringAccess } from "@/lib/monitoring-access";
 
 const identifierTypes = new Set(["kvk", "btw", "peppol_id", "company_name"]);
 
@@ -14,16 +14,11 @@ export async function POST(req: NextRequest) {
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
 
- const { data: profile } = await supabase
- .from("user_profiles")
- .select("plan")
- .eq("id", user.id)
- .single();
-
- const plan = getPlan(profile?.plan);
- if (!isMonitoringPlan(plan.id)) {
- return NextResponse.json({ error: "Monitoring is alleen beschikbaar met een Monitoring-plan.", upgradeCta: "Upgrade naar Monitoring" }, { status: 403 });
+ const access = await assertMonitoringAccess(user.id);
+ if (!access.ok) {
+ return NextResponse.json({ error: "Monitoring is alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
  }
+ const plan = access.entitlement.plan;
 
  const body = await req.json();
  const identifier_type = clean(body.identifier_type);
@@ -41,7 +36,7 @@ export async function POST(req: NextRequest) {
  const { count, error: countError } = await supabase
  .from("monitoring_targets")
  .select("id", { count: "exact", head: true })
- .eq("user_id", user.id);
+ .eq("user_id", access.entitlement.accountOwnerId);
  if (countError) return NextResponse.json({ error: "Kon targets niet tellen" }, { status: 500 });
  if ((count || 0) >= plan.maxTargets) {
  return NextResponse.json({
@@ -53,7 +48,7 @@ export async function POST(req: NextRequest) {
 
  const { data, error } = await supabase
  .from("monitoring_targets")
- .insert({ user_id: user.id, identifier_type, identifier_value, label, status: "active" })
+ .insert({ user_id: access.entitlement.accountOwnerId, identifier_type, identifier_value, label, status: "active" })
  .select("id, identifier_type, identifier_value, label, status, last_checked_at, created_at")
  .single();
 

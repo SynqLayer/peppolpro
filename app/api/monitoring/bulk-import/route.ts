@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
-import { isMonitoringAccountantPlan } from "@/lib/plans";
+import { assertMonitoringAccess } from "@/lib/monitoring-access";
 
 const identifierTypes = new Set(["kvk", "btw", "peppol_id", "company_name"]);
 
@@ -56,9 +56,9 @@ export async function POST(req: NextRequest) {
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
 
- const { data: profile } = await supabase.from("user_profiles").select("plan").eq("id", user.id).single();
- if (!isMonitoringAccountantPlan(profile?.plan)) {
- return NextResponse.json({ error: "CSV-bulk-import is alleen beschikbaar voor Monitoring Accountant.", upgradeCta: "Upgrade naar Monitoring Accountant" }, { status: 403 });
+ const access = await assertMonitoringAccess(user.id, { requireAccountant: true });
+ if (!access.ok) {
+ return NextResponse.json({ error: "CSV-bulk-import is alleen beschikbaar met een actief Monitoring Accountant-abonnement.", upgradeCta: "Upgrade naar Monitoring Accountant", reason: access.entitlement.reason }, { status: 403 });
  }
 
  const csv = await req.text();
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
  if (rows.length === 0) return NextResponse.json({ error: "CSV bevat geen geldige targetregels" }, { status: 400 });
  if (rows.length > 1000) return NextResponse.json({ error: "Maximaal 1000 targets per import" }, { status: 400 });
 
- const inserts = rows.map((row) => ({ ...row, user_id: user.id, status: "active" }));
+ const inserts = rows.map((row) => ({ ...row, user_id: access.entitlement.accountOwnerId, status: "active" }));
  const { data, error } = await supabase
  .from("monitoring_targets")
  .insert(inserts)

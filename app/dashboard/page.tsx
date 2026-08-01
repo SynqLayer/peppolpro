@@ -1,4 +1,5 @@
 import { createServerSupabase } from "@/lib/supabase-server";
+import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { redirect } from "next/navigation";
 import DashboardClient, { ApiKeyRecord, Conversion, InboxMessage, MonitoringEvent, MonitoringTarget, Profile, TeamMember, WebhookConfig } from "./DashboardClient";
 
@@ -19,6 +20,9 @@ export default async function DashboardPage({
  .eq("id", user.id)
  .single<Profile>();
 
+ const monitoringAccess = await assertMonitoringAccess(user.id);
+ const monitoringOwnerId = monitoringAccess.ok ? monitoringAccess.entitlement.accountOwnerId : null;
+
  const { data: conversionsData } = await supabase
  .from("conversions")
  .select("id, filename, created_at, status, ubl_xml, customer_name, total_amount, invoice_number, currency")
@@ -33,19 +37,19 @@ export default async function DashboardPage({
  .order("received_at", { ascending: false })
  .limit(5);
 
- const { data: monitoringTargetsData } = await supabase
+ const monitoringTargetsData = monitoringOwnerId ? (await supabase
  .from("monitoring_targets")
  .select("id, identifier_type, identifier_value, label, status, last_checked_at, created_at")
- .eq("user_id", user.id)
+ .eq("user_id", monitoringOwnerId)
  .order("created_at", { ascending: false })
- .limit(10);
+ .limit(10)).data : [];
 
- const { data: monitoringEventsData } = await supabase
+ const monitoringEventsData = monitoringOwnerId ? (await supabase
  .from("monitoring_events")
  .select("id, event_type, severity, payload, created_at, monitoring_targets(label, identifier_value)")
- .eq("user_id", user.id)
+ .eq("user_id", monitoringOwnerId)
  .order("created_at", { ascending: false })
- .limit(5);
+ .limit(5)).data : [];
 
  const { data: teamMembersData } = await supabase
  .from("account_members")
@@ -68,10 +72,12 @@ export default async function DashboardPage({
  .order("created_at", { ascending: false })
  .limit(10);
 
+ const effectiveProfile = monitoringAccess.ok && profile ? { ...profile, plan: monitoringAccess.entitlement.plan.id } : profile;
+
  return (
  <DashboardClient
  user={{ id: user.id, email: user.email || "" }}
- profile={profile}
+ profile={effectiveProfile}
  conversions={(conversionsData || []) as Conversion[]}
  inbox={(inboxData || []) as InboxMessage[]}
  monitoringTargets={(monitoringTargetsData || []) as MonitoringTarget[]}
