@@ -8,6 +8,10 @@ const migration0004 = readFileSync(new URL('../supabase/migrations/0004_monitori
 const targetsRoute = readFileSync(new URL('../app/api/monitoring/targets/route.ts', import.meta.url), 'utf8');
 const bulkRoute = readFileSync(new URL('../app/api/monitoring/bulk-import/route.ts', import.meta.url), 'utf8');
 const cronRoute = readFileSync(new URL('../app/api/cron/monitoring-check/route.ts', import.meta.url), 'utf8');
+const migration0005 = readFileSync(new URL('../supabase/migrations/0005_monitoring_integrations_and_team.sql', import.meta.url), 'utf8');
+const reportRoute = readFileSync(new URL('../app/api/monitoring/report/[targetId]/route.ts', import.meta.url), 'utf8');
+const webhookRoute = readFileSync(new URL('../app/api/monitoring/webhook-config/route.ts', import.meta.url), 'utf8');
+const workflow = readFileSync(new URL('../.github/workflows/monitoring-cron.yml', import.meta.url), 'utf8');
 
 test('monitoring tiers are configured with limits and frequencies', () => {
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
@@ -42,4 +46,31 @@ test('cron monitoring check respects frequency and writes events', () => {
  assert.match(cronRoute, /shouldCheck\(target\.last_checked_at, plan\.checkFrequency\)/);
  assert.match(cronRoute, /from\("monitoring_events"\)\.insert/);
  assert.match(cronRoute, /directory\.peppol\.eu\/search\/1\.0\/json/);
+});
+
+test('GitHub Actions workflow triggers monitoring cron hourly with CRON_SECRET', () => {
+ assert.match(workflow, /cron:\s*"0 \* \* \* \*"/);
+ assert.match(workflow, /https:\/\/peppolpro\.nl\/api\/cron\/monitoring-check/);
+ assert.match(workflow, /secrets\.CRON_SECRET/);
+});
+
+test('monitoring report route is PDF gated by monitoring plan', () => {
+ assert.match(reportRoute, /generateMonitoringReportPdf/);
+ assert.match(reportRoute, /Content-Type": "application\/pdf"/);
+ assert.match(reportRoute, /isMonitoringPlan/);
+});
+
+test('webhook and team migration creates secure integration tables and shared target RLS', () => {
+ assert.match(migration0005, /create table if not exists public\.api_keys/);
+ assert.match(migration0005, /key_hash text not null/);
+ assert.match(migration0005, /create table if not exists public\.monitoring_webhook_configs/);
+ assert.match(migration0005, /create table if not exists public\.account_members/);
+ assert.match(migration0005, /owner or member monitoring targets select/);
+ assert.match(migration0005, /owner or member monitoring events select/);
+ assert.doesNotMatch(migration0005, /key text not null/i);
+});
+
+test('webhook config route validates https webhook URLs', () => {
+ assert.match(webhookRoute, /normalizeWebhookUrl/);
+ assert.match(webhookRoute, /monitoring_webhook_configs/);
 });

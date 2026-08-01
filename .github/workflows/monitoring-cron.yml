@@ -1,0 +1,18 @@
+name: PeppolPro monitoring cron
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  monitoring-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger monitoring check
+        run: |
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --header "Content-Type: application/json" \
+            https://peppolpro.nl/api/cron/monitoring-check

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getPlan } from "@/lib/plans";
+import { dispatchMonitoringWebhook } from "@/lib/monitoring-webhooks";
 
 const DIRECTORY_URL = "https://directory.peppol.eu/search/1.0/json";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -81,6 +82,12 @@ export async function POST(req: NextRequest) {
  if (profileError) return NextResponse.json({ error: "Profielen ophalen mislukt" }, { status: 500 });
 
  const profileById = new Map((profiles || []).map((profile: ProfileRow) => [profile.id, profile]));
+ const { data: webhookConfigs } = await supabase
+ .from("monitoring_webhook_configs")
+ .select("user_id, webhook_url, revoked_at")
+ .is("revoked_at", null)
+ .in("user_id", userIds.length ? userIds : ["00000000-0000-0000-0000-000000000000"]);
+ const webhookByUserId = new Map((webhookConfigs || []).map((config: { user_id: string; webhook_url: string | null }) => [config.user_id, config]));
  let checked = 0;
  let skipped = 0;
  let failed = 0;
@@ -93,23 +100,39 @@ export async function POST(req: NextRequest) {
  }
  try {
  const result = await checkDirectory(target);
- await supabase.from("monitoring_events").insert({
+ const { data: eventRecord } = await supabase.from("monitoring_events").insert({
  target_id: target.id,
  user_id: target.user_id,
  event_type: result.event_type,
  severity: result.severity,
  payload: result.payload,
+ }).select("id, target_id, user_id, event_type, severity, payload, created_at").single();
+ await dispatchMonitoringWebhook(webhookByUserId.get(target.user_id) || null, eventRecord || {
+ target_id: target.id,
+ user_id: target.user_id,
+ event_type: result.event_type,
+ severity: result.severity,
+ payload: result.payload,
+ created_at: new Date().toISOString(),
  });
  await supabase.from("monitoring_targets").update({ status: result.status, last_checked_at: new Date().toISOString() }).eq("id", target.id);
  checked += 1;
  } catch (err) {
  failed += 1;
- await supabase.from("monitoring_events").insert({
+ const { data: eventRecord } = await supabase.from("monitoring_events").insert({
  target_id: target.id,
  user_id: target.user_id,
  event_type: "check_error",
  severity: "critical",
  payload: { message: err instanceof Error ? err.message : "Onbekende fout" },
+ }).select("id, target_id, user_id, event_type, severity, payload, created_at").single();
+ await dispatchMonitoringWebhook(webhookByUserId.get(target.user_id) || null, eventRecord || {
+ target_id: target.id,
+ user_id: target.user_id,
+ event_type: "check_error",
+ severity: "critical",
+ payload: { message: err instanceof Error ? err.message : "Onbekende fout" },
+ created_at: new Date().toISOString(),
  });
  }
  }

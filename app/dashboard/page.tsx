@@ -1,6 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
-import DashboardClient, { Conversion, InboxMessage, MonitoringEvent, MonitoringTarget, Profile } from "./DashboardClient";
+import DashboardClient, { ApiKeyRecord, Conversion, InboxMessage, MonitoringEvent, MonitoringTarget, Profile, TeamMember, WebhookConfig } from "./DashboardClient";
 
 export default async function DashboardPage({
  searchParams,
@@ -47,6 +47,27 @@ export default async function DashboardPage({
  .order("created_at", { ascending: false })
  .limit(5);
 
+ const { data: teamMembersData } = await supabase
+ .from("account_members")
+ .select("id, account_owner_id, member_user_id, invite_email, role, invited_at, accepted_at")
+ .or(`account_owner_id.eq.${user.id},member_user_id.eq.${user.id}`)
+ .order("invited_at", { ascending: false })
+ .limit(20);
+
+ const { data: webhookConfigData } = await supabase
+ .from("monitoring_webhook_configs")
+ .select("id, webhook_url, updated_at, revoked_at")
+ .eq("user_id", user.id)
+ .is("revoked_at", null)
+ .maybeSingle();
+
+ const { data: apiKeysData } = await supabase
+ .from("api_keys")
+ .select("id, key_hash, created_at, last_used_at, revoked_at")
+ .eq("user_id", user.id)
+ .order("created_at", { ascending: false })
+ .limit(10);
+
  return (
  <DashboardClient
  user={{ id: user.id, email: user.email || "" }}
@@ -55,6 +76,9 @@ export default async function DashboardPage({
  inbox={(inboxData || []) as InboxMessage[]}
  monitoringTargets={(monitoringTargetsData || []) as MonitoringTarget[]}
  monitoringEvents={(monitoringEventsData || []) as MonitoringEvent[]}
+ teamMembers={(teamMembersData || []) as TeamMember[]}
+ webhookConfig={(webhookConfigData || null) as WebhookConfig | null}
+ apiKeys={(apiKeysData || []) as ApiKeyRecord[]}
  paid={params.betaald === "1"}
  />
  );

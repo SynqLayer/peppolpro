@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowUpRight, BellRing, CheckCircle2, FilePlus2, Filter, Inbox, Search, Send, XCircle } from "lucide-react";
+import { ArrowUpRight, BellRing, CheckCircle2, FilePlus2, Filter, Inbox, KeyRound, Search, Send, UsersRound, XCircle } from "lucide-react";
 import { C } from "@/lib/constants";
 
 export type Profile = {
@@ -62,6 +62,30 @@ export type MonitoringEvent = {
   label?: string | null;
   identifier_value?: string | null;
  } | null;
+};
+
+export type TeamMember = {
+ id?: string | null;
+ invite_email?: string | null;
+ role?: string | null;
+ invited_at?: string | null;
+ accepted_at?: string | null;
+ member_user_id?: string | null;
+};
+
+export type WebhookConfig = {
+ id?: string | null;
+ webhook_url?: string | null;
+ updated_at?: string | null;
+ revoked_at?: string | null;
+};
+
+export type ApiKeyRecord = {
+ id?: string | null;
+ key_hash?: string | null;
+ created_at?: string | null;
+ last_used_at?: string | null;
+ revoked_at?: string | null;
 };
 
 type Task = {
@@ -188,6 +212,9 @@ export default function DashboardClient({
  paid,
  monitoringTargets,
  monitoringEvents,
+ teamMembers,
+ webhookConfig,
+ apiKeys,
 }: {
  user: { id: string; email: string };
  profile: Profile | null;
@@ -196,11 +223,18 @@ export default function DashboardClient({
  paid: boolean;
  monitoringTargets: MonitoringTarget[];
  monitoringEvents: MonitoringEvent[];
+ teamMembers: TeamMember[];
+ webhookConfig: WebhookConfig | null;
+ apiKeys: ApiKeyRecord[];
 }) {
  const [query, setQuery] = useState("");
  const [filter, setFilter] = useState("all");
  const [showAll, setShowAll] = useState(false);
  const [bulkStatus, setBulkStatus] = useState<string | null>(null);
+ const [activeOpsTab, setActiveOpsTab] = useState<"team" | "api">("team");
+ const [inviteEmail, setInviteEmail] = useState("");
+ const [webhookUrl, setWebhookUrl] = useState(webhookConfig?.webhook_url || "");
+ const [opsStatus, setOpsStatus] = useState<string | null>(null);
 
  const isFree = !profile?.plan || profile.plan === "free";
  const isMonitoring = profile?.plan === "monitoring" || profile?.plan === "monitoring_accountant";
@@ -266,6 +300,31 @@ export default function DashboardClient({
  event.target.value = "";
  }
 
+ async function handleInviteMember(event: React.FormEvent<HTMLFormElement>) {
+ event.preventDefault();
+ setOpsStatus("Uitnodiging opslaan...");
+ const res = await fetch("/api/account/members", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ email: inviteEmail, role: "viewer" }),
+ });
+ const data = await res.json().catch(() => ({}));
+ setOpsStatus(res.ok ? "Uitnodiging vastgelegd. Het teamlid kan later accepteren." : data.error || "Uitnodiging mislukt");
+ if (res.ok) setInviteEmail("");
+ }
+
+ async function handleWebhookSave(event: React.FormEvent<HTMLFormElement>) {
+ event.preventDefault();
+ setOpsStatus("Webhook opslaan...");
+ const res = await fetch("/api/monitoring/webhook-config", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ webhook_url: webhookUrl }),
+ });
+ const data = await res.json().catch(() => ({}));
+ setOpsStatus(res.ok ? "Webhook opgeslagen." : data.error || "Webhook opslaan mislukt");
+ }
+
  const tasks: Task[] = [];
  const threeDaysAgo = now.getTime() - 3 * 24 * 60 * 60 * 1000;
  const oldDrafts = conversions.filter((conversion) => isDraft(conversion.status) && conversion.created_at && new Date(conversion.created_at).getTime() < threeDaysAgo).length;
@@ -308,6 +367,10 @@ export default function DashboardClient({
  .action-muted { color: #64748b; font-size: 12px; font-weight: 800; }
  .task-link { display: block; padding: 14px; border-radius: 8px; text-decoration: none; border: 1px solid rgba(148,163,184,0.12); background: rgba(2,6,23,0.34); transition: background .16s ease, transform .16s ease; }
  .task-link:hover { background: rgba(30,41,59,0.5); transform: translateY(-1px); }
+ .ops-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+ .ops-tab { border: 1px solid rgba(148,163,184,0.16); background: rgba(2,6,23,0.38); color: #94a3b8; border-radius: 8px; min-height: 38px; font-weight: 900; cursor: pointer; }
+ .ops-tab-active { background: rgba(59,130,246,0.16); border-color: rgba(96,165,250,0.38); color: #bfdbfe; }
+ .small-input { width: 100%; min-height: 38px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.16); background: rgba(2,6,23,0.38); color: #f8fafc; padding: 0 12px; outline: none; }
  .onboarding-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
  @media (max-width: 900px) {
  .topbar { flex-direction: column; }
@@ -566,6 +629,9 @@ export default function DashboardClient({
  <span style={{ color: target.status === "error" ? "#f87171" : "#34d399" }}>{target.status || "active"}</span>
  </div>
  <div style={{ color: "#64748b", fontSize: 12, marginTop: 5 }}>Laatste check: {formatDate(target.last_checked_at)}</div>
+ {isMonitoringAccountant && target.id && (
+ <a href={`/api/monitoring/report/${target.id}`} className="action-link" style={{ display: "inline-flex", marginTop: 8 }}>Rapport downloaden</a>
+ )}
  </div>
  ))}
  {monitoringEvents.slice(0, 3).map((event, index) => (
@@ -583,6 +649,48 @@ export default function DashboardClient({
  )}
  </div>
  )}
+ </section>
+
+ <section style={{ ...cardStyle, padding: 18 }}>
+ <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+ <span style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(59,130,246,0.12)", color: "#93c5fd", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+ {activeOpsTab === "team" ? <UsersRound size={16} /> : <KeyRound size={16} />}
+ </span>
+ <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>{activeOpsTab === "team" ? "Team" : "API & Webhooks"}</h2>
+ </div>
+ <div className="ops-tabs">
+ <button type="button" className={`ops-tab ${activeOpsTab === "team" ? "ops-tab-active" : ""}`} onClick={() => setActiveOpsTab("team")}>Team</button>
+ <button type="button" className={`ops-tab ${activeOpsTab === "api" ? "ops-tab-active" : ""}`} onClick={() => setActiveOpsTab("api")}>API & Webhooks</button>
+ </div>
+ {activeOpsTab === "team" ? (
+ <div style={{ display: "grid", gap: 12 }}>
+ <form onSubmit={handleInviteMember} style={{ display: "grid", gap: 8 }}>
+ <input className="small-input" type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="teamlid@example.nl" />
+ <button className="btn btn-primary" type="submit">Uitnodiging vastleggen</button>
+ </form>
+ {teamMembers.length === 0 ? (
+ <p style={{ margin: 0, color: "#94a3b8", fontSize: 13 }}>Nog geen teamleden of pending invites.</p>
+ ) : teamMembers.slice(0, 5).map((member) => (
+ <div key={member.id || member.invite_email || "member"} style={{ border: "1px solid rgba(148,163,184,0.12)", background: "rgba(2,6,23,0.32)", borderRadius: 8, padding: 12 }}>
+ <div style={{ color: "#f8fafc", fontSize: 13, fontWeight: 900 }}>{member.invite_email || member.member_user_id || "Teamlid"}</div>
+ <div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>{member.accepted_at ? "Geaccepteerd" : "Pending invite"} · {member.role || "viewer"}</div>
+ </div>
+ ))}
+ </div>
+ ) : (
+ <div style={{ display: "grid", gap: 12 }}>
+ <form onSubmit={handleWebhookSave} style={{ display: "grid", gap: 8 }}>
+ <input className="small-input" type="url" value={webhookUrl} onChange={(event) => setWebhookUrl(event.target.value)} placeholder="https://example.nl/webhooks/peppolpro" />
+ <button className="btn btn-primary" type="submit">Webhook opslaan</button>
+ </form>
+ <div style={{ color: "#94a3b8", fontSize: 12, lineHeight: 1.5 }}>Warning/critical monitoring-events worden als JSON POST verzonden naar deze URL.</div>
+ <div style={{ border: "1px solid rgba(148,163,184,0.12)", background: "rgba(2,6,23,0.32)", borderRadius: 8, padding: 12 }}>
+ <div style={{ color: "#f8fafc", fontSize: 13, fontWeight: 900 }}>API-keys</div>
+ <div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>{apiKeys.filter((key) => !key.revoked_at).length} actieve key{apiKeys.filter((key) => !key.revoked_at).length === 1 ? "" : "s"}. Keys worden alleen gehasht opgeslagen.</div>
+ </div>
+ </div>
+ )}
+ {opsStatus && <div style={{ color: "#93c5fd", fontSize: 12, marginTop: 10 }}>{opsStatus}</div>}
  </section>
 
  <section style={{ ...cardStyle, padding: 18 }}>
