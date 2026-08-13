@@ -7,7 +7,7 @@ export const metadata: Metadata = {
  alternates: { canonical: "https://peppolpro.nl/peppol-verplicht-belgie" },
  openGraph: {
  title: "Peppol verplicht in België 2026",
- description: "Alles over de Belgische e-facturatieplicht en hoe je in 5 minuten compliant bent.",
+ description: "Alles over de Belgische e-facturatieplicht en hoe je UBL-facturen kunt voorbereiden.",
  url: "https://peppolpro.nl/peppol-verplicht-belgie",
  },
 };
@@ -54,20 +54,20 @@ export default function PeppolVerplichtBelgiePage() {
  <li>Stel je inbox in zodat je inkomende Peppol-facturen ontvangt</li>
  </ol>
  <p style={pStyle}>
- Met PeppolPro doe je dit in minder dan 5 minuten — zonder boekhoudpakket of technische kennis.
+ Met PeppolPro kun je UBL-facturen voorbereiden en downloaden. Voor daadwerkelijke Peppol-verzending gebruik je voorlopig je eigen access point of boekhoudpakket.
  </p>
 
  <h2 style={h2Style}>Wat kost het?</h2>
  <p style={pStyle}>
- PeppolPro kost <strong>€9/maand</strong> voor verzenden én ontvangen inclusief 7 jaar fiscaal archief. Facturen genereren en downloaden is altijd gratis. De Belgische fiscus geeft bovendien <strong>120% kostenaftrek</strong> op e-facturatiesoftware.
+ Facturen genereren en downloaden is beschikbaar in PeppolPro. Direct verzenden en ontvangen via PeppolPro is nog niet beschikbaar. Gebruik voor verzending voorlopig je eigen access point of boekhoudpakket.
  </p>
 
  <div style={{ background: "#1e1b4b", border: "1px solid #6366f1", borderRadius: 12, padding: "2rem", marginTop: "3rem", textAlign: "center" }}>
  <h3 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "0.75rem" }}>
- Klaar in 5 minuten
+ UBL voorbereiden
  </h3>
  <p style={{ color: "#a5b4fc", marginBottom: "1.5rem" }}>
- Gratis proberen — 3 Peppol-verzendingen inbegrepen, geen creditcard.
+ Gratis proberen — 3 UBL-generaties inbegrepen, geen creditcard.
  </p>
  <Link href="/login" style={buttonStyle}>
  Start gratis

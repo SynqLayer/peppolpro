@@ -26,14 +26,14 @@ export async function sendWelcomeEmail(to: string, name: string) {
  </h1>
  <p style="color:#94a3b8;font-size:15px;line-height:1.7;margin:0 0 24px">
  Je account is aangemaakt. Je hebt direct
- <strong style="color:#ffffff">3 gratis Peppol-verzendingen</strong>
+ <strong style="color:#ffffff">3 gratis UBL-generaties</strong>
  klaarstaan — geen creditcard, geen verplichtingen.
  </p>
  <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 32px">
  ${[
  ["1", "Maak je eerste factuur", "Vul bedrijfs- en klantgegevens in via het formulier"],
- ["2", "Download of verstuur via Peppol", "Ontvang een 100% conforme Peppol BIS 3.0 XML"],
- ["3", "Klant ontvangt direct", "Via het Europese Peppol-netwerk, in seconden"],
+ ["2", "Download je UBL", "Ontvang een Peppol BIS 3.0 XML-bestand"],
+ ["3", "Verstuur via je eigen access point", "Direct verzenden via PeppolPro is nog niet beschikbaar"],
  ].map(([num, title, desc]) => `
  <tr>
  <td style="padding:12px 0;border-bottom:1px solid #1e1e2e">
@@ -63,9 +63,9 @@ export async function sendWelcomeEmail(to: string, name: string) {
  <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:20px;margin-top:32px;text-align:center">
  <div style="color:#94a3b8;font-size:13px;line-height:1.6">
  <strong style="color:#ffffff">Gratis plan</strong>
- — onbeperkt genereren & downloaden + 3 Peppol-verzendingen<br>
+ — 3 UBL-generaties inbegrepen<br>
  <span style="color:#6366f1">Upgrade naar Compleet voor €9/mnd</span>
- voor onbeperkt verzenden + Peppol Inbox
+ voor meer UBL-generatie en archief
  </div>
  </div>
  </td>
@@ -97,7 +97,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
  body: JSON.stringify({
  sender: SENDER,
  to: [{ email: to, name: name || to.split("@")[0] }],
- subject: "Welkom bij PeppolPro — je 3 gratis verzendingen staan klaar",
+ subject: "Welkom bij PeppolPro — je 3 gratis UBL-generaties staan klaar",
  htmlContent: html,
  }),
  });

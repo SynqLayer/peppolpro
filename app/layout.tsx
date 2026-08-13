@@ -4,10 +4,10 @@ import "./globals.css";
 export const metadata: Metadata = {
  metadataBase: new URL("https://peppolpro.nl"),
  title: {
- default: "PeppolPro — Peppol-facturen versturen en ontvangen zonder boekhoudpakket",
+ default: "PeppolPro — PDF naar Peppol BIS 3.0 UBL zonder boekhoudpakket",
  template: "%s | PeppolPro",
  },
- description: "Verstuur en ontvang Peppol BIS 3.0 facturen in 60 seconden. Geen boekhoudpakket nodig. Verplicht in België sinds 2026. Gratis proberen.",
+ description: "Genereer Peppol BIS 3.0 UBL/XML uit je factuurgegevens. Direct verzenden via Peppol is binnenkort beschikbaar.",
  keywords: ["peppol", "e-facturatie", "ubl factuur", "peppol verplicht belgie", "pdf naar ubl", "peppol factuur versturen", "e-invoice belgie"],
  authors: [{ name: "SynqLayer", url: "https://synqlayer.com" }],
  creator: "SynqLayer",
@@ -17,13 +17,13 @@ export const metadata: Metadata = {
  url: "https://peppolpro.nl",
  siteName: "PeppolPro",
  title: "PeppolPro — Peppol-facturen zonder boekhoudpakket",
- description: "Verstuur en ontvang Peppol BIS 3.0 facturen in 60 seconden. Verplicht in België sinds 2026.",
+ description: "Genereer Peppol BIS 3.0 UBL/XML. Direct verzenden via Peppol is binnenkort beschikbaar.",
  images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "PeppolPro" }],
  },
  twitter: {
  card: "summary_large_image",
  title: "PeppolPro — Peppol-facturen zonder boekhoudpakket",
- description: "Verstuur en ontvang Peppol BIS 3.0 facturen in 60 seconden.",
+ description: "Genereer Peppol BIS 3.0 UBL/XML. Direct verzenden via Peppol is binnenkort beschikbaar.",
  },
  robots: {
  index: true,

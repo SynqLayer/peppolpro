@@ -212,7 +212,7 @@ export default function NieuwPage() {
  {select("Land", customerCountry, setCustomerCountry, countries)}
  {field("BTW-nummer", customerVatNr, setCustomerVatNr)}
  {field("KvK/KBO optioneel", customerKvkKbo, setCustomerKvkKbo)}
- {field("Peppol-ID optioneel", customerPeppolId, setCustomerPeppolId)}
+ {field("Peppol-ID optioneel (voor UBL, niet voor directe verzending)", customerPeppolId, setCustomerPeppolId)}
  {field("Betalingskenmerk", buyerReference, setBuyerReference)}
  </div>
  </Section>
@@ -267,8 +267,12 @@ export default function NieuwPage() {
 
  {xml && (
  <Section title="XML-preview">
+ <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.6, margin: "0 0 14px" }}>
+ Direct verzenden via Peppol is nog niet beschikbaar. Download de UBL en verstuur via je eigen access point.
+ </p>
  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
- <button onClick={downloadXml} style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700 }}>Download XML</button>
+ <button onClick={downloadXml} style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700 }}>Download UBL/XML</button>
+ <button disabled style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(148,163,184,0.08)", color: C.gray, fontWeight: 700, cursor: "not-allowed" }}>Verzenden via Peppol binnenkort</button>
  <button onClick={() => router.push("/dashboard")} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 700 }}>Opslaan in dashboard</button>
  </div>
  <pre style={{ overflow: "auto", maxHeight: 420, background: "rgba(0,0,0,0.32)", borderRadius: 10, padding: 16, color: C.gray, fontSize: 12 }}>{xml}</pre>
