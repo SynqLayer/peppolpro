@@ -17,6 +17,7 @@ const baseInvoice = {
  customerVatNr: 'BE0674771986',
  customerKvkKbo: '',
  customerPeppolId: '',
+ customerEmail: 'customer@example.nl',
  buyerReference: 'TEST',
  invoiceNumber: 'TEST-1',
  invoiceDate: '2026-08-13',
