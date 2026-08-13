@@ -37,6 +37,29 @@ function schemeForCountry(country: string): string {
  return country?.toUpperCase() === "BE" ? "0208" : "0106";
 }
 
+const PEPPOL_SCHEME_COUNTRIES: Record<string, string> = {
+ "0106": "NL",
+ "0208": "BE",
+};
+
+function countryPrefix(value: string | null | undefined): string | null {
+ const normalized = value?.trim().toUpperCase();
+ const match = normalized?.match(/^([A-Z]{2})/);
+ return match?.[1] ?? null;
+}
+
+function countryFromPeppolId(value: string | null | undefined): string | null {
+ const scheme = value?.trim().match(/^(\d{4}):/)?.[1];
+ return scheme ? PEPPOL_SCHEME_COUNTRIES[scheme] ?? null : null;
+}
+
+function correctedCustomerCountry(d: InvoiceData): string {
+ return countryFromPeppolId(d.customerPeppolId)
+  || countryPrefix(d.customerVatNr)
+  || countryPrefix(d.customerKvkKbo)
+  || d.customerCountry;
+}
+
 function escapeXml(s: string | number | null | undefined): string {
  return String(s ?? "")
  .replace(/&/g, "&amp;")
@@ -64,8 +87,10 @@ export function generateUBL(d: InvoiceData): string {
  vatGroups[line.vatPct].tax += line.lineVat;
  });
 
- const supScheme = schemeForCountry(d.supplierCountry);
- const cusScheme = schemeForCountry(d.customerCountry);
+ const supCountry = d.supplierCountry;
+ const cusCountry = correctedCustomerCountry(d);
+ const supScheme = schemeForCountry(supCountry);
+ const cusScheme = schemeForCountry(cusCountry);
  const supEndpoint = d.supplierPeppolId || d.supplierKvkKbo;
  const cusEndpoint = d.customerPeppolId || d.customerKvkKbo || d.customerVatNr;
 
@@ -123,7 +148,7 @@ export function generateUBL(d: InvoiceData): string {
  <cac:PostalAddress>
  <cbc:StreetName>${escapeXml(d.supplierAddress)}</cbc:StreetName>
  <cbc:CityName>${escapeXml(d.supplierCity)}</cbc:CityName>
- <cac:Country><cbc:IdentificationCode>${escapeXml(d.supplierCountry)}</cbc:IdentificationCode></cac:Country>
+ <cac:Country><cbc:IdentificationCode>${escapeXml(supCountry)}</cbc:IdentificationCode></cac:Country>
  </cac:PostalAddress>
  <cac:PartyTaxScheme>
  <cbc:CompanyID>${escapeXml(d.supplierVatNr)}</cbc:CompanyID>
@@ -142,7 +167,7 @@ export function generateUBL(d: InvoiceData): string {
  <cac:PostalAddress>
  <cbc:StreetName>${escapeXml(d.customerAddress)}</cbc:StreetName>
  <cbc:CityName>${escapeXml(d.customerCity)}</cbc:CityName>
- <cac:Country><cbc:IdentificationCode>${escapeXml(d.customerCountry)}</cbc:IdentificationCode></cac:Country>
+ <cac:Country><cbc:IdentificationCode>${escapeXml(cusCountry)}</cbc:IdentificationCode></cac:Country>
  </cac:PostalAddress>
  <cac:PartyTaxScheme>
  <cbc:CompanyID>${escapeXml(d.customerVatNr)}</cbc:CompanyID>
