@@ -26,7 +26,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
  description: "Voor testen en incidenteel gebruik.",
  checkoutDescription: "PeppolPro Gratis",
  features: [
- "3 Peppol-verzendingen inbegrepen",
+ "3 UBL-facturen genereren en downloaden",
  "UBL-facturen genereren en downloaden",
  "Basis factuurhistorie",
  ],
@@ -39,11 +39,11 @@ export const PLANS: Record<PlanId, PlanConfig> = {
  price: "€9",
  amount: "9.00",
  period: "/maand",
- description: "Voor ondernemers die Peppol serieus gebruiken.",
+ description: "Voor ondernemers die UBL-facturen serieus gebruiken.",
  checkoutDescription: "PeppolPro Compleet €9/mnd",
  features: [
- "Onbeperkt Peppol-verzendingen",
- "Peppol Inbox actief",
+ "Onbeperkt UBL-facturen genereren en downloaden",
+ "Peppol Inbox binnenkort",
  "Dashboard met omzet, historie en actiepunten",
  "7 jaar fiscaal archief",
  ],

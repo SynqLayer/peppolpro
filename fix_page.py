@@ -202,8 +202,8 @@ const STEPS = [
   {
     n: "03",
     icon: "🚀",
-    t: "Download of verzend",
-    d: "Download UBL 2.1 XML of verzend direct via Peppol naar je klant. Klaar in seconden, niet uren.",
+    t: "Download UBL",
+    d: "Download Peppol BIS 3.0 UBL/XML. Direct verzenden via Peppol is nog niet beschikbaar.",
   },
 ];
 
@@ -220,13 +220,13 @@ const FEATURES = [
   },
   {
     icon: "📡",
-    t: "Peppol Verzending",
-    d: "Verzend je e-factuur direct via het Peppol-netwerk. Geen apart access point of boekhoudpakket nodig.",
+    t: "Peppol-verzending binnenkort",
+    d: "Direct verzenden via Peppol is nog niet beschikbaar. Download de UBL en verstuur via je eigen access point.",
   },
   {
     icon: "✅",
     t: "BTW-Validatie",
-    d: "Automatische validatie van BTW-nummers via het EU VIES-systeem. Voorkom fouten vóór verzending.",
+    d: "Automatische validatie van BTW-nummers via het EU VIES-systeem. Voorkom fouten vóór je de UBL gebruikt.",
   },
   {
     icon: "🇳🇱",
@@ -262,7 +262,7 @@ const PRICING = [
     sub: "Voor actieve ondernemers",
     features: [
       "50 facturen per maand",
-      "Peppol verzending",
+      "Peppol-verzending binnenkort",
       "Factuurarchief",
       "Cashflow inzicht",
       "Priority support",

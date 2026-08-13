@@ -229,6 +229,13 @@ test('mollie webhook records idempotency events and failed handler errors durabl
  assert.match(mollieWebhookRoute, /failed_preprocess/);
 });
 
+test('dashboard uses honest UBL statuses and does not claim delivery without access point evidence', () => {
+ assert.match(dashboard, /UBL gegenereerd/);
+ assert.match(dashboard, /Direct verzenden niet beschikbaar/);
+ assert.doesNotMatch(dashboard, /Afgeleverd/);
+ assert.doesNotMatch(dashboard, /Opnieuw verzenden/);
+});
+
 test('subscription cancel route cancels at Mollie but keeps access until period end', () => {
  assert.match(cancelSubscriptionRoute, /export async function POST/);
  assert.match(cancelSubscriptionRoute, /cancelSubscription\(subscription\.mollie_customer_id, subscription\.mollie_subscription_id\)/);

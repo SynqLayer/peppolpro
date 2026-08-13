@@ -10,6 +10,16 @@ const sitemap = readFileSync(new URL('../app/sitemap.ts', import.meta.url), 'utf
 const robots = readFileSync(new URL('../app/robots.ts', import.meta.url), 'utf8');
 const monitorPage = readFileSync(new URL('../app/monitor/page.tsx', import.meta.url), 'utf8');
 const faqPage = readFileSync(new URL('../app/monitor/veelgestelde-vragen/page.tsx', import.meta.url), 'utf8');
+
+const rootPage = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
+const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.url), 'utf8');
+const peppolSendPage = readFileSync(new URL('../app/peppol-factuur-versturen/page.tsx', import.meta.url), 'utf8');
+const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
+const constants = readFileSync(new URL('../lib/constants.ts', import.meta.url), 'utf8');
+const plans = readFileSync(new URL('../lib/plans.ts', import.meta.url), 'utf8');
+const brevo = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
+const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
+
 const existingNestedPages = [
   '../app/monitor/hoe-het-werkt/page.tsx',
   '../app/monitor/veelgestelde-vragen/page.tsx',
@@ -95,4 +105,12 @@ test('FAQ page includes FAQPage structured data for rich snippets', () => {
   assert.match(faqPage, /acceptedAnswer/);
   assert.match(faqPage, /application\/ld\+json/);
   assert.match(faqPage, /JSON\.stringify\(faqJsonLd\)/);
+});
+
+test('commercial Peppol copy is honest while direct sending is unavailable', () => {
+  const combined = `${rootPage}\n${pricingPage}\n${peppolSendPage}\n${layout}\n${constants}\n${plans}\n${brevo}\n${nieuwPage}`;
+  assert.match(combined, /Direct verzenden via Peppol is (nog niet|binnenkort) beschikbaar|Direct verzenden via Peppol is nog niet beschikbaar/);
+  assert.match(nieuwPage, /Download de UBL en verstuur via je eigen access point/);
+  assert.match(nieuwPage, /Verzenden via Peppol binnenkort/);
+  assert.doesNotMatch(combined, /verzend direct via Peppol|Verzenden én ontvangen via Peppol|Bulk verzenden|Klant ontvangt direct|3 Peppol-verzendingen/);
 });

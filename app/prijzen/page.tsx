@@ -10,7 +10,7 @@ const plans = [
  period: "",
  features: [
  "Onbeperkt UBL-facturen genereren & downloaden",
- "3 gratis Peppol-verzendingen",
+ "3 gratis UBL-generaties",
  "Peppol BIS 3.0 conform",
  ],
  cta: "Start gratis",
@@ -24,10 +24,10 @@ const plans = [
  period: "/maand",
  badge: "Populair",
  features: [
- "Verzenden én ontvangen via Peppol",
+ "UBL-facturen genereren en downloaden",
  "Tot 30 facturen per maand",
  "7 jaar fiscaal archief",
- "Peppol Inbox: ontvangen facturen in je mail",
+ "Peppol Inbox binnenkort",
  ],
  cta: "Kies Compleet",
  href: "/login",
@@ -54,7 +54,7 @@ const plans = [
  period: "/maand",
  features: [
  "10 administraties onder één account",
- "Bulk verzenden & ontvangen",
+ "Bulk UBL-generatie binnenkort",
  "Per-klant archief",
  ],
  cta: "Kies Accountant",
@@ -90,7 +90,7 @@ export default function PrijzenPage() {
  <div style={{ maxWidth: 760, marginBottom: 38 }}>
  <h1 style={{ fontSize: 44, fontWeight: 800, marginBottom: 12, letterSpacing: 0 }}>Prijzen</h1>
  <p style={{ fontSize: 17, color: C.gray, lineHeight: 1.7 }}>
- Kies het pakket dat past bij je factuurstroom. Start gratis, schaal op zodra verzenden, ontvangen of archiveren belangrijk wordt.
+ Kies het pakket dat past bij je factuurstroom. Start gratis, schaal op zodra UBL-generatie, archief of monitoring belangrijk wordt.
  </p>
  </div>
 

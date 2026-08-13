@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowUpRight, BellRing, CheckCircle2, FilePlus2, Filter, Inbox, KeyRound, Search, Send, UsersRound, XCircle } from "lucide-react";
+import { ArrowUpRight, BellRing, FilePlus2, Filter, Inbox, KeyRound, Search, UsersRound, XCircle } from "lucide-react";
 import { C } from "@/lib/constants";
 
 export type Profile = {
@@ -113,17 +113,17 @@ const cardStyle = {
 const statusMap: Record<string, { label: string; bg: string; color: string; border: string; group: string }> = {
  draft: { label: "Concept", bg: "rgba(148,163,184,0.12)", color: "#cbd5e1", border: "rgba(148,163,184,0.22)", group: "concept" },
  concept: { label: "Concept", bg: "rgba(148,163,184,0.12)", color: "#cbd5e1", border: "rgba(148,163,184,0.22)", group: "concept" },
- processing: { label: "Verzonden", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "verzonden" },
- sent: { label: "Verzonden", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "verzonden" },
- success: { label: "Afgeleverd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "afgeleverd" },
- done: { label: "Afgeleverd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "afgeleverd" },
- delivered: { label: "Afgeleverd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "afgeleverd" },
+ processing: { label: "UBL genereren", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "in_behandeling" },
+ success: { label: "UBL gegenereerd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "ubl_gegenereerd" },
+ done: { label: "UBL gegenereerd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "ubl_gegenereerd" },
+ sent: { label: "Klaar om te verzenden", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
+ delivered: { label: "Klaar om te verzenden", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
  failed: { label: "Mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
  error: { label: "Mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
 };
 
-const deliveredStatuses = ["processing", "sent", "success", "done", "delivered", "paid", "afgeleverd", "betaald", "verzonden"];
-const openStatuses = ["draft", "concept", "processing", "sent", "verzonden"];
+const generatedStatuses = ["success", "done"];
+const openStatuses = ["draft", "concept", "processing", "sent", "delivered"];
 const failedStatuses = ["failed", "error", "mislukt"];
 
 const numberValue = (value?: number | string | null) => {
@@ -147,7 +147,7 @@ const normalizeStatus = (status?: string | null) => {
 };
 
 const statusGroup = (status?: string | null) => statusMap[normalizeStatus(status)].group;
-const isDelivered = (status?: string | null) => deliveredStatuses.includes((status || "").toLowerCase());
+const isGenerated = (status?: string | null) => generatedStatuses.includes((status || "").toLowerCase());
 const isFailed = (status?: string | null) => failedStatuses.includes((status || "").toLowerCase());
 const isDraft = (status?: string | null) => ["draft", "concept"].includes((status || "").toLowerCase());
 const isOpen = (status?: string | null) => openStatuses.includes((status || "").toLowerCase());
@@ -207,8 +207,9 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 function activityFor(conversion: Conversion) {
  const group = statusGroup(conversion.status);
  if (group === "mislukt") return { label: "Mislukt", color: "#f87171", icon: XCircle };
- if (group === "afgeleverd") return { label: "Afgeleverd", color: "#34d399", icon: CheckCircle2 };
- if (group === "verzonden") return { label: "Verzonden", color: "#60a5fa", icon: Send };
+ if (group === "ubl_gegenereerd") return { label: "UBL gegenereerd", color: "#34d399", icon: FilePlus2 };
+ if (group === "klaar") return { label: "Klaar om te verzenden", color: "#60a5fa", icon: FilePlus2 };
+ if (group === "in_behandeling") return { label: "UBL genereren", color: "#60a5fa", icon: FilePlus2 };
  return { label: "Aangemaakt", color: "#cbd5e1", icon: FilePlus2 };
 }
 
@@ -259,8 +260,8 @@ export default function DashboardClient({
 
  const invoicesThisMonth = conversions.filter((conversion) => conversion.created_at && new Date(conversion.created_at) >= monthStart).length;
  const openAmount = conversions.reduce((sum, conversion) => sum + (isOpen(conversion.status) ? numberValue(conversion.total_amount) : 0), 0);
- const deliveredCount = conversions.filter((conversion) => isDelivered(conversion.status)).length;
- const deliveredAmount = conversions.reduce((sum, conversion) => sum + (isDelivered(conversion.status) ? numberValue(conversion.total_amount) : 0), 0);
+ const generatedCount = conversions.filter((conversion) => isGenerated(conversion.status)).length;
+ const generatedAmount = conversions.reduce((sum, conversion) => sum + (isGenerated(conversion.status) ? numberValue(conversion.total_amount) : 0), 0);
  const failedCount = conversions.filter((conversion) => isFailed(conversion.status)).length;
 
  const chartData = useMemo(() => {
@@ -273,7 +274,7 @@ export default function DashboardClient({
  });
 
  conversions.forEach((conversion) => {
- if (!conversion.created_at || !isDelivered(conversion.status)) return;
+ if (!conversion.created_at || !isGenerated(conversion.status)) return;
  const date = new Date(conversion.created_at);
  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
  const month = months.find((item) => item.key === key);
@@ -351,14 +352,14 @@ export default function DashboardClient({
  const threeDaysAgo = now.getTime() - 3 * 24 * 60 * 60 * 1000;
  const oldDrafts = conversions.filter((conversion) => isDraft(conversion.status) && conversion.created_at && new Date(conversion.created_at).getTime() < threeDaysAgo).length;
  if (oldDrafts > 0) tasks.push({ title: `${oldDrafts} concept${oldDrafts === 1 ? "" : "en"} ouder dan 3 dagen`, detail: "Rond deze facturen af of verwijder ze uit je workflow.", href: "/nieuw", tone: "amber" });
- if (failedCount > 0) tasks.push({ title: `${failedCount} verzending${failedCount === 1 ? "" : "en"} mislukt`, detail: "Controleer de gegevens en verstuur opnieuw.", href: "/convert", tone: "red" });
+ if (failedCount > 0) tasks.push({ title: `${failedCount} factuur${failedCount === 1 ? "" : "en"} mislukt`, detail: "Controleer de gegevens en genereer de UBL opnieuw.", href: "/convert", tone: "red" });
  if (!completeProfile) tasks.push({ title: "Profiel onvolledig", detail: "KvK/KBO, BTW-nummer of adres ontbreekt nog.", href: "/onboarding", tone: "blue" });
- if (isFree) tasks.push({ title: "Peppol Inbox niet geactiveerd", detail: "Activeer Compleet om inkomende Peppol-facturen te ontvangen.", href: "/upgrade", tone: "blue" });
+ if (isFree) tasks.push({ title: "Peppol Inbox nog niet beschikbaar", detail: "Direct ontvangen via PeppolPro is nog niet beschikbaar.", href: "/upgrade", tone: "blue" });
 
  const onboardingSteps = [
  { title: "Bedrijfsgegevens invullen", done: completeProfile, href: "/onboarding", cta: "Bedrijfsgegevens" },
  { title: "Eerste klant toevoegen", done: false, href: "/nieuw", cta: "Klant invoeren" },
- { title: "Eerste factuur maken & verzenden", done: hasInvoices, href: "/nieuw", cta: "Factuur maken" },
+ { title: "Eerste UBL-factuur maken", done: hasInvoices, href: "/nieuw", cta: "Factuur maken" },
  ];
  const progress = onboardingSteps.filter((step) => step.done).length;
  const activityItems = conversions.slice(0, 8);
@@ -436,9 +437,9 @@ export default function DashboardClient({
 
  <section className="kpi-grid">
  <KpiCard label="Facturen deze maand" value={String(invoicesThisMonth)} caption={`${conversions.length} totaal in archief`} accent="#38bdf8" />
- <KpiCard label="Openstaand bedrag" value={formatCurrency(openAmount, currency)} caption="Concepten en verzendingen in behandeling" accent="#f59e0b" />
- <KpiCard label="Betaald/afgeleverd" value={formatCurrency(deliveredAmount, currency)} caption={`${deliveredCount} succesvol verwerkt`} accent="#34d399" />
- <KpiCard label="Resterende verzendingen" value={isFree ? String(profile?.credits ?? 0) : "Onbeperkt"} caption={isFree ? "Gratis plan" : "Betaald plan actief"} accent="#818cf8" />
+ <KpiCard label="Openstaand bedrag" value={formatCurrency(openAmount, currency)} caption="Concepten en UBL-bestanden in behandeling" accent="#f59e0b" />
+ <KpiCard label="UBL gegenereerd" value={formatCurrency(generatedAmount, currency)} caption={`${generatedCount} UBL-bestand${generatedCount === 1 ? "" : "en"} succesvol gegenereerd`} accent="#34d399" />
+ <KpiCard label="Resterende UBL-generaties" value={isFree ? String(profile?.credits ?? 0) : "Onbeperkt"} caption={isFree ? "Gratis plan" : "Betaald plan actief"} accent="#818cf8" />
  </section>
 
  {!hasInvoices ? (
@@ -469,7 +470,7 @@ export default function DashboardClient({
  <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
  <div>
  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Omzet per maand</h2>
- <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 13 }}>Laatste 6 maanden, verzonden en afgeleverde facturen</p>
+ <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 13 }}>Laatste 6 maanden, UBL-bestanden die succesvol zijn gegenereerd</p>
  </div>
  </div>
  <div style={{ width: "100%", height: 260 }}>
@@ -508,8 +509,9 @@ export default function DashboardClient({
  <select value={filter} onChange={(event) => setFilter(event.target.value)}>
  <option value="all">Alle statussen</option>
  <option value="concept">Concept</option>
- <option value="verzonden">Verzonden</option>
- <option value="afgeleverd">Afgeleverd</option>
+<option value="in_behandeling">UBL genereren</option>
+<option value="ubl_gegenereerd">UBL gegenereerd</option>
+<option value="klaar">Klaar om te verzenden</option>
  <option value="mislukt">Mislukt</option>
  </select>
  </label>
@@ -551,7 +553,7 @@ export default function DashboardClient({
  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
  <Link href="/dashboard" className="action-link">Bekijken</Link>
  <Link href="/convert" className="action-link">PDF</Link>
- {isFailed(conversion.status) ? <Link href="/convert" className="action-link">Opnieuw verzenden</Link> : <span className="action-muted">Opnieuw verzenden</span>}
+ <span className="action-muted">Direct verzenden niet beschikbaar</span>
  </div>
  </td>
  </tr>
@@ -734,8 +736,8 @@ export default function DashboardClient({
  </div>
  {!inboxActive ? (
  <div>
- <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Ontvang Peppol-facturen direct in je account met Compleet.</p>
- <Link href="/upgrade" className="btn btn-primary">Activeer Compleet</Link>
+ <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Peppol Inbox is nog niet beschikbaar. Gebruik voorlopig je eigen access point of boekhoudpakket voor inkomende Peppol-facturen.</p>
+ <Link href="/upgrade" className="btn btn-primary">Bekijk plannen</Link>
  </div>
  ) : inbox.length === 0 ? (
  <div style={{ color: "#94a3b8", fontSize: 14 }}>Nog geen ontvangen facturen.</div>

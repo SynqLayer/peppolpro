@@ -155,7 +155,7 @@ export default function Home() {
  </Reveal>
  <Reveal delay={0.2}>
  <p style={{ fontSize: "clamp(16px, 2.2vw, 19px)", color: C.dim, lineHeight: 1.7, maxWidth: 560, margin: "0 auto 36px", fontWeight: 400 }}>
- Upload je PDF-factuur. Onze AI leest alles automatisch. Download UBL 2.1 XML of verzend direct via Peppol. Geen gedoe.
+ Upload je PDF-factuur. Onze AI leest alles automatisch. Download een Peppol BIS 3.0 UBL/XML-bestand. Direct verzenden via Peppol is nog niet beschikbaar.
  </p>
  </Reveal>
  <Reveal delay={0.3}>

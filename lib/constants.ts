@@ -15,21 +15,21 @@ export const C = {
 export const STEPS = [
  { n: "01", icon: "📄", t: "Upload je PDF", d: "Sleep je factuur-PDF in het uploadvenster. Elk formaat, elke layout — onze AI herkent ze allemaal." },
  { n: "02", icon: "🧠", t: "AI leest alles", d: "Gemini AI extraheert automatisch alle velden: leverancier, klant, BTW-nummers, bedragen, regelomschrijvingen." },
- { n: "03", icon: "🚀", t: "Download of verzend", d: "Download UBL 2.1 XML of verzend direct via Peppol naar je klant. Klaar in seconden, niet uren." },
+ { n: "03", icon: "📥", t: "Download UBL", d: "Download een Peppol BIS 3.0 UBL/XML-bestand. Direct verzenden via Peppol is nog niet beschikbaar." },
 ];
 
 export const FEATURES = [
  { icon: "🧠", t: "AI-Powered Parsing", d: "Geen handmatig invullen. Upload je PDF en onze AI leest leverancier, klant, BTW-nummers, bedragen en regeldetails automatisch." },
  { icon: "📋", t: "UBL 2.1 Compliant", d: "Output voldoet aan EN 16931 — de Europese standaard. Geaccepteerd door elk Peppol access point." },
- { icon: "📡", t: "Peppol Verzending", d: "Verzend je e-factuur direct via het Peppol-netwerk. Geen apart access point of boekhoudpakket nodig." },
- { icon: "✅", t: "BTW-Validatie", d: "Automatische validatie van BTW-nummers via het EU VIES-systeem. Voorkom fouten vóór verzending." },
+ { icon: "📡", t: "Peppol-verzending binnenkort", d: "Direct verzenden via Peppol is nog niet beschikbaar. Download nu de UBL en verstuur via je eigen access point." },
+ { icon: "✅", t: "BTW-Validatie", d: "Automatische validatie van BTW-nummers via het EU VIES-systeem. Voorkom fouten vóór je de UBL gebruikt." },
  { icon: "🇳🇱", t: "NL + BE Ready", d: "Gebouwd voor Nederlandse en Belgische ondernemers. Tweetalig, compliant met beide regelgevingen." },
  { icon: "🔐", t: "AVG/GDPR Compliant", d: "Je factuurdata wordt tijdelijk verwerkt en niet opgeslagen na conversie. Privacy by design." },
 ];
 
 export const PRICING = [
  { name: "Gratis", price: "€0", period: "", sub: "Probeer het uit", features: ["3 facturen per maand", "PDF → UBL conversie", "BTW-validatie", "Download als XML"], cta: "Start gratis", hl: false },
- { name: "Pro", price: "€19", period: "/maand", sub: "Voor actieve ondernemers", features: ["50 facturen per maand", "Peppol verzending", "Factuurarchief", "Cashflow inzicht", "Priority support"], cta: "Start 14-dagen trial", hl: true },
+ { name: "Pro", price: "€19", period: "/maand", sub: "Voor actieve ondernemers", features: ["50 UBL-facturen per maand", "Peppol-verzending binnenkort", "Factuurarchief", "Cashflow inzicht", "Priority support"], cta: "Start 14-dagen trial", hl: true },
  { name: "Accountant", price: "€99", period: "/maand", sub: "Voor kantoren", features: ["Onbeperkt facturen", "Multi-administratie", "Bulk upload", "White-label", "API access", "Dedicated support"], cta: "Contact sales", hl: false },
 ];
 
