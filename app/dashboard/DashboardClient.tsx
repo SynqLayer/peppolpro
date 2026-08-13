@@ -32,6 +32,10 @@ export type Conversion = {
  customer_name?: string | null;
  ubl_xml?: string | null;
  created_at?: string | null;
+ recommand_document_id?: string | null;
+ recommand_status?: string | null;
+ verified_recipient?: boolean | null;
+ sent_via_recommand_at?: string | null;
 };
 
 export type InboxMessage = {
