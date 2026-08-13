@@ -25,7 +25,7 @@ export default async function DashboardPage({
 
  const { data: conversionsData } = await supabase
  .from("conversions")
- .select("id, filename, created_at, status, ubl_xml, customer_name, total_amount, invoice_number, currency")
+ .select("id, filename, created_at, status, ubl_xml, customer_name, total_amount, invoice_number, currency, recommand_document_id, recommand_status, verified_recipient, sent_via_recommand_at")
  .eq("user_id", user.id)
  .order("created_at", { ascending: false })
  .limit(100);

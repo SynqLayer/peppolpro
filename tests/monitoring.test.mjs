@@ -32,6 +32,9 @@ const cancelSubscriptionRoute = readFileSync(new URL('../app/api/subscription/ca
 const retentionCleanupRoute = readFileSync(new URL('../app/api/cron/retention-cleanup/route.ts', import.meta.url), 'utf8');
 const onboardingPage = readFileSync(new URL('../app/onboarding/page.tsx', import.meta.url), 'utf8');
 const migration0009 = readFileSync(new URL('../supabase/migrations/0009_payments_mollie_payment_id_unique_constraint.sql', import.meta.url), 'utf8');
+const recommandLib = readFileSync(new URL('../lib/recommand.ts', import.meta.url), 'utf8');
+const recommandRoute = readFileSync(new URL('../app/api/recommand/send/route.ts', import.meta.url), 'utf8');
+const migration0011 = readFileSync(new URL('../supabase/migrations/0011_recommand_delivery_fields.sql', import.meta.url), 'utf8');
 
 test('monitoring tiers are configured with limits and frequencies', () => {
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
@@ -234,6 +237,25 @@ test('dashboard uses honest UBL statuses and does not claim delivery without acc
  assert.match(dashboard, /Direct verzenden niet beschikbaar/);
  assert.doesNotMatch(dashboard, /Afgeleverd/);
  assert.doesNotMatch(dashboard, /Opnieuw verzenden/);
+});
+
+test('Recommand integration verifies recipients before send and stores raw responses', () => {
+ assert.match(recommandLib, /Buffer\.from\(`\$\{apiKey\}:\$\{apiSecret\}`\)\.toString\("base64"\)/);
+ assert.match(recommandLib, /export async function verifyRecipient\(peppolId: string\)/);
+ assert.match(recommandLib, /\/verify/);
+ assert.match(recommandLib, /export async function sendDocument\(companyId: string, payload/);
+ assert.match(recommandLib, /\/send/);
+ assert.match(recommandLib, /export async function getDocumentStatus\(documentId: string\)/);
+ assert.match(recommandLib, /\/documents\/\$\{encodeURIComponent\(documentId\)\}/);
+ assert.match(recommandRoute, /verifyRecipient\(recipient\)/);
+ assert.match(recommandRoute, /verifyRecipientSupportsInvoice\(recipient\)/);
+ assert.match(recommandRoute, /recipient_not_found/);
+ assert.match(recommandRoute, /recommand_raw_response: \{ verify: verify\.raw, verifyDocumentSupport: support\.raw, send: send\.raw, documents: status \}/);
+ assert.match(migration0011, /recommand_document_id text/);
+ assert.match(migration0011, /recommand_status text/);
+ assert.match(migration0011, /recommand_raw_response jsonb/);
+ assert.match(migration0011, /verified_recipient boolean not null default false/);
+ assert.match(migration0011, /sent_via_recommand_at timestamptz/);
 });
 
 test('subscription cancel route cancels at Mollie but keeps access until period end', () => {
