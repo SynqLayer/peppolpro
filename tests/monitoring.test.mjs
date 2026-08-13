@@ -258,6 +258,15 @@ test('Recommand integration verifies recipients before send and stores raw respo
  assert.match(migration0011, /sent_via_recommand_at timestamptz/);
 });
 
+test('dashboard does not silently hide invoices when conversion query fails', () => {
+ assert.match(dashboardPage, /error: conversionsError/);
+ assert.match(dashboardPage, /conversionsErrorMessage/);
+ assert.match(dashboardPage, /Factuurhistorie kon niet worden geladen/);
+ assert.match(dashboardPage, /conversionsError=\{conversionsErrorMessage\}/);
+ assert.match(dashboard, /conversionsError\?: string \| null/);
+ assert.match(dashboard, /\{conversionsError\}/);
+});
+
 test('subscription cancel route cancels at Mollie but keeps access until period end', () => {
  assert.match(cancelSubscriptionRoute, /export async function POST/);
  assert.match(cancelSubscriptionRoute, /cancelSubscription\(subscription\.mollie_customer_id, subscription\.mollie_subscription_id\)/);
