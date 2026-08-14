@@ -19,6 +19,8 @@ const constants = readFileSync(new URL('../lib/constants.ts', import.meta.url), 
 const plans = readFileSync(new URL('../lib/plans.ts', import.meta.url), 'utf8');
 const brevo = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
 const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
+const privacyPage = readFileSync(new URL('../app/privacy/page.tsx', import.meta.url), 'utf8');
+const voorwaardenPage = readFileSync(new URL('../app/voorwaarden/page.tsx', import.meta.url), 'utf8');
 
 const existingNestedPages = [
   '../app/monitor/hoe-het-werkt/page.tsx',
@@ -113,4 +115,11 @@ test('commercial Peppol copy is honest while direct sending is unavailable', () 
   assert.match(nieuwPage, /Download de UBL en verstuur via je eigen access point/);
   assert.match(nieuwPage, /Verzenden via Peppol binnenkort/);
   assert.doesNotMatch(combined, /verzend direct via Peppol|Verzenden én ontvangen via Peppol|Bulk verzenden|Klant ontvangt direct|3 Peppol-verzendingen/);
+});
+
+test('legal pages describe starter credits and subprocessors consistently', () => {
+  assert.match(voorwaardenPage, /Gratis accounts ontvangen eenmalig 3 credits bij registratie/);
+  assert.doesNotMatch(voorwaardenPage, /3 credits per maand|3 gratis UBL-generaties bij registratie/);
+  assert.match(privacyPage, /Brevo \(transactionele e-mail, verwerkt naam en e-mailadres\)/);
+  assert.match(privacyPage, /Conversions en invoices, waaronder UBL, bedragen, klantgegevens en het e-mailadres van de ontvanger, bewaren wij zolang je account actief is, tenzij je een factuur zelf verwijdert\./);
 });

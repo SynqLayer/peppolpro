@@ -24,7 +24,7 @@ export default function PrivacyPage() {
  <p style={p}>Accountgegevens: zolang je account actief is. Geüploade PDF-facturen: maximaal 24 uur na conversie, daarna automatisch verwijderd. Monitoring-events voor Peppol-bewaking: maximaal 12 maanden. Team-uitnodigingen: maximaal 30 dagen als pending uitnodiging; daarna wordt het e-mailadres uit de uitnodigingsrij verwijderd en blijft alleen beperkte auditmetadata over. Betalingsgegevens: 7 jaar (wettelijke bewaarplicht). Loggegevens: maximaal 90 dagen.</p>
 
  <h2 style={h2}>5. Delen met derden</h2>
- <p style={p}>Wij delen gegevens met: Google (Gemini AI, voor factuurverwerking), Supabase (database hosting, EU), Vercel (website hosting), Mollie (betalingsverwerking). Als je zelf een webhook-URL instelt, sturen wij monitoring-events op jouw verzoek door naar dat door jou gekozen eindpunt. Wij verkopen nooit persoonsgegevens aan derden.</p>
+ <p style={p}>Wij delen gegevens met: Google (Gemini AI, voor factuurverwerking), Supabase (database hosting, EU), Vercel (website hosting), Mollie (betalingsverwerking) en Brevo (transactionele e-mail, verwerkt naam en e-mailadres). Conversions en invoices, waaronder UBL, bedragen, klantgegevens en het e-mailadres van de ontvanger, bewaren wij zolang je account actief is, tenzij je een factuur zelf verwijdert. Als je zelf een webhook-URL instelt, sturen wij monitoring-events op jouw verzoek door naar dat door jou gekozen eindpunt. Wij verkopen nooit persoonsgegevens aan derden.</p>
 
  <h2 style={h2}>6. Beveiliging</h2>
  <p style={p}>Wij gebruiken encryptie (TLS/SSL), row-level security in onze database, en verwerken zo min mogelijk persoonsgegevens (dataminimalisatie).</p>
