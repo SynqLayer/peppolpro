@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { createCustomer, createPayment } from "@/lib/mollie";
-import { getPlan, isMonitoringPlan } from "@/lib/plans";
+import { getPlan } from "@/lib/plans";
 
 function createAdminClient() {
  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
  .maybeSingle();
 
  let customerId: string | undefined;
- if (isMonitoringPlan(planConfig.id)) {
+ if (planConfig.paid) {
  const { data: existingSubscription } = await admin
  .from("subscriptions")
  .select("mollie_customer_id")
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
  metadata: {
  user_id: user.id,
  plan: planConfig.id,
- subscription_flow: customerId ? "monitoring_first_payment" : "oneoff",
+ subscription_flow: customerId ? "recurring_first_payment" : "oneoff",
  },
  });
 

@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { MolliePayment } from "@/lib/mollie";
-import { getPlan, isMonitoringPlan } from "@/lib/plans";
+import { getPlan } from "@/lib/plans";
 
 const VAT_RATE = 21;
 
@@ -52,7 +52,7 @@ export async function ensurePaymentInvoice({
  if (payment.status !== "paid") return null;
  const planId = paymentRow.plan || payment.metadata?.plan;
  const plan = getPlan(planId);
- if (!isMonitoringPlan(plan.id)) return null;
+ if (!plan.paid) return null;
 
  const { data: existing } = await supabase
  .from("invoices")
