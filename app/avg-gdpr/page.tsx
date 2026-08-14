@@ -31,10 +31,11 @@ export default function GDPRPage() {
  <h2 style={h2}>Subprocessors</h2>
  <p style={p}>Wij werken met de volgende subprocessors die voldoen aan AVG/GDPR:</p>
  <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
- <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Google Cloud (Gemini AI) — EU data residency</li>
+ <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Google (Gemini AI, voor factuurverwerking) — verwerking onder Google&apos;s standaard AVG-voorwaarden en modelcontracten</li>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Supabase — Database hosting in EU</li>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Vercel — Website hosting met EU edge</li>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Mollie — Betalingsverwerking in EU</li>
+ <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Brevo — Transactionele e-mail, verwerkt naam en e-mailadres</li>
  </ul>
 
  <h2 style={h2}>Data Breach Protocol</h2>
