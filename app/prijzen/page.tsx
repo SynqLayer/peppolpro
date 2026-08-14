@@ -29,9 +29,10 @@ const plans = [
  "UBL-facturen genereren en downloaden",
  "Dashboard met historie en actiepunten",
  ],
- cta: "Kies Verzenden 25",
+ cta: "Binnenkort beschikbaar",
  href: "/login",
  planId: "verzenden_25",
+ available: false,
  highlight: true,
  },
  {
@@ -44,9 +45,10 @@ const plans = [
  "UBL-facturen genereren en downloaden",
  "Dashboard met historie en actiepunten",
  ],
- cta: "Kies Verzenden 100",
+ cta: "Binnenkort beschikbaar",
  href: "/login",
  planId: "verzenden_100",
+ available: false,
  highlight: false,
  },
  {
@@ -123,7 +125,7 @@ export default function PrijzenPage() {
  ))}
  </ul>
 
- {plan.planId ? (
+ {plan.planId && plan.available !== false ? (
  <PlanButton
  plan={plan.planId}
  label={plan.cta}
@@ -133,6 +135,21 @@ export default function PrijzenPage() {
  borderRadius: 10,
  }}
  />
+ ) : plan.planId && plan.available === false ? (
+ <button disabled style={{
+ width: "100%",
+ background: "rgba(100,116,139,0.18)",
+ color: C.gray,
+ border: `1px solid ${C.border}`,
+ padding: "12px 16px",
+ borderRadius: 10,
+ fontWeight: 700,
+ fontSize: 14,
+ cursor: "not-allowed",
+ opacity: 0.8,
+ }}>
+ Binnenkort beschikbaar
+ </button>
  ) : (
  <Link href={plan.href} style={{
  display: "block",
@@ -155,7 +172,7 @@ export default function PrijzenPage() {
  </div>
 
  <p style={{ fontSize: 13, color: C.dim, textAlign: "center", margin: "28px 0 38px" }}>
- Alle prijzen excl. btw. Maandelijks opzegbaar. Losse verzending: €1,95 per factuur.
+ Alle prijzen excl. btw. Maandelijks opzegbaar. Peppol-verzending wordt binnenkort geactiveerd. UBL genereren en downloaden werkt nu al.
  </p>
 
  <div style={{ maxWidth: 780, margin: "0 auto" }}>

@@ -12,6 +12,7 @@ export type PlanConfig = {
  features: string[];
  cta: string;
  paid: boolean;
+ available?: boolean;
  includedSends?: number;
  extraSendPrice?: string;
  maxTargets?: number | null;
@@ -50,8 +51,9 @@ export const PLANS: Record<PlanId, PlanConfig> = {
  "UBL-facturen genereren en downloaden",
  "Dashboard met historie en actiepunten",
  ],
- cta: "Kies Verzenden 25",
+ cta: "Binnenkort beschikbaar",
  paid: true,
+ available: false,
  includedSends: 25,
  extraSendPrice: "0.45",
  },
@@ -69,8 +71,9 @@ export const PLANS: Record<PlanId, PlanConfig> = {
  "UBL-facturen genereren en downloaden",
  "Dashboard met historie en actiepunten",
  ],
- cta: "Kies Verzenden 100",
+ cta: "Binnenkort beschikbaar",
  paid: true,
+ available: false,
  includedSends: 100,
  extraSendPrice: "0.35",
  },

@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
  const { plan } = await req.json();
  const planConfig = getPlan(plan);
  if (!planConfig.paid) return NextResponse.json({ error: "Ongeldig plan" }, { status: 400 });
+ if (planConfig.available === false) return NextResponse.json({ error: "Dit plan is binnenkort beschikbaar" }, { status: 400 });
 
  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://peppolpro.nl";
  const admin = createAdminClient();
