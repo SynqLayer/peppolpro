@@ -176,6 +176,14 @@ test('cron monitoring check respects entitlement frequency and writes events', (
  assert.match(cronRoute, /directory\.peppol\.eu\/search\/1\.0\/json/);
 });
 
+test('cron monitoring check waits at least 600ms between Peppol Directory calls', () => {
+ const delay = Number(cronRoute.match(/const DIRECTORY_REQUEST_DELAY_MS = (\d+)/)?.[1] || 0);
+ assert.ok(delay >= 600);
+ assert.match(cronRoute, /function sleep\(ms: number\)[\s\S]*setTimeout\(resolve, ms\)/);
+ assert.match(cronRoute, /let directoryChecksStarted = 0/);
+ assert.match(cronRoute, /if \(directoryChecksStarted > 0\) await sleep\(DIRECTORY_REQUEST_DELAY_MS\);[\s\S]*directoryChecksStarted \+= 1;[\s\S]*const result = await checkDirectory\(target\)/);
+});
+
 test('GitHub Actions workflow triggers monitoring cron hourly with CRON_SECRET', () => {
  assert.match(workflow, /cron:\s*"0 \* \* \* \*"/);
  assert.match(workflow, /https:\/\/peppolpro\.nl\/api\/cron\/monitoring-check/);
@@ -219,6 +227,7 @@ test('free plan users cannot access monitoring operations endpoints or tabs whil
  assert.doesNotMatch(membersPatch, /status: 403/);
  assert.match(membersPatch, /status: "accepted"/);
  assert.match(dashboard, /Upgrade nodig/);
+ assert.match(dashboard, /Bewaking van Peppol-registraties en signalen — vanaf €9\/mnd\./);
  assert.match(dashboard, /Team en API & Webhooks zijn beschikbaar in het Monitoring-plan/);
  assert.match(dashboard, /\{!isMonitoring \? \(/);
 });
