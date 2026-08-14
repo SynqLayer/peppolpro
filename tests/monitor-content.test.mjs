@@ -20,6 +20,7 @@ const plans = readFileSync(new URL('../lib/plans.ts', import.meta.url), 'utf8');
 const brevo = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
 const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
 const privacyPage = readFileSync(new URL('../app/privacy/page.tsx', import.meta.url), 'utf8');
+const avgGdprPage = readFileSync(new URL('../app/avg-gdpr/page.tsx', import.meta.url), 'utf8');
 const voorwaardenPage = readFileSync(new URL('../app/voorwaarden/page.tsx', import.meta.url), 'utf8');
 
 const existingNestedPages = [
@@ -121,5 +122,8 @@ test('legal pages describe starter credits and subprocessors consistently', () =
   assert.match(voorwaardenPage, /Gratis accounts ontvangen eenmalig 3 credits bij registratie/);
   assert.doesNotMatch(voorwaardenPage, /3 credits per maand|3 gratis UBL-generaties bij registratie/);
   assert.match(privacyPage, /Brevo \(transactionele e-mail, verwerkt naam en e-mailadres\)/);
+  assert.match(avgGdprPage, /Google \(Gemini AI, voor factuurverwerking\) — verwerking onder Google&apos;s standaard AVG-voorwaarden en modelcontracten/);
+  assert.doesNotMatch(avgGdprPage, /Google Cloud \(Gemini AI\) — EU data residency/);
+  assert.match(avgGdprPage, /Brevo — Transactionele e-mail, verwerkt naam en e-mailadres/);
   assert.match(privacyPage, /Conversions en invoices, waaronder UBL, bedragen, klantgegevens en het e-mailadres van de ontvanger, bewaren wij zolang je account actief is, tenzij je een factuur zelf verwijdert\./);
 });
