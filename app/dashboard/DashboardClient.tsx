@@ -642,7 +642,7 @@ export default function DashboardClient({
  )}
  {!isMonitoring ? (
  <div>
- <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Bewaking van Peppol-registraties en signalen is beschikbaar in het Monitoring-plan.</p>
+ <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Bewaking van Peppol-registraties en signalen — vanaf €9/mnd.</p>
  <Link href="/upgrade" className="btn btn-primary">Monitoring instellen</Link>
  </div>
  ) : monitoringTargets.length === 0 ? (

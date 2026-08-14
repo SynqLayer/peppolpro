@@ -4,6 +4,7 @@ import { getMonitoringEntitlement } from "@/lib/monitoring-access";
 import { dispatchMonitoringWebhook } from "@/lib/monitoring-webhooks";
 
 const DIRECTORY_URL = "https://directory.peppol.eu/search/1.0/json";
+const DIRECTORY_REQUEST_DELAY_MS = 600;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 type MonitoringTargetRow = {
@@ -40,6 +41,10 @@ function shouldCheck(lastCheckedAt: string | null, frequency: "weekly" | "daily"
  if (!lastCheckedAt) return true;
  const elapsed = Date.now() - new Date(lastCheckedAt).getTime();
  return elapsed >= (frequency === "daily" ? DAY_MS : 7 * DAY_MS);
+}
+
+function sleep(ms: number) {
+ return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function checkDirectory(target: MonitoringTargetRow) {
@@ -82,6 +87,7 @@ export async function POST(req: NextRequest) {
  let checked = 0;
  let skipped = 0;
  let failed = 0;
+ let directoryChecksStarted = 0;
 
  for (const target of (targets || []) as MonitoringTargetRow[]) {
  const entitlement = await getMonitoringEntitlement(target.user_id);
@@ -90,6 +96,8 @@ export async function POST(req: NextRequest) {
  continue;
  }
  try {
+ if (directoryChecksStarted > 0) await sleep(DIRECTORY_REQUEST_DELAY_MS);
+ directoryChecksStarted += 1;
  const result = await checkDirectory(target);
  const { data: eventRecord } = await supabase.from("monitoring_events").insert({
  target_id: target.id,
