@@ -24,6 +24,7 @@ export interface InvoiceData {
  customerVatNr: string;
  customerKvkKbo?: string;
  customerPeppolId?: string;
+ customerEmail: string;
  buyerReference?: string;
  // Factuur
  invoiceNumber: string;

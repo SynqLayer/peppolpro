@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
  status: "done",
  ubl_xml: xml,
  customer_name: summary.customerName || fallbackSummary.customerName,
+ customer_email: invoiceData.customerEmail.trim(),
  total_amount: summary.totalAmount ?? fallbackSummary.totalAmount,
  invoice_number: summary.invoiceNumber || fallbackSummary.invoiceNumber,
  currency: summary.currency || fallbackSummary.currency,

@@ -22,6 +22,7 @@ function parsedToInvoiceData(parsed: ParsedInvoice): InvoiceData {
  customerCountry: parsed.buyer.country || "NL",
  customerVatNr: parsed.buyer.btw_number || "",
  buyerReference: parsed.invoice.reference || undefined,
+ customerEmail: "unknown@example.invalid",
  invoiceNumber: parsed.invoice.number || "factuur",
  invoiceDate: parsed.invoice.date || new Date().toISOString().slice(0, 10),
  dueDate: parsed.invoice.due_date || parsed.invoice.date || new Date().toISOString().slice(0, 10),

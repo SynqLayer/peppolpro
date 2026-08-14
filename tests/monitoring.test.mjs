@@ -35,6 +35,11 @@ const migration0009 = readFileSync(new URL('../supabase/migrations/0009_payments
 const recommandLib = readFileSync(new URL('../lib/recommand.ts', import.meta.url), 'utf8');
 const recommandRoute = readFileSync(new URL('../app/api/recommand/send/route.ts', import.meta.url), 'utf8');
 const migration0011 = readFileSync(new URL('../supabase/migrations/0011_recommand_delivery_fields.sql', import.meta.url), 'utf8');
+const migration0012 = readFileSync(new URL('../supabase/migrations/0012_conversion_customer_email.sql', import.meta.url), 'utf8');
+const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
+const ublGenerator = readFileSync(new URL('../lib/ubl-generator.ts', import.meta.url), 'utf8');
+const ublValidator = readFileSync(new URL('../lib/ubl-validator.ts', import.meta.url), 'utf8');
+const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
 
 test('monitoring tiers are configured with limits and frequencies', () => {
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
@@ -265,6 +270,18 @@ test('dashboard does not silently hide invoices when conversion query fails', ()
  assert.match(dashboardPage, /conversionsError=\{conversionsErrorMessage\}/);
  assert.match(dashboard, /conversionsError\?: string \| null/);
  assert.match(dashboard, /\{conversionsError\}/);
+});
+
+test('new invoice flow requires and stores customer email for manual sending fallback', () => {
+ assert.match(migration0012, /alter table public\.conversions[\s\S]*add column if not exists customer_email text/i);
+ assert.match(ublGenerator, /customerEmail: string/);
+ assert.match(ublValidator, /Klant: e-mailadres ontvanger ontbreekt/);
+ assert.match(ublValidator, /Klant: e-mailadres ontvanger is ongeldig/);
+ assert.match(nieuwPage, /const \[customerEmail, setCustomerEmail\] = useState\(""\)/);
+ assert.match(nieuwPage, /E-mailadres ontvanger/);
+ assert.match(nieuwPage, /field\("E-mailadres ontvanger", customerEmail, setCustomerEmail, "email"\)/);
+ assert.match(nieuwPage, /customerEmail/);
+ assert.match(generateRoute, /customer_email: invoiceData\.customerEmail\.trim\(\)/);
 });
 
 test('subscription cancel route cancels at Mollie but keeps access until period end', () => {

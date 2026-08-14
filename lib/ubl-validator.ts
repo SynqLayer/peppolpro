@@ -15,6 +15,11 @@ export function validateInvoiceData(data: InvoiceData): ValidationResult {
  if (!data.supplierCountry?.trim()) errors.push("Leverancier: land ontbreekt");
 
  if (!data.customerName?.trim()) errors.push("Klant: naam ontbreekt");
+ if (!data.customerEmail?.trim()) {
+ errors.push("Klant: e-mailadres ontvanger ontbreekt");
+ } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.customerEmail.trim())) {
+ errors.push("Klant: e-mailadres ontvanger is ongeldig");
+ }
  if (!data.customerVatNr?.trim()) errors.push("Klant: BTW-nummer ontbreekt");
  if (!data.customerCountry?.trim()) errors.push("Klant: land ontbreekt");
 

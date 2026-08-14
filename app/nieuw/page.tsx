@@ -36,6 +36,7 @@ export default function NieuwPage() {
  const [customerVatNr, setCustomerVatNr] = useState("");
  const [customerKvkKbo, setCustomerKvkKbo] = useState("");
  const [customerPeppolId, setCustomerPeppolId] = useState("");
+ const [customerEmail, setCustomerEmail] = useState("");
  const [buyerReference, setBuyerReference] = useState("");
 
  const [invoiceNumber, setInvoiceNumber] = useState(invoiceNo);
@@ -91,6 +92,7 @@ export default function NieuwPage() {
  customerVatNr,
  customerKvkKbo,
  customerPeppolId,
+ customerEmail,
  buyerReference,
  invoiceNumber,
  invoiceDate,
@@ -213,6 +215,7 @@ export default function NieuwPage() {
  {field("BTW-nummer", customerVatNr, setCustomerVatNr)}
  {field("KvK/KBO optioneel", customerKvkKbo, setCustomerKvkKbo)}
  {field("Peppol-ID optioneel (voor UBL, niet voor directe verzending)", customerPeppolId, setCustomerPeppolId)}
+ {field("E-mailadres ontvanger", customerEmail, setCustomerEmail, "email")}
  {field("Betalingskenmerk", buyerReference, setBuyerReference)}
  </div>
  </Section>
