@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
  title: "Peppol-factuur voorbereiden — UBL downloaden zonder boekhoudpakket",
- description: "Maak een Peppol BIS 3.0 UBL-bestand zonder boekhoudpakket. Verzenden kan via een maandbundel of als losse verzending.",
+ description: "Maak een Peppol BIS 3.0 UBL-bestand zonder boekhoudpakket. Download nu je UBL; Peppol-verzending via bundels wordt binnenkort geactiveerd.",
  alternates: { canonical: "https://peppolpro.nl/peppol-factuur-versturen" },
 };
 
@@ -34,7 +34,7 @@ export default function PeppolFactuurVersturenPage() {
 
  <h2 style={h2Style}>Hoe werkt het netwerk?</h2>
  <p style={pStyle}>
- Peppol is een Europees netwerk van access points. Je kunt de UBL downloaden en verzenden via je eigen access point of boekhoudpakket. PeppolPro biedt daarnaast verzendbundels en losse verzending.
+ Peppol is een Europees netwerk van access points. Je kunt de UBL downloaden en verzenden via je eigen access point of boekhoudpakket. PeppolPro activeert verzendbundels binnenkort; UBL genereren en downloaden werkt nu al.
  </p>
 
  <h2 style={h2Style}>Wat kost het?</h2>
@@ -43,8 +43,7 @@ export default function PeppolFactuurVersturenPage() {
  { plan: "Gratis", prijs: "€0", detail: "3 gratis UBL-generaties bij registratie" },
  { plan: "Verzenden 25", prijs: "€12/mnd", detail: "25 verzendingen incl., €0,45 extra" },
  { plan: "Verzenden 100", prijs: "€39/mnd", detail: "100 verzendingen incl., €0,35 extra" },
- { plan: "Los", prijs: "€1,95", detail: "per losse verzending" },
- ].map((p) => (
+  ].map((p) => (
  <div key={p.plan} style={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 8, padding: "1.25rem" }}>
  <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>{p.plan}</div>
  <div style={{ color: "#6366f1", fontSize: "1.4rem", fontWeight: 800, margin: "0.5rem 0" }}>{p.prijs}</div>
@@ -58,7 +57,7 @@ export default function PeppolFactuurVersturenPage() {
  Eerste 3 UBL-generaties gratis
  </h3>
  <p style={{ color: "#a5b4fc", marginBottom: "1.5rem" }}>
- Account aanmaken, gegevens invullen, UBL downloaden. Verzenden kan via een maandbundel of als losse verzending.
+ Account aanmaken, gegevens invullen, UBL downloaden. Peppol-verzending via bundels wordt binnenkort geactiveerd.
  </p>
  <Link href="/login" style={buttonStyle}>
  Start gratis

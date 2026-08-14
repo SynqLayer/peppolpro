@@ -18,7 +18,7 @@ export default function PrivacyPage() {
  <p style={p}>Bij registratie: e-mailadres, bedrijfsnaam, KvK/KBO-nummer, BTW-nummer. Bij gebruik: geüploade PDF-facturen (tijdelijk), gegenereerde UBL XML-bestanden, Peppol-monitoringgegevens, team-uitnodigingen, webhook-configuratie, IP-adres en browsergegevens voor beveiliging.</p>
 
  <h2 style={h2}>3. Doel van verwerking</h2>
- <p style={p}>Wij verwerken gegevens voor: het leveren van onze dienst (PDF naar UBL conversie), accountbeheer, facturatie, monitoring van Peppol-registraties, teamtoegang, webhook-doorgifte op eigen verzoek van de gebruiker, en wettelijke verplichtingen. Factuurdata wordt alleen tijdelijk verwerkt voor de conversie en daarna verwijderd.</p>
+ <p style={p}>Wij verwerken gegevens voor: het leveren van onze dienst (PDF naar UBL conversie), accountbeheer, facturatie, monitoring van Peppol-registraties, teamtoegang, webhook-doorgifte op eigen verzoek van de gebruiker, en wettelijke verplichtingen. Factuurdata wordt opgeslagen in je account voor conversie, factuurhistorie en dashboardweergave, totdat je deze verwijdert of verwijdering aanvraagt.</p>
 
  <h2 style={h2}>4. Bewaartermijnen</h2>
  <p style={p}>Accountgegevens: zolang je account actief is. Geüploade PDF-facturen: maximaal 24 uur na conversie, daarna automatisch verwijderd. Monitoring-events voor Peppol-bewaking: maximaal 12 maanden. Team-uitnodigingen: maximaal 30 dagen als pending uitnodiging; daarna wordt het e-mailadres uit de uitnodigingsrij verwijderd en blijft alleen beperkte auditmetadata over. Betalingsgegevens: 7 jaar (wettelijke bewaarplicht). Loggegevens: maximaal 90 dagen.</p>

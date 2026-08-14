@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
  const plan = profile.plan || "free";
  if (plan === "free" && (profile.credits ?? 0) <= 0) {
- return NextResponse.json({ error: "Geen gratis UBL-generaties meer. Kies een verzendbundel of gebruik losse verzending." }, { status: 403 });
+ return NextResponse.json({ error: "Geen gratis UBL-generaties meer. Kies een passend plan zodra verzendbundels beschikbaar zijn." }, { status: 403 });
  }
 
  // Get PDF from form data

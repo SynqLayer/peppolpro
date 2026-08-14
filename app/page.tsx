@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect } from "react";
 import ParticleField from "../components/ParticleField";
 import Reveal from "../components/Reveal";
 import GlassCard from "../components/GlassCard";
@@ -15,6 +15,11 @@ export default function Home() {
  window.addEventListener("scroll", s, { passive: true });
  return () => window.removeEventListener("scroll", s);
  }, []);
+
+ useEffect(() => {
+ document.body.style.overflow = menuOpen ? "hidden" : "";
+ return () => { document.body.style.overflow = ""; };
+ }, [menuOpen]);
 
  const navs = [
  { id: "how", l: "Hoe werkt het" },
@@ -33,9 +38,9 @@ export default function Home() {
  top: 0,
  left: 0,
  right: 0,
- zIndex: 100,
+ zIndex: 1000,
  padding: "0 20px",
- background: scrollY > 50 ? "rgba(2,6,23,0.92)" : "transparent",
+ background: menuOpen || scrollY > 50 ? C.bg : "transparent",
  backdropFilter: scrollY > 50 ? "blur(20px)" : "none",
  borderBottom: scrollY > 50 ? `1px solid ${C.border}` : "none",
  transition: "all 0.4s",
@@ -73,6 +78,13 @@ export default function Home() {
  </a>
  ))}
  <a href="/login" style={{
+ color: C.gray,
+ fontWeight: 600,
+ fontSize: 15,
+ padding: "10px 0",
+ textDecoration: "none",
+ }}>Inloggen</a>
+ <a href="/register" style={{
  display: "inline-block",
  background: "linear-gradient(135deg, #3b82f6, #6366f1)",
  color: "#fff",
@@ -94,7 +106,17 @@ export default function Home() {
  </button>
  </div>
  {menuOpen && (
- <div style={{ padding: "12px 0 20px", borderTop: `1px solid ${C.border}` }}>
+ <div style={{
+ position: "absolute",
+ top: 60,
+ left: 0,
+ right: 0,
+ zIndex: 1001,
+ padding: "12px 20px 20px",
+ borderTop: `1px solid ${C.border}`,
+ background: C.bg,
+ boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
+ }}>
  {navs.map((n) => (
  <a
  key={n.id}
@@ -118,6 +140,16 @@ export default function Home() {
  </a>
  ))}
  <a href="/login" onClick={() => setMenuOpen(false)} style={{
+ display: "block",
+ width: "100%",
+ textAlign: "left",
+ color: C.gray,
+ fontWeight: 700,
+ fontSize: 15,
+ padding: "10px 0",
+ textDecoration: "none",
+ }}>Inloggen</a>
+ <a href="/register" onClick={() => setMenuOpen(false)} style={{
  display: "block",
  width: "100%",
  textAlign: "center",
@@ -155,7 +187,7 @@ export default function Home() {
  </Reveal>
  <Reveal delay={0.2}>
  <p style={{ fontSize: "clamp(16px, 2.2vw, 19px)", color: C.dim, lineHeight: 1.7, maxWidth: 560, margin: "0 auto 36px", fontWeight: 400 }}>
- Upload je PDF-factuur. Onze AI leest alles automatisch. Download een Peppol BIS 3.0 UBL/XML-bestand. Verzenden kan via een maandbundel of losse verzending zodra je factuur klaar is.
+ Upload je PDF-factuur. Onze AI leest alles automatisch. Download een Peppol BIS 3.0 UBL/XML-bestand. Peppol-verzending via bundels wordt binnenkort geactiveerd.
  </p>
  </Reveal>
  <Reveal delay={0.3}>
