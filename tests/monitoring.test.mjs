@@ -61,10 +61,11 @@ test('homepage navigation exposes login and mobile menu overlays hero content', 
  assert.match(homePage, /href="\/register"[\s\S]*>Probeer gratis<\/a>/);
 });
 
-test('login page hides unsupported Google OAuth provider', () => {
- assert.doesNotMatch(loginPage, /signInWithOAuth/);
- assert.doesNotMatch(loginPage, /provider:\s*"google"/);
- assert.doesNotMatch(loginPage, /Doorgaan met Google/);
+test('login page shows configured Google OAuth provider with callback redirect', () => {
+ assert.match(loginPage, /signInWithOAuth/);
+ assert.match(loginPage, /provider:\s*"google"/);
+ assert.match(loginPage, /Doorgaan met Google/);
+ assert.match(loginPage, /redirectTo: `\$\{window\.location\.origin\}\/api\/auth\/callback`/);
 });
 
 test('public copy does not claim temporary-only storage, VIES validation, or loose sending', () => {
