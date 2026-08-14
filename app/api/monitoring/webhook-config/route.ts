@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { normalizeWebhookUrl } from "@/lib/monitoring-webhooks";
 
 function clean(value: unknown) {
@@ -10,6 +11,8 @@ export async function GET() {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ const access = await assertMonitoringAccess(user.id);
+ if (!access.ok) return NextResponse.json({ error: "API & Webhooks zijn alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
  const { data, error } = await supabase
  .from("monitoring_webhook_configs")
  .select("id, webhook_url, created_at, updated_at, revoked_at")
@@ -23,6 +26,8 @@ export async function POST(req: NextRequest) {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ const access = await assertMonitoringAccess(user.id);
+ if (!access.ok) return NextResponse.json({ error: "API & Webhooks zijn alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
  const body = await req.json().catch(() => ({}));
  const rawUrl = clean(body.webhook_url);
  const disclaimerAccepted = body.disclaimer_accepted === true;
@@ -47,6 +52,8 @@ export async function DELETE() {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ const access = await assertMonitoringAccess(user.id);
+ if (!access.ok) return NextResponse.json({ error: "API & Webhooks zijn alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
  const { error } = await supabase
  .from("monitoring_webhook_configs")
  .update({ revoked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
