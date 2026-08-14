@@ -1,4 +1,4 @@
-export const CONVERSION_PDF_RETENTION_HOURS = 24;
+export const CONVERSION_PDF_RETENTION_DAYS = 14;
 
 export type ConversionPdfRetentionCandidate = {
  id?: string | null;
@@ -7,7 +7,7 @@ export type ConversionPdfRetentionCandidate = {
 };
 
 export function conversionPdfRetentionCutoff(now = new Date()) {
- return new Date(now.getTime() - CONVERSION_PDF_RETENTION_HOURS * 60 * 60 * 1000).toISOString();
+ return new Date(now.getTime() - CONVERSION_PDF_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 }
 
 export function conversionPdfStoragePath(conversion: ConversionPdfRetentionCandidate) {

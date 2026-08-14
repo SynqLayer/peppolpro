@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
  retention: {
  monitoringEvents: "12 maanden",
  pendingInvites: "30 dagen",
- conversionPdfs: "24 uur na conversie",
+ conversionPdfs: "14 dagen na conversie",
  },
  });
  } catch (err) {

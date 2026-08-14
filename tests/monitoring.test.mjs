@@ -232,8 +232,8 @@ test('retention cleanup deletes old monitoring events and expires pending invite
  assert.match(cleanupRoute, /Bearer \$\{secret\}/);
 });
 
-test('retention cleanup removes uploaded conversion PDFs after 24 hours based on conversion created_at', () => {
- assert.match(conversionPdfRetentionLib, /CONVERSION_PDF_RETENTION_HOURS = 24/);
+test('retention cleanup removes uploaded conversion PDFs after 14 days based on conversion created_at', () => {
+ assert.match(conversionPdfRetentionLib, /CONVERSION_PDF_RETENTION_DAYS = 14/);
  assert.match(conversionPdfRetentionLib, /`\$\{conversion\.user_id\}\/\$\{conversion\.id\}\.pdf`/);
  assert.match(migration0013, /alter table public\.conversions[\s\S]*pdf_deleted_at timestamptz/);
  assert.match(migration0013, /conversions_pdf_retention_idx[\s\S]*where pdf_deleted_at is null/);
@@ -241,7 +241,7 @@ test('retention cleanup removes uploaded conversion PDFs after 24 hours based on
  assert.match(cleanupRoute, /from\("conversions"\)[\s\S]*select\("id, user_id, created_at"\)[\s\S]*\.lt\("created_at", conversionPdfCutoff\)[\s\S]*\.is\("pdf_deleted_at", null\)/);
  assert.match(cleanupRoute, /storage\.from\("invoices"\)\.remove\(conversionPdfPaths\)/);
  assert.match(cleanupRoute, /update\(\{ pdf_deleted_at: new Date\(\)\.toISOString\(\) \}\)/);
- assert.match(cleanupRoute, /conversionPdfs: "24 uur na conversie"/);
+ assert.match(cleanupRoute, /conversionPdfs: "14 dagen na conversie"/);
  const conversionCleanupBlock = cleanupRoute.match(/from\("conversions"\)[\s\S]*?storage\.from\("invoices"\)\.remove\(conversionPdfPaths\)/)?.[0] || '';
  assert.doesNotMatch(conversionCleanupBlock, /\.eq\("status"|status:\s*"failed"|status:\s*"success"/);
 });
