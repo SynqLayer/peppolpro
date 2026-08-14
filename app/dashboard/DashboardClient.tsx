@@ -221,6 +221,7 @@ export default function DashboardClient({
  user,
  profile,
  conversions,
+ conversionsError,
  inbox,
  paid,
  monitoringTargets,
@@ -233,6 +234,7 @@ export default function DashboardClient({
  user: { id: string; email: string };
  profile: Profile | null;
  conversions: Conversion[];
+ conversionsError?: string | null;
  inbox: InboxMessage[];
  paid: boolean;
  monitoringTargets: MonitoringTarget[];
@@ -502,6 +504,11 @@ export default function DashboardClient({
  {filteredConversions.length > 10 && !showAll && <button onClick={() => setShowAll(true)} className="action-link" style={{ background: "transparent", border: 0, cursor: "pointer" }}>Toon alles</button>}
  {showAll && <button onClick={() => setShowAll(false)} className="action-link" style={{ background: "transparent", border: 0, cursor: "pointer" }}>Toon minder</button>}
  </div>
+ {conversionsError && (
+ <div style={{ marginTop: 14, border: "1px solid rgba(248,113,113,0.32)", background: "rgba(127,29,29,0.18)", color: "#fecaca", borderRadius: 8, padding: 14, fontSize: 13, fontWeight: 800, lineHeight: 1.5 }}>
+ {conversionsError}
+ </div>
+ )}
  {hasInvoices && (
  <div className="table-tools">
  <label className="control">

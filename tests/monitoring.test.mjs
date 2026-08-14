@@ -263,6 +263,15 @@ test('Recommand integration verifies recipients before send and stores raw respo
  assert.match(migration0011, /sent_via_recommand_at timestamptz/);
 });
 
+test('dashboard does not silently hide invoices when conversion query fails', () => {
+ assert.match(dashboardPage, /error: conversionsError/);
+ assert.match(dashboardPage, /conversionsErrorMessage/);
+ assert.match(dashboardPage, /Factuurhistorie kon niet worden geladen/);
+ assert.match(dashboardPage, /conversionsError=\{conversionsErrorMessage\}/);
+ assert.match(dashboard, /conversionsError\?: string \| null/);
+ assert.match(dashboard, /\{conversionsError\}/);
+});
+
 test('new invoice flow requires and stores customer email for manual sending fallback', () => {
  assert.match(migration0012, /alter table public\.conversions[\s\S]*add column if not exists customer_email text/i);
  assert.match(ublGenerator, /customerEmail: string/);

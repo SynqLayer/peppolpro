@@ -23,12 +23,15 @@ export default async function DashboardPage({
  const monitoringAccess = await assertMonitoringAccess(user.id);
  const monitoringOwnerId = monitoringAccess.ok ? monitoringAccess.entitlement.accountOwnerId : null;
 
- const { data: conversionsData } = await supabase
+ const { data: conversionsData, error: conversionsError } = await supabase
  .from("conversions")
  .select("id, filename, created_at, status, ubl_xml, customer_name, total_amount, invoice_number, currency, recommand_document_id, recommand_status, verified_recipient, sent_via_recommand_at")
  .eq("user_id", user.id)
  .order("created_at", { ascending: false })
  .limit(100);
+ const conversionsErrorMessage = conversionsError
+ ? "Factuurhistorie kon niet worden geladen. Probeer opnieuw of neem contact op met support."
+ : null;
 
  const { data: inboxData } = await supabase
  .from("inbox_messages")
@@ -85,6 +88,7 @@ export default async function DashboardPage({
  user={{ id: user.id, email: user.email || "" }}
  profile={effectiveProfile}
  conversions={(conversionsData || []) as Conversion[]}
+ conversionsError={conversionsErrorMessage}
  inbox={(inboxData || []) as InboxMessage[]}
  monitoringTargets={(monitoringTargetsData || []) as MonitoringTarget[]}
  monitoringEvents={(monitoringEventsData || []) as MonitoringEvent[]}
