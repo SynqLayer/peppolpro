@@ -115,6 +115,10 @@ export async function POST(request: NextRequest) {
   .from("conversions")
   .update({ status: "failed" })
   .eq("id", conversion.id);
+ const message = parseError instanceof Error ? parseError.message : "Kon de factuur niet lezen. Probeer een ander bestand.";
+ if (message.includes("Gemini factuurparser-model niet beschikbaar")) {
+ return NextResponse.json({ error: message }, { status: 502 });
+ }
  return NextResponse.json({ error: "Kon de factuur niet lezen. Probeer een ander bestand." }, { status: 422 });
  }
 

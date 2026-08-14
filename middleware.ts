@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-export async function proxy(request: NextRequest) {
+async function proxy(request: NextRequest) {
  let supabaseResponse = NextResponse.next({ request });
 
  const supabase = createServerClient(
@@ -30,6 +30,13 @@ export async function proxy(request: NextRequest) {
  return supabaseResponse;
 }
 
+
+export function middleware(request: NextRequest) {
+ return proxy(request);
+}
+
 export const config = {
- matcher: ["/dashboard/:path*", "/nieuw/:path*"],
+ matcher: [
+  "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+ ],
 };

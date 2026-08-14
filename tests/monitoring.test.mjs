@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -40,6 +40,35 @@ const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url)
 const ublGenerator = readFileSync(new URL('../lib/ubl-generator.ts', import.meta.url), 'utf8');
 const ublValidator = readFileSync(new URL('../lib/ubl-validator.ts', import.meta.url), 'utf8');
 const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
+const middlewareFile = readFileSync(new URL('../middleware.ts', import.meta.url), 'utf8');
+const invoiceParser = readFileSync(new URL('../lib/invoice-parser.ts', import.meta.url), 'utf8');
+const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
+
+
+test('middleware invokes proxy session refresh and excludes static assets', () => {
+ assert.equal(existsSync(new URL('../proxy.ts', import.meta.url)), false);
+ assert.match(middlewareFile, /async function proxy\(request: NextRequest\)/);
+ assert.match(middlewareFile, /supabase\.auth\.getUser\(\)/);
+ assert.match(middlewareFile, /supabaseResponse\.cookies\.set/);
+ assert.match(middlewareFile, /export function middleware\(request: NextRequest\)/);
+ assert.match(middlewareFile, /return proxy\(request\)/);
+ assert.match(middlewareFile, /api\|_next\/static\|_next\/image\|favicon\.ico/);
+ assert.match(middlewareFile, /svg\|png\|jpg\|jpeg\|gif\|webp/);
+});
+
+test('invoice parser uses stable Gemini model and surfaces unavailable model errors', () => {
+ assert.match(invoiceParser, /INVOICE_PARSER_MODEL = "gemini-2\.5-flash"/);
+ assert.doesNotMatch(invoiceParser, /gemini-2\.5-flash-preview-04-17/);
+ assert.match(invoiceParser, /isGeminiModelUnavailableError/);
+ assert.match(invoiceParser, /Gemini factuurparser-model niet beschikbaar/);
+ assert.match(convertRoute, /Gemini factuurparser-model niet beschikbaar/);
+ assert.match(convertRoute, /status: 502/);
+});
+
+test('legacy duplicate Mollie webhook re-export and fix script are removed', () => {
+ assert.equal(existsSync(new URL('../app/api/webhooks/mollie/route.ts', import.meta.url)), false);
+ assert.equal(existsSync(new URL('../fix_page.py', import.meta.url)), false);
+});
 
 test('send tiers replace Compleet while monitoring tiers stay configured', () => {
  assert.match(plans, /PlanId = "free" \| "verzenden_25" \| "verzenden_100" \| "monitoring" \| "monitoring_accountant"/);

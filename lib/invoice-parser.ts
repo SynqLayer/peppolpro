@@ -1,5 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+export const INVOICE_PARSER_MODEL = "gemini-2.5-flash";
+
+function isGeminiModelUnavailableError(error: unknown) {
+ const message = error instanceof Error ? error.message : String(error);
+ return /model|not found|not supported|not available|not recognized|unknown|404/i.test(message);
+}
+
 const PARSE_PROMPT = `Je bent een AI die PDF-facturen analyseert. Extraheer ALLE velden.
 Geef het resultaat als ALLEEN valid JSON, geen tekst ervoor of erna.
 
@@ -103,8 +110,9 @@ export interface ParsedInvoice {
 
 export async function parseInvoicePDF(pdfBase64: string): Promise<ParsedInvoice> {
  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
- const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-04-17" });
+ const model = genAI.getGenerativeModel({ model: INVOICE_PARSER_MODEL });
 
+ try {
  const result = await model.generateContent([
  { text: PARSE_PROMPT },
  {
@@ -118,4 +126,10 @@ export async function parseInvoicePDF(pdfBase64: string): Promise<ParsedInvoice>
  const text = result.response.text();
  const cleaned = text.replace(/`json\n?/g, "").replace(/```\n?/g, "").trim();
  return JSON.parse(cleaned) as ParsedInvoice;
+ } catch (error) {
+ if (isGeminiModelUnavailableError(error)) {
+ throw new Error(`Gemini factuurparser-model niet beschikbaar: ${INVOICE_PARSER_MODEL}. Controleer GEMINI_API_KEY en configureer een ondersteund stabiel Gemini-model.`);
+ }
+ throw error;
+ }
 }
