@@ -33,7 +33,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
  ${[
  ["1", "Maak je eerste factuur", "Vul bedrijfs- en klantgegevens in via het formulier"],
  ["2", "Download je UBL", "Ontvang een Peppol BIS 3.0 XML-bestand"],
- ["3", "Verstuur via je eigen access point", "Verzenden kan via een bundel of losse verzending"],
+ ["3", "Verstuur via je eigen access point", "Peppol-verzending via bundels wordt binnenkort geactiveerd"],
  ].map(([num, title, desc]) => `
  <tr>
  <td style="padding:12px 0;border-bottom:1px solid #1e1e2e">

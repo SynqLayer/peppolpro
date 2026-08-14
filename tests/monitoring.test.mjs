@@ -43,7 +43,41 @@ const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', impor
 const middlewareFile = readFileSync(new URL('../middleware.ts', import.meta.url), 'utf8');
 const invoiceParser = readFileSync(new URL('../lib/invoice-parser.ts', import.meta.url), 'utf8');
 const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
+const homePage = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
+const loginPage = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
+const constants = readFileSync(new URL('../lib/constants.ts', import.meta.url), 'utf8');
+const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
+const privacyPageSource = readFileSync(new URL('../app/privacy/page.tsx', import.meta.url), 'utf8');
+const peppolSendPage = readFileSync(new URL('../app/peppol-factuur-versturen/page.tsx', import.meta.url), 'utf8');
+const brevoSource = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
 
+
+test('homepage navigation exposes login and mobile menu overlays hero content', () => {
+ assert.match(homePage, /document\.body\.style\.overflow = menuOpen \? "hidden" : ""/);
+ assert.match(homePage, /background: menuOpen \|\| scrollY > 50 \? C\.bg : "transparent"/);
+ assert.match(homePage, /zIndex: 1000/);
+ assert.match(homePage, /zIndex: 1001/);
+ assert.match(homePage, />Inloggen<\/a>/);
+ assert.match(homePage, /href="\/register"[\s\S]*>Probeer gratis<\/a>/);
+});
+
+test('login page hides unsupported Google OAuth provider', () => {
+ assert.doesNotMatch(loginPage, /signInWithOAuth/);
+ assert.doesNotMatch(loginPage, /provider:\s*"google"/);
+ assert.doesNotMatch(loginPage, /Doorgaan met Google/);
+});
+
+test('public copy does not claim temporary-only storage, VIES validation, or loose sending', () => {
+ for (const source of [homePage, constants, layout, privacyPageSource, peppolSendPage, brevoSource, convertRoute, generateRoute]) {
+  assert.doesNotMatch(source, /We slaan niets op/i);
+  assert.doesNotMatch(source, /daarna verwijderd/i);
+  assert.doesNotMatch(source, /EU VIES-systeem/i);
+  assert.doesNotMatch(source, /losse verzending/i);
+ }
+ assert.match(constants, /factuurhistorie kunt terugzien/);
+ assert.match(constants, /BTW-validatie staat op de roadmap/);
+ assert.match(homePage, /Peppol-verzending via bundels wordt binnenkort geactiveerd/);
+});
 
 test('middleware invokes proxy session refresh and excludes static assets', () => {
  assert.equal(existsSync(new URL('../proxy.ts', import.meta.url)), false);
