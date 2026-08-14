@@ -52,7 +52,7 @@ test('middleware invokes proxy session refresh and excludes static assets', () =
  assert.match(middlewareFile, /supabaseResponse\.cookies\.set/);
  assert.match(middlewareFile, /export function middleware\(request: NextRequest\)/);
  assert.match(middlewareFile, /return proxy\(request\)/);
- assert.match(middlewareFile, /_next\/static\|_next\/image\|favicon\.ico/);
+ assert.match(middlewareFile, /api\|_next\/static\|_next\/image\|favicon\.ico/);
  assert.match(middlewareFile, /svg\|png\|jpg\|jpeg\|gif\|webp/);
 });
 
