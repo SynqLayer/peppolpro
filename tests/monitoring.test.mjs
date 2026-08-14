@@ -11,6 +11,8 @@ const cronRoute = readFileSync(new URL('../app/api/cron/monitoring-check/route.t
 const migration0005 = readFileSync(new URL('../supabase/migrations/0005_monitoring_integrations_and_team.sql', import.meta.url), 'utf8');
 const reportRoute = readFileSync(new URL('../app/api/monitoring/report/[targetId]/route.ts', import.meta.url), 'utf8');
 const webhookRoute = readFileSync(new URL('../app/api/monitoring/webhook-config/route.ts', import.meta.url), 'utf8');
+const apiKeysRoute = readFileSync(new URL('../app/api/monitoring/api-keys/route.ts', import.meta.url), 'utf8');
+const accountMembersRoute = readFileSync(new URL('../app/api/account/members/route.ts', import.meta.url), 'utf8');
 const workflow = readFileSync(new URL('../.github/workflows/monitoring-cron.yml', import.meta.url), 'utf8');
 const migration0006 = readFileSync(new URL('../supabase/migrations/0006_retention_cleanup.sql', import.meta.url), 'utf8');
 const cleanupRoute = readFileSync(new URL('../app/api/cron/retention-cleanup/route.ts', import.meta.url), 'utf8');
@@ -197,6 +199,26 @@ test('webhook and team migration creates secure integration tables and shared ta
 test('webhook config route validates https webhook URLs', () => {
  assert.match(webhookRoute, /normalizeWebhookUrl/);
  assert.match(webhookRoute, /monitoring_webhook_configs/);
+});
+
+test('free plan users cannot access monitoring operations endpoints or tabs while invite acceptance remains open', () => {
+ for (const route of [apiKeysRoute, webhookRoute]) {
+  assert.match(route, /assertMonitoringAccess\(user\.id\)/);
+  assert.match(route, /status: 403/);
+ }
+ const membersGet = accountMembersRoute.match(/export async function GET\(\)[\s\S]*?\n}\n/)?.[0] || '';
+ const membersPost = accountMembersRoute.match(/export async function POST\([\s\S]*?\n}\n/)?.[0] || '';
+ const membersPatch = accountMembersRoute.match(/export async function PATCH\([\s\S]*?\n}\n/)?.[0] || '';
+ assert.match(membersGet, /assertMonitoringAccess\(user\.id\)/);
+ assert.match(membersGet, /status: 403/);
+ assert.match(membersPost, /assertMonitoringAccess\(user\.id\)/);
+ assert.match(membersPost, /status: 403/);
+ assert.doesNotMatch(membersPatch, /assertMonitoringAccess\(user\.id\)/);
+ assert.doesNotMatch(membersPatch, /status: 403/);
+ assert.match(membersPatch, /status: "accepted"/);
+ assert.match(dashboard, /Upgrade nodig/);
+ assert.match(dashboard, /Team en API & Webhooks zijn beschikbaar in het Monitoring-plan/);
+ assert.match(dashboard, /\{!isMonitoring \? \(/);
 });
 
 test('retention cleanup deletes old monitoring events and expires pending invites without retaining email PII', () => {

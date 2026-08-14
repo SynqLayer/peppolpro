@@ -695,8 +695,15 @@ export default function DashboardClient({
  <span style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(59,130,246,0.12)", color: "#93c5fd", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
  {activeOpsTab === "team" ? <UsersRound size={16} /> : <KeyRound size={16} />}
  </span>
- <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>{activeOpsTab === "team" ? "Team" : "API & Webhooks"}</h2>
+ <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>{!isMonitoring ? "Upgrade nodig" : activeOpsTab === "team" ? "Team" : "API & Webhooks"}</h2>
  </div>
+ {!isMonitoring ? (
+ <div>
+ <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Team en API & Webhooks zijn beschikbaar in het Monitoring-plan.</p>
+ <Link href="/upgrade" className="btn btn-primary">Upgrade naar Monitoring</Link>
+ </div>
+ ) : (
+ <>
  <div className="ops-tabs">
  <button type="button" className={`ops-tab ${activeOpsTab === "team" ? "ops-tab-active" : ""}`} onClick={() => setActiveOpsTab("team")}>Team</button>
  <button type="button" className={`ops-tab ${activeOpsTab === "api" ? "ops-tab-active" : ""}`} onClick={() => setActiveOpsTab("api")}>API & Webhooks</button>
@@ -732,6 +739,8 @@ export default function DashboardClient({
  <div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>{apiKeys.filter((key) => !key.revoked_at).length} actieve key{apiKeys.filter((key) => !key.revoked_at).length === 1 ? "" : "s"}. Keys worden alleen gehasht opgeslagen.</div>
  </div>
  </div>
+ )}
+ </>
  )}
  {opsStatus && <div style={{ color: "#93c5fd", fontSize: 12, marginTop: 10 }}>{opsStatus}</div>}
  </section>

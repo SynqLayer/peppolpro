@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { assertMonitoringAccess } from "@/lib/monitoring-access";
 
 function clean(value: unknown) {
  return typeof value === "string" ? value.trim() : "";
@@ -9,6 +10,8 @@ export async function GET() {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ const access = await assertMonitoringAccess(user.id);
+ if (!access.ok) return NextResponse.json({ error: "Team is alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
  const { data, error } = await supabase
  .from("account_members")
  .select("id, account_owner_id, member_user_id, invite_email, role, invited_at, accepted_at")
@@ -22,6 +25,8 @@ export async function POST(req: NextRequest) {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ const access = await assertMonitoringAccess(user.id);
+ if (!access.ok) return NextResponse.json({ error: "Team is alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
  const body = await req.json().catch(() => ({}));
  const invite_email = clean(body.email).toLowerCase();
  const role = clean(body.role) === "admin" ? "admin" : "viewer";

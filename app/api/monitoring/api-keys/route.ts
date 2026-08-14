@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { hashApiKey } from "@/lib/api-keys";
 
 function clean(value: unknown) {
@@ -11,6 +12,8 @@ export async function GET() {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ const access = await assertMonitoringAccess(user.id);
+ if (!access.ok) return NextResponse.json({ error: "API & Webhooks zijn alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
  const { data, error } = await supabase
  .from("api_keys")
  .select("id, key_hash, created_at, last_used_at, revoked_at")
@@ -24,6 +27,8 @@ export async function POST(req: NextRequest) {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ const access = await assertMonitoringAccess(user.id);
+ if (!access.ok) return NextResponse.json({ error: "API & Webhooks zijn alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
  const body = await req.json().catch(() => ({}));
  const label = clean(body.label) || "monitoring-api";
  const rawKey = `ppro_${randomBytes(24).toString("hex")}`;
