@@ -282,6 +282,15 @@ test('dashboard does not silently hide invoices when conversion query fails', ()
  assert.match(dashboard, /\{conversionsError\}/);
 });
 
+
+
+test('generate API requires an authenticated user before producing UBL', () => {
+ assert.match(generateRoute, /if \(!user\) \{/);
+ assert.match(generateRoute, /status: 401/);
+ assert.match(generateRoute, /Niet ingelogd/);
+ assert.doesNotMatch(generateRoute, /if \(user\) \{[\s\S]*from\("conversions"\)\.insert/);
+});
+
 test('new invoice flow requires and stores customer email for manual sending fallback', () => {
  assert.match(migration0012, /alter table public\.conversions[\s\S]*add column if not exists customer_email text/i);
  assert.match(ublGenerator, /customerEmail: string/);
