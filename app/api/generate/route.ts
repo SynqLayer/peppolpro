@@ -8,6 +8,9 @@ export async function POST(req: NextRequest) {
  try {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
+ if (!user) {
+ return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ }
  const invoiceData = await req.json() as InvoiceData;
 
  const { valid, errors } = validateInvoiceData(invoiceData);
@@ -19,7 +22,6 @@ export async function POST(req: NextRequest) {
  const summary = parseUblSummary(xml);
  const fallbackSummary = summarizeInvoiceData(invoiceData);
 
- if (user) {
  const { data: profile } = await supabase
  .from("user_profiles")
  .select("credits, plan")
@@ -48,7 +50,6 @@ export async function POST(req: NextRequest) {
  invoice_number: summary.invoiceNumber || fallbackSummary.invoiceNumber,
  currency: summary.currency || fallbackSummary.currency,
  });
- }
 
  return NextResponse.json({ xml });
  } catch (err) {
