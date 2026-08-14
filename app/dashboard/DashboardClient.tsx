@@ -445,7 +445,7 @@ export default function DashboardClient({
  <KpiCard label="Facturen deze maand" value={String(invoicesThisMonth)} caption={`${conversions.length} totaal in archief`} accent="#38bdf8" />
  <KpiCard label="Openstaand bedrag" value={formatCurrency(openAmount, currency)} caption="Concepten en UBL-bestanden in behandeling" accent="#f59e0b" />
  <KpiCard label="UBL gegenereerd" value={formatCurrency(generatedAmount, currency)} caption={`${generatedCount} UBL-bestand${generatedCount === 1 ? "" : "en"} succesvol gegenereerd`} accent="#34d399" />
- <KpiCard label="Resterende UBL-generaties" value={isFree ? String(profile?.credits ?? 0) : "Onbeperkt"} caption={isFree ? "Gratis plan" : "Betaald plan actief"} accent="#818cf8" />
+ <KpiCard label="Resterende UBL-generaties" value={isFree ? String(profile?.credits ?? 0) : "Betaald"} caption={isFree ? "Gratis starttegoed" : "Betaald plan actief"} accent="#818cf8" />
  </section>
 
  {!hasInvoices ? (

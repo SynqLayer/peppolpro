@@ -155,7 +155,7 @@ export default function Home() {
  </Reveal>
  <Reveal delay={0.2}>
  <p style={{ fontSize: "clamp(16px, 2.2vw, 19px)", color: C.dim, lineHeight: 1.7, maxWidth: 560, margin: "0 auto 36px", fontWeight: 400 }}>
- Upload je PDF-factuur. Onze AI leest alles automatisch. Download een Peppol BIS 3.0 UBL/XML-bestand. Direct verzenden via Peppol is nog niet beschikbaar.
+ Upload je PDF-factuur. Onze AI leest alles automatisch. Download een Peppol BIS 3.0 UBL/XML-bestand. Verzenden kan via een maandbundel of losse verzending zodra je factuur klaar is.
  </p>
  </Reveal>
  <Reveal delay={0.3}>
@@ -170,7 +170,7 @@ export default function Home() {
  borderRadius: 12,
  textDecoration: "none",
  boxShadow: "0 8px 32px rgba(59,130,246,0.25)",
- }}>Probeer gratis — 3 facturen/maand →</a>
+ }}>Probeer gratis — 3 UBL-generaties →</a>
  <a href="#how" style={{
  display: "inline-block",
  border: "1px solid rgba(255,255,255,0.1)",
@@ -249,7 +249,7 @@ export default function Home() {
  <div style={{ textAlign: "center", marginBottom: 56 }}>
  <span style={{ fontSize: 11, color: "#10b981", fontWeight: 700, letterSpacing: 3, textTransform: "uppercase" }}>Prijzen</span>
  <h2 style={{ fontSize: "clamp(28px, 4.5vw, 46px)", fontWeight: 800, marginTop: 8, letterSpacing: "-1px" }}>Simpel en eerlijk</h2>
- <p style={{ color: C.dim, marginTop: 10, fontSize: 15 }}>Ook beschikbaar: losse factuur voor €1,95/stuk</p>
+ <p style={{ color: C.dim, marginTop: 10, fontSize: 15 }}>Losse verzending: €1,95 per factuur</p>
  </div>
  </Reveal>
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, alignItems: "start" }}>
@@ -330,7 +330,7 @@ export default function Home() {
  Klaar om te{" "}
  <span style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.cyan})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>starten</span>?
  </h2>
- <p style={{ fontSize: 17, color: C.dim, marginBottom: 32 }}>Probeer PeppolPro gratis. 3 facturen per maand, geen creditcard nodig.</p>
+ <p style={{ fontSize: 17, color: C.dim, marginBottom: 32 }}>Probeer PeppolPro gratis. 3 gratis UBL-generaties bij registratie, geen creditcard nodig.</p>
  <a href="/login" style={{
  display: "inline-block",
  background: "linear-gradient(135deg, #3b82f6, #6366f1)",

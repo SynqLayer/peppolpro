@@ -21,7 +21,7 @@ export default function VoorwaardenPage() {
  <p style={p}>PeppolPro biedt AI-gestuurde conversie van PDF-facturen naar UBL 2.1 XML. Wij garanderen geen 100% nauwkeurigheid van de AI-verwerking. De gebruiker is verantwoordelijk voor het controleren van de gegenereerde output voordat deze wordt verzonden.</p>
 
  <h2 style={h2}>4. Account en credits</h2>
- <p style={p}>Gratis accounts ontvangen 3 credits per maand. Betaalde credits vervallen niet. Abonnementen worden maandelijks gefactureerd en zijn maandelijks opzegbaar.</p>
+ <p style={p}>Gratis accounts ontvangen 3 gratis UBL-generaties bij registratie. Deze gratis generaties worden niet maandelijks bijgevuld. Abonnementen worden maandelijks gefactureerd en zijn maandelijks opzegbaar.</p>
 
  <h2 style={h2}>5. Prijzen en betaling</h2>
  <p style={p}>Prijzen zijn in euro en exclusief BTW tenzij anders vermeld. Betaling via iDEAL, creditcard of Bancontact. Bij niet-betaling kan de toegang worden opgeschort.</p>

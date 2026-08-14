@@ -9,9 +9,9 @@ const plans = [
  price: "€0",
  period: "",
  features: [
- "Onbeperkt UBL-facturen genereren & downloaden",
- "3 gratis UBL-generaties",
- "Peppol BIS 3.0 conform",
+ "3 gratis UBL-generaties bij registratie",
+ "UBL-facturen genereren en downloaden",
+ "Geen Peppol-verzending inbegrepen",
  ],
  cta: "Start gratis",
  href: "/login",
@@ -19,47 +19,48 @@ const plans = [
  highlight: false,
  },
  {
- name: "COMPLEET",
- price: "€9",
+ name: "VERZENDEN 25",
+ price: "€12",
  period: "/maand",
  badge: "Populair",
  features: [
+ "25 Peppol-verzendingen inbegrepen",
+ "€0,45 per extra verzending",
  "UBL-facturen genereren en downloaden",
- "Tot 30 facturen per maand",
- "7 jaar fiscaal archief",
- "Peppol Inbox binnenkort",
+ "Dashboard met historie en actiepunten",
  ],
- cta: "Kies Compleet",
+ cta: "Kies Verzenden 25",
  href: "/login",
- planId: "compleet",
+ planId: "verzenden_25",
  highlight: true,
  },
  {
- name: "PRO",
- price: "€19",
+ name: "VERZENDEN 100",
+ price: "€39",
  period: "/maand",
  features: [
- "Alles uit Compleet, onbeperkt facturen",
- "Eigen huisstijl op PDF",
- "Betalingsherinneringen",
+ "100 Peppol-verzendingen inbegrepen",
+ "€0,35 per extra verzending",
+ "UBL-facturen genereren en downloaden",
+ "Dashboard met historie en actiepunten",
  ],
- cta: "Kies Pro",
+ cta: "Kies Verzenden 100",
  href: "/login",
- planId: "pro",
+ planId: "verzenden_100",
  highlight: false,
  },
  {
- name: "ACCOUNTANT",
- price: "€49",
+ name: "MONITORING",
+ price: "€9",
  period: "/maand",
  features: [
- "10 administraties onder één account",
- "Bulk UBL-generatie binnenkort",
- "Per-klant archief",
+ "Maximaal 10 monitoring targets",
+ "Wekelijkse Peppol Directory-check",
+ "Alerts bij statuswijzigingen of fouten",
  ],
- cta: "Kies Accountant",
+ cta: "Activeer Monitoring",
  href: "/login",
- planId: "accountant",
+ planId: "monitoring",
  highlight: false,
  },
 ];
@@ -90,7 +91,7 @@ export default function PrijzenPage() {
  <div style={{ maxWidth: 760, marginBottom: 38 }}>
  <h1 style={{ fontSize: 44, fontWeight: 800, marginBottom: 12, letterSpacing: 0 }}>Prijzen</h1>
  <p style={{ fontSize: 17, color: C.gray, lineHeight: 1.7 }}>
- Kies het pakket dat past bij je factuurstroom. Start gratis, schaal op zodra UBL-generatie, archief of monitoring belangrijk wordt.
+ Kies het pakket dat past bij je factuurstroom. Start gratis, schaal op zodra UBL-generatie, verzending of monitoring belangrijk wordt.
  </p>
  </div>
 
@@ -154,7 +155,7 @@ export default function PrijzenPage() {
  </div>
 
  <p style={{ fontSize: 13, color: C.dim, textAlign: "center", margin: "28px 0 38px" }}>
- Alle prijzen excl. btw. Maandelijks opzegbaar.
+ Alle prijzen excl. btw. Maandelijks opzegbaar. Losse verzending: €1,95 per factuur.
  </p>
 
  <div style={{ maxWidth: 780, margin: "0 auto" }}>
