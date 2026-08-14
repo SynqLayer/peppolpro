@@ -1,7 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { redirect } from "next/navigation";
-import DashboardClient, { ApiKeyRecord, Conversion, InboxMessage, MonitoringEvent, MonitoringTarget, Profile, SubscriptionState, TeamMember, WebhookConfig } from "./DashboardClient";
+import DashboardClient, { ApiKeyRecord, Conversion, MonitoringEvent, MonitoringTarget, Profile, SubscriptionState, TeamMember, WebhookConfig } from "./DashboardClient";
 
 export default async function DashboardPage({
  searchParams,
@@ -32,13 +32,6 @@ export default async function DashboardPage({
  const conversionsErrorMessage = conversionsError
  ? "Factuurhistorie kon niet worden geladen. Probeer opnieuw of neem contact op met support."
  : null;
-
- const { data: inboxData } = await supabase
- .from("inbox_messages")
- .select("id, sender_name, amount, status, received_at")
- .eq("user_id", user.id)
- .order("received_at", { ascending: false })
- .limit(5);
 
  const monitoringTargetsData = monitoringOwnerId ? (await supabase
  .from("monitoring_targets")
@@ -89,8 +82,7 @@ export default async function DashboardPage({
  profile={effectiveProfile}
  conversions={(conversionsData || []) as Conversion[]}
  conversionsError={conversionsErrorMessage}
- inbox={(inboxData || []) as InboxMessage[]}
- monitoringTargets={(monitoringTargetsData || []) as MonitoringTarget[]}
+  monitoringTargets={(monitoringTargetsData || []) as MonitoringTarget[]}
  monitoringEvents={(monitoringEventsData || []) as MonitoringEvent[]}
  teamMembers={(teamMembersData || []) as TeamMember[]}
  webhookConfig={(webhookConfigData || null) as WebhookConfig | null}
