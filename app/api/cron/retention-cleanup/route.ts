@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { collectExpiredConversionPdfPaths, conversionPdfRetentionCutoff } from "@/lib/conversion-pdf-retention";
 
 function createServiceClient() {
  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
  const supabase = createServiceClient();
  const eventCutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
  const inviteCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+ const conversionPdfCutoff = conversionPdfRetentionCutoff();
 
  const { count: deletedMonitoringEvents, error: eventsError } = await supabase
  .from("monitoring_events")
@@ -34,6 +36,28 @@ export async function POST(req: NextRequest) {
  .eq("status", "pending")
  .lt("invited_at", inviteCutoff);
  if (inviteError) return NextResponse.json({ error: "Team-invites cleanup mislukt" }, { status: 500 });
+
+ const { data: expiredConversions, error: conversionPdfSelectError } = await supabase
+ .from("conversions")
+ .select("id, user_id, created_at")
+ .lt("created_at", conversionPdfCutoff)
+ .is("pdf_deleted_at", null)
+ .order("created_at", { ascending: true })
+ .limit(1000);
+ if (conversionPdfSelectError) return NextResponse.json({ error: "PDF-retentie selectie mislukt" }, { status: 500 });
+ const conversionPdfPaths = collectExpiredConversionPdfPaths(expiredConversions || []);
+ let deletedConversionPdfs = 0;
+ if (conversionPdfPaths.length > 0) {
+ const { data: removedPdfs, error: storageError } = await supabase.storage.from("invoices").remove(conversionPdfPaths);
+ if (storageError) return NextResponse.json({ error: "PDF-retentie storage cleanup mislukt" }, { status: 500 });
+ deletedConversionPdfs = removedPdfs?.length ?? conversionPdfPaths.length;
+ const expiredConversionIds = (expiredConversions || []).map((conversion) => conversion.id).filter(Boolean);
+ const { error: conversionUpdateError } = await supabase
+  .from("conversions")
+  .update({ pdf_deleted_at: new Date().toISOString() })
+  .in("id", expiredConversionIds);
+ if (conversionUpdateError) return NextResponse.json({ error: "PDF-retentie markering mislukt" }, { status: 500 });
+ }
 
  const { data: endedSubscriptions, error: subscriptionError } = await supabase
  .from("subscriptions")
@@ -53,10 +77,13 @@ export async function POST(req: NextRequest) {
  return NextResponse.json({
  deletedMonitoringEvents: deletedMonitoringEvents || 0,
  expiredInvites: expiredInvites || 0,
+ deletedConversionPdfs,
+ checkedConversionPdfs: conversionPdfPaths.length,
  endedSubscriptions: endedUserIds.length,
  retention: {
  monitoringEvents: "12 maanden",
  pendingInvites: "30 dagen",
+ conversionPdfs: "14 dagen na conversie",
  },
  });
  } catch (err) {

@@ -38,6 +38,8 @@ const recommandLib = readFileSync(new URL('../lib/recommand.ts', import.meta.url
 const recommandRoute = readFileSync(new URL('../app/api/recommand/send/route.ts', import.meta.url), 'utf8');
 const migration0011 = readFileSync(new URL('../supabase/migrations/0011_recommand_delivery_fields.sql', import.meta.url), 'utf8');
 const migration0012 = readFileSync(new URL('../supabase/migrations/0012_conversion_customer_email.sql', import.meta.url), 'utf8');
+const migration0013 = readFileSync(new URL('../supabase/migrations/0013_conversion_pdf_retention.sql', import.meta.url), 'utf8');
+const conversionPdfRetentionLib = readFileSync(new URL('../lib/conversion-pdf-retention.ts', import.meta.url), 'utf8');
 const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
 const ublGenerator = readFileSync(new URL('../lib/ubl-generator.ts', import.meta.url), 'utf8');
 const ublValidator = readFileSync(new URL('../lib/ubl-validator.ts', import.meta.url), 'utf8');
@@ -228,6 +230,20 @@ test('retention cleanup deletes old monitoring events and expires pending invite
  assert.match(cleanupRoute, /from\("monitoring_events"\)[\s\S]*\.delete\(\{ count: "exact" \}\)[\s\S]*\.lt\("created_at", eventCutoff\)/);
  assert.match(cleanupRoute, /from\("account_members"\)[\s\S]*status: "expired", invite_email: null/);
  assert.match(cleanupRoute, /Bearer \$\{secret\}/);
+});
+
+test('retention cleanup removes uploaded conversion PDFs after 14 days based on conversion created_at', () => {
+ assert.match(conversionPdfRetentionLib, /CONVERSION_PDF_RETENTION_DAYS = 14/);
+ assert.match(conversionPdfRetentionLib, /`\$\{conversion\.user_id\}\/\$\{conversion\.id\}\.pdf`/);
+ assert.match(migration0013, /alter table public\.conversions[\s\S]*pdf_deleted_at timestamptz/);
+ assert.match(migration0013, /conversions_pdf_retention_idx[\s\S]*where pdf_deleted_at is null/);
+ assert.match(cleanupRoute, /conversionPdfRetentionCutoff\(\)/);
+ assert.match(cleanupRoute, /from\("conversions"\)[\s\S]*select\("id, user_id, created_at"\)[\s\S]*\.lt\("created_at", conversionPdfCutoff\)[\s\S]*\.is\("pdf_deleted_at", null\)/);
+ assert.match(cleanupRoute, /storage\.from\("invoices"\)\.remove\(conversionPdfPaths\)/);
+ assert.match(cleanupRoute, /update\(\{ pdf_deleted_at: new Date\(\)\.toISOString\(\) \}\)/);
+ assert.match(cleanupRoute, /conversionPdfs: "14 dagen na conversie"/);
+ const conversionCleanupBlock = cleanupRoute.match(/from\("conversions"\)[\s\S]*?storage\.from\("invoices"\)\.remove\(conversionPdfPaths\)/)?.[0] || '';
+ assert.doesNotMatch(conversionCleanupBlock, /\.eq\("status"|status:\s*"failed"|status:\s*"success"/);
 });
 
 test('workflow runs monitoring hourly and retention cleanup as a separate daily step', () => {
