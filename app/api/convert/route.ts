@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
  const plan = profile.plan || "free";
  if (plan === "free" && (profile.credits ?? 0) <= 0) {
- return NextResponse.json({ error: "Geen credits meer. Upgrade naar Compleet voor onbeperkt gebruik." }, { status: 403 });
+ return NextResponse.json({ error: "Geen gratis UBL-generaties meer. Kies een verzendbundel of gebruik losse verzending." }, { status: 403 });
  }
 
  // Get PDF from form data
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
  const ublXml = generateUBL(invoiceData);
  const summary = parseUblSummary(ublXml);
 
- // Use credits only on the free plan. Compleet is unlimited.
+ // Use credits only on the free plan. Paid plans do not consume starter credits.
  if (plan === "free") {
  await supabase.rpc("use_credit", { p_user_id: user.id });
  }

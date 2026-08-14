@@ -8,7 +8,7 @@ export default function UpgradeSuccessPage() {
  <div style={{ width: 46, height: 46, borderRadius: 999, display: "grid", placeItems: "center", margin: "0 auto 18px", background: "rgba(16,185,129,0.14)", color: "#6ee7b7", fontWeight: 900 }}>✓</div>
  <h1 style={{ margin: 0, fontSize: 30, fontWeight: 900 }}>Upgrade verwerkt</h1>
  <p style={{ color: "#94a3b8", lineHeight: 1.7, margin: "12px 0 24px" }}>
- Als Mollie de betaling heeft bevestigd, staat Compleet actief op je dashboard.
+ Als Mollie de betaling heeft bevestigd, staat je gekozen plan actief op je dashboard.
  </p>
  <Link href="/dashboard" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 40, padding: "0 16px", borderRadius: 8, background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 900 }}>
  Terug naar dashboard

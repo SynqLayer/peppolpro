@@ -1,4 +1,4 @@
-export type PlanId = "free" | "compleet" | "monitoring" | "monitoring_accountant";
+export type PlanId = "free" | "verzenden_25" | "verzenden_100" | "monitoring" | "monitoring_accountant";
 export type CheckFrequency = "weekly" | "daily";
 
 export type PlanConfig = {
@@ -12,6 +12,8 @@ export type PlanConfig = {
  features: string[];
  cta: string;
  paid: boolean;
+ includedSends?: number;
+ extraSendPrice?: string;
  maxTargets?: number | null;
  checkFrequency?: CheckFrequency;
 };
@@ -23,32 +25,54 @@ export const PLANS: Record<PlanId, PlanConfig> = {
  price: "€0",
  amount: "0.00",
  period: "",
- description: "Voor testen en incidenteel gebruik.",
+ description: "Voor starten en incidenteel UBL-gebruik.",
  checkoutDescription: "PeppolPro Gratis",
  features: [
- "3 UBL-facturen genereren en downloaden",
+ "3 gratis UBL-generaties bij registratie",
  "UBL-facturen genereren en downloaden",
+ "Geen Peppol-verzending inbegrepen",
  "Basis factuurhistorie",
  ],
  cta: "Huidig plan",
  paid: false,
  },
- compleet: {
- id: "compleet",
- name: "Compleet",
- price: "€9",
- amount: "9.00",
+ verzenden_25: {
+ id: "verzenden_25",
+ name: "Verzenden 25",
+ price: "€12",
+ amount: "12.00",
  period: "/maand",
- description: "Voor ondernemers die UBL-facturen serieus gebruiken.",
- checkoutDescription: "PeppolPro Compleet €9/mnd",
+ description: "Voor ondernemers die maandelijks tot 25 facturen willen verzenden.",
+ checkoutDescription: "PeppolPro Verzenden 25 €12/mnd",
  features: [
- "Onbeperkt UBL-facturen genereren en downloaden",
- "Peppol Inbox binnenkort",
- "Dashboard met omzet, historie en actiepunten",
- "7 jaar fiscaal archief",
+ "25 Peppol-verzendingen inbegrepen",
+ "€0,45 per extra verzending",
+ "UBL-facturen genereren en downloaden",
+ "Dashboard met historie en actiepunten",
  ],
- cta: "Upgrade naar Compleet",
+ cta: "Kies Verzenden 25",
  paid: true,
+ includedSends: 25,
+ extraSendPrice: "0.45",
+ },
+ verzenden_100: {
+ id: "verzenden_100",
+ name: "Verzenden 100",
+ price: "€39",
+ amount: "39.00",
+ period: "/maand",
+ description: "Voor bedrijven met een hogere maandelijkse factuurstroom.",
+ checkoutDescription: "PeppolPro Verzenden 100 €39/mnd",
+ features: [
+ "100 Peppol-verzendingen inbegrepen",
+ "€0,35 per extra verzending",
+ "UBL-facturen genereren en downloaden",
+ "Dashboard met historie en actiepunten",
+ ],
+ cta: "Kies Verzenden 100",
+ paid: true,
+ includedSends: 100,
+ extraSendPrice: "0.35",
  },
  monitoring: {
  id: "monitoring",
@@ -91,10 +115,15 @@ export const PLANS: Record<PlanId, PlanConfig> = {
 };
 
 export const paidPlans = Object.values(PLANS).filter((plan) => plan.paid);
+export const sendingPlans = [PLANS.verzenden_25, PLANS.verzenden_100];
 export const monitoringPlans = [PLANS.monitoring, PLANS.monitoring_accountant];
 
 export function getPlan(plan: string | null | undefined) {
  return PLANS[(plan || "free") as PlanId] || PLANS.free;
+}
+
+export function isSendingPlan(plan: string | null | undefined) {
+ return plan === "verzenden_25" || plan === "verzenden_100";
 }
 
 export function isMonitoringPlan(plan: string | null | undefined) {

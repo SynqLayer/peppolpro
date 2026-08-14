@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
  if (profile?.plan === "free" && (profile?.credits ?? 0) <= 0) {
  return NextResponse.json(
- { error: "Geen credits meer. Upgrade naar Compleet voor onbeperkt gebruik." },
+ { error: "Geen gratis UBL-generaties meer. Kies een verzendbundel of gebruik losse verzending." },
  { status: 402 }
  );
  }

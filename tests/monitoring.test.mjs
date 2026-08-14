@@ -41,7 +41,17 @@ const ublGenerator = readFileSync(new URL('../lib/ubl-generator.ts', import.meta
 const ublValidator = readFileSync(new URL('../lib/ubl-validator.ts', import.meta.url), 'utf8');
 const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
 
-test('monitoring tiers are configured with limits and frequencies', () => {
+test('send tiers replace Compleet while monitoring tiers stay configured', () => {
+ assert.match(plans, /PlanId = "free" \| "verzenden_25" \| "verzenden_100" \| "monitoring" \| "monitoring_accountant"/);
+ assert.doesNotMatch(plans, /\bcompleet\b/i);
+ assert.match(plans, /free:\s*{[\s\S]*3 gratis UBL-generaties bij registratie/);
+ assert.match(plans, /free:\s*{[\s\S]*Geen Peppol-verzending inbegrepen/);
+ assert.match(plans, /verzenden_25:\s*{[\s\S]*amount:\s*"12\.00"/);
+ assert.match(plans, /verzenden_25:\s*{[\s\S]*includedSends:\s*25/);
+ assert.match(plans, /verzenden_25:\s*{[\s\S]*extraSendPrice:\s*"0\.45"/);
+ assert.match(plans, /verzenden_100:\s*{[\s\S]*amount:\s*"39\.00"/);
+ assert.match(plans, /verzenden_100:\s*{[\s\S]*includedSends:\s*100/);
+ assert.match(plans, /verzenden_100:\s*{[\s\S]*extraSendPrice:\s*"0\.35"/);
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
  assert.match(plans, /monitoring:\s*{[\s\S]*maxTargets:\s*10/);
  assert.match(plans, /monitoring:\s*{[\s\S]*checkFrequency:\s*"weekly"/);
