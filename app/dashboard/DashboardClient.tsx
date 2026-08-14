@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowUpRight, BellRing, FilePlus2, Filter, Inbox, KeyRound, Search, UsersRound, XCircle } from "lucide-react";
+import { ArrowUpRight, BellRing, FilePlus2, Filter, KeyRound, Search, UsersRound, XCircle } from "lucide-react";
 import { C } from "@/lib/constants";
 
 export type Profile = {
@@ -222,7 +222,6 @@ export default function DashboardClient({
  profile,
  conversions,
  conversionsError,
- inbox,
  paid,
  monitoringTargets,
  monitoringEvents,
@@ -235,7 +234,6 @@ export default function DashboardClient({
  profile: Profile | null;
  conversions: Conversion[];
  conversionsError?: string | null;
- inbox: InboxMessage[];
  paid: boolean;
  monitoringTargets: MonitoringTarget[];
  monitoringEvents: MonitoringEvent[];
@@ -257,7 +255,6 @@ export default function DashboardClient({
  const isFree = !profile?.plan || profile.plan === "free";
  const isMonitoring = profile?.plan === "monitoring" || profile?.plan === "monitoring_accountant";
  const isMonitoringAccountant = profile?.plan === "monitoring_accountant";
- const inboxActive = !isFree;
  const hasInvoices = conversions.length > 0;
  const now = useMemo(() => new Date(), []);
  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -267,7 +264,6 @@ export default function DashboardClient({
  const invoicesThisMonth = conversions.filter((conversion) => conversion.created_at && new Date(conversion.created_at) >= monthStart).length;
  const openAmount = conversions.reduce((sum, conversion) => sum + (isOpen(conversion.status) ? numberValue(conversion.total_amount) : 0), 0);
  const generatedCount = conversions.filter((conversion) => isGenerated(conversion.status)).length;
- const generatedAmount = conversions.reduce((sum, conversion) => sum + (isGenerated(conversion.status) ? numberValue(conversion.total_amount) : 0), 0);
  const failedCount = conversions.filter((conversion) => isFailed(conversion.status)).length;
 
  const chartData = useMemo(() => {
@@ -444,7 +440,7 @@ export default function DashboardClient({
  <section className="kpi-grid">
  <KpiCard label="Facturen deze maand" value={String(invoicesThisMonth)} caption={`${conversions.length} totaal in archief`} accent="#38bdf8" />
  <KpiCard label="Openstaand bedrag" value={formatCurrency(openAmount, currency)} caption="Concepten en UBL-bestanden in behandeling" accent="#f59e0b" />
- <KpiCard label="UBL gegenereerd" value={formatCurrency(generatedAmount, currency)} caption={`${generatedCount} UBL-bestand${generatedCount === 1 ? "" : "en"} succesvol gegenereerd`} accent="#34d399" />
+ <KpiCard label="UBL gegenereerd" value={String(generatedCount)} caption={`${generatedCount} UBL-bestand${generatedCount === 1 ? "" : "en"} succesvol gegenereerd`} accent="#34d399" />
  <KpiCard label="Resterende UBL-generaties" value={isFree ? String(profile?.credits ?? 0) : "Betaald"} caption={isFree ? "Gratis starttegoed" : "Betaald plan actief"} accent="#818cf8" />
  </section>
 
@@ -740,32 +736,6 @@ export default function DashboardClient({
  {opsStatus && <div style={{ color: "#93c5fd", fontSize: 12, marginTop: 10 }}>{opsStatus}</div>}
  </section>
 
- <section style={{ ...cardStyle, padding: 18 }}>
- <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
- <span style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(59,130,246,0.12)", color: "#93c5fd", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Inbox size={16} /></span>
- <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Peppol Inbox</h2>
- </div>
- {!inboxActive ? (
- <div>
- <p style={{ margin: "0 0 14px", color: "#94a3b8", fontSize: 13, lineHeight: 1.55 }}>Peppol Inbox is nog niet beschikbaar. Gebruik voorlopig je eigen access point of boekhoudpakket voor inkomende Peppol-facturen.</p>
- <Link href="/upgrade" className="btn btn-primary">Bekijk plannen</Link>
- </div>
- ) : inbox.length === 0 ? (
- <div style={{ color: "#94a3b8", fontSize: 14 }}>Nog geen ontvangen facturen.</div>
- ) : (
- <div style={{ display: "grid", gap: 11 }}>
- {inbox.map((message, index) => (
- <div key={message.id || index} style={{ border: "1px solid rgba(148,163,184,0.12)", background: "rgba(2,6,23,0.32)", borderRadius: 8, padding: 12 }}>
- <div style={{ display: "flex", justifyContent: "space-between", gap: 10, color: "#f8fafc", fontSize: 13, fontWeight: 900 }}>
- <span>{message.sender_name || "Onbekende afzender"}</span>
- <span>{formatCurrency(numberValue(message.amount), "EUR")}</span>
- </div>
- <div style={{ color: "#64748b", fontSize: 12, marginTop: 5 }}>{formatDate(message.received_at)}</div>
- </div>
- ))}
- </div>
- )}
- </section>
  </aside>
  </div>
  </div>

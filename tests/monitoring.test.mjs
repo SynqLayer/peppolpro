@@ -330,11 +330,19 @@ test('mollie webhook records idempotency events and failed handler errors durabl
  assert.match(mollieWebhookRoute, /failed_preprocess/);
 });
 
-test('dashboard uses honest UBL statuses and does not claim delivery without access point evidence', () => {
+test('dashboard uses honest UBL statuses and shows generated UBL count instead of amount', () => {
  assert.match(dashboard, /UBL gegenereerd/);
+ assert.match(dashboard, /value=\{String\(generatedCount\)\}/);
+ assert.doesNotMatch(dashboard, /value=\{formatCurrency\(generatedAmount/);
  assert.match(dashboard, /Direct verzenden niet beschikbaar/);
  assert.doesNotMatch(dashboard, /Afgeleverd/);
  assert.doesNotMatch(dashboard, /Opnieuw verzenden/);
+});
+
+test('dashboard keeps Peppol Inbox notice only in action points without upgrade plan button', () => {
+ assert.match(dashboard, /tasks\.push\(\{ title: "Peppol Inbox nog niet beschikbaar"/);
+ assert.doesNotMatch(dashboard, /<h2 style=\{\{ margin: 0, fontSize: 18, fontWeight: 900 \}\}>Peppol Inbox<\/h2>/);
+ assert.doesNotMatch(dashboard, /Bekijk plannen/);
 });
 
 test('Recommand integration verifies recipients before send and stores raw responses', () => {
