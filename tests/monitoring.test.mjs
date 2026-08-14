@@ -201,11 +201,21 @@ test('webhook config route validates https webhook URLs', () => {
  assert.match(webhookRoute, /monitoring_webhook_configs/);
 });
 
-test('free plan users cannot access monitoring operations endpoints or tabs', () => {
- for (const route of [accountMembersRoute, apiKeysRoute, webhookRoute]) {
+test('free plan users cannot access monitoring operations endpoints or tabs while invite acceptance remains open', () => {
+ for (const route of [apiKeysRoute, webhookRoute]) {
   assert.match(route, /assertMonitoringAccess\(user\.id\)/);
   assert.match(route, /status: 403/);
  }
+ const membersGet = accountMembersRoute.match(/export async function GET\(\)[\s\S]*?\n}\n/)?.[0] || '';
+ const membersPost = accountMembersRoute.match(/export async function POST\([\s\S]*?\n}\n/)?.[0] || '';
+ const membersPatch = accountMembersRoute.match(/export async function PATCH\([\s\S]*?\n}\n/)?.[0] || '';
+ assert.match(membersGet, /assertMonitoringAccess\(user\.id\)/);
+ assert.match(membersGet, /status: 403/);
+ assert.match(membersPost, /assertMonitoringAccess\(user\.id\)/);
+ assert.match(membersPost, /status: 403/);
+ assert.doesNotMatch(membersPatch, /assertMonitoringAccess\(user\.id\)/);
+ assert.doesNotMatch(membersPatch, /status: 403/);
+ assert.match(membersPatch, /status: "accepted"/);
  assert.match(dashboard, /Upgrade nodig/);
  assert.match(dashboard, /Team en API & Webhooks zijn beschikbaar in het Monitoring-plan/);
  assert.match(dashboard, /\{!isMonitoring \? \(/);

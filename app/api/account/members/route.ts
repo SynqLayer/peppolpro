@@ -46,8 +46,6 @@ export async function PATCH(req: NextRequest) {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
- const access = await assertMonitoringAccess(user.id);
- if (!access.ok) return NextResponse.json({ error: "Team is alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
  const body = await req.json().catch(() => ({}));
  const id = clean(body.id);
  if (!id) return NextResponse.json({ error: "Invite-id ontbreekt" }, { status: 400 });
