@@ -249,7 +249,7 @@ export default function Home() {
  <div style={{ textAlign: "center", marginBottom: 56 }}>
  <span style={{ fontSize: 11, color: "#10b981", fontWeight: 700, letterSpacing: 3, textTransform: "uppercase" }}>Prijzen</span>
  <h2 style={{ fontSize: "clamp(28px, 4.5vw, 46px)", fontWeight: 800, marginTop: 8, letterSpacing: "-1px" }}>Simpel en eerlijk</h2>
- <p style={{ color: C.dim, marginTop: 10, fontSize: 15 }}>Losse verzending: €1,95 per factuur</p>
+ <p style={{ color: C.dim, marginTop: 10, fontSize: 15 }}>Peppol-verzending binnenkort beschikbaar</p>
  </div>
  </Reveal>
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, alignItems: "start" }}>
@@ -273,6 +273,24 @@ export default function Home() {
  </div>
  ))}
  </div>
+ {p.available === false ? (
+ <button disabled style={{
+ display: "block",
+ width: "100%",
+ padding: "13px 0",
+ borderRadius: 10,
+ border: `1px solid ${C.border}`,
+ background: "rgba(100,116,139,0.18)",
+ color: C.gray,
+ fontWeight: 600,
+ fontSize: 14,
+ cursor: "not-allowed",
+ fontFamily: "inherit",
+ opacity: 0.8,
+ }}>
+ Binnenkort beschikbaar
+ </button>
+ ) : (
  <a href="/login" style={{
  display: "block",
  width: "100%",
@@ -291,6 +309,7 @@ export default function Home() {
  }}>
  {p.cta}
  </a>
+ )}
  </GlassCard>
  ))}
  </div>

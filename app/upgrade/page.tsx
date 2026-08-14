@@ -23,7 +23,7 @@ export default function UpgradePage() {
  <div style={{ maxWidth: 680, marginTop: 28, marginBottom: 28 }}>
  <h1 style={{ margin: 0, fontSize: 42, lineHeight: 1.08, fontWeight: 900 }}>Upgrade je PeppolPro-account</h1>
  <p style={{ margin: "14px 0 0", color: "#94a3b8", fontSize: 16, lineHeight: 1.7 }}>
- Gratis is ideaal om te starten. Verzenden 25 en Verzenden 100 voegen maandelijkse verzendbundels toe. Monitoring blijft voor actieve bewaking.
+ Gratis is ideaal om te starten. Peppol-verzending wordt binnenkort geactiveerd. UBL genereren en downloaden werkt nu al. Monitoring blijft voor actieve bewaking.
  </p>
  </div>
 
@@ -47,12 +47,16 @@ export default function UpgradePage() {
  </li>
  ))}
  </ul>
- {plan.paid ? (
+ {plan.paid && plan.available !== false ? (
  <PlanButton
  plan={plan.id}
  label={plan.cta}
  style={{ background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8 }}
  />
+ ) : plan.paid && plan.available === false ? (
+ <button disabled style={{ width: "100%", background: "rgba(100,116,139,0.18)", color: "#94a3b8", border: "1px solid rgba(148,163,184,0.16)", borderRadius: 8, padding: "12px 16px", fontSize: 14, fontWeight: 900, cursor: "not-allowed", opacity: 0.8 }}>
+ Binnenkort beschikbaar
+ </button>
  ) : (
  <Link href="/dashboard" style={{ display: "block", textAlign: "center", textDecoration: "none", color: "#cbd5e1", border: "1px solid rgba(148,163,184,0.16)", borderRadius: 8, padding: "12px 16px", fontSize: 14, fontWeight: 900 }}>
  {plan.cta}
@@ -61,6 +65,7 @@ export default function UpgradePage() {
  </article>
  ))}
  </section>
+ <p style={{ margin: "24px 0 0", color: "#94a3b8", fontSize: 14, textAlign: "center" }}>Peppol-verzending wordt binnenkort geactiveerd. UBL genereren en downloaden werkt nu al.</p>
  </div>
  </main>
  );

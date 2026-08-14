@@ -47,17 +47,36 @@ test('send tiers replace Compleet while monitoring tiers stay configured', () =>
  assert.match(plans, /free:\s*{[\s\S]*3 gratis UBL-generaties bij registratie/);
  assert.match(plans, /free:\s*{[\s\S]*Geen Peppol-verzending inbegrepen/);
  assert.match(plans, /verzenden_25:\s*{[\s\S]*amount:\s*"12\.00"/);
+ assert.match(plans, /verzenden_25:\s*{[\s\S]*available:\s*false/);
  assert.match(plans, /verzenden_25:\s*{[\s\S]*includedSends:\s*25/);
  assert.match(plans, /verzenden_25:\s*{[\s\S]*extraSendPrice:\s*"0\.45"/);
  assert.match(plans, /verzenden_100:\s*{[\s\S]*amount:\s*"39\.00"/);
+ assert.match(plans, /verzenden_100:\s*{[\s\S]*available:\s*false/);
  assert.match(plans, /verzenden_100:\s*{[\s\S]*includedSends:\s*100/);
  assert.match(plans, /verzenden_100:\s*{[\s\S]*extraSendPrice:\s*"0\.35"/);
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
+ assert.doesNotMatch(plans, /monitoring:\s*{[\s\S]*available:\s*false/);
  assert.match(plans, /monitoring:\s*{[\s\S]*maxTargets:\s*10/);
  assert.match(plans, /monitoring:\s*{[\s\S]*checkFrequency:\s*"weekly"/);
  assert.match(plans, /monitoring_accountant:\s*{[\s\S]*amount:\s*"39\.00"/);
+ assert.doesNotMatch(plans, /monitoring_accountant:\s*{[\s\S]*available:\s*false/);
  assert.match(plans, /monitoring_accountant:\s*{[\s\S]*maxTargets:\s*null/);
  assert.match(plans, /monitoring_accountant:\s*{[\s\S]*checkFrequency:\s*"daily"/);
+});
+
+test('unavailable sending plans cannot start checkout and are disabled in pricing UI', () => {
+ const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.url), 'utf8');
+ const upgradePage = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
+ const homePage = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
+ assert.match(checkoutRoute, /planConfig\.available === false/);
+ assert.match(checkoutRoute, /Dit plan is binnenkort beschikbaar/);
+ assert.match(checkoutRoute, /status: 400/);
+ assert.match(pricingPage, /available:\s*false/);
+ assert.match(pricingPage, /Binnenkort beschikbaar/);
+ assert.match(upgradePage, /plan\.available === false/);
+ assert.match(upgradePage, /Binnenkort beschikbaar/);
+ assert.match(`${pricingPage}\n${upgradePage}`, /Peppol-verzending wordt binnenkort geactiveerd\. UBL genereren en downloaden werkt nu al\./);
+ assert.doesNotMatch(`${pricingPage}\n${upgradePage}\n${homePage}`, /Losse verzending: €1,95 per factuur/);
 });
 
 test('monitoring events are read-only for authenticated users in RLS migration', () => {
