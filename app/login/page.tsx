@@ -53,6 +53,12 @@ export default function LoginPage() {
  else setSent(true);
  };
 
+ const handleGoogle = async () => {
+ await supabase.auth.signInWithOAuth({
+ provider: "google",
+ options: { redirectTo: `${window.location.origin}/api/auth/callback` },
+ });
+ };
 
  const inputStyle = {
  width: "100%",
@@ -87,6 +93,10 @@ export default function LoginPage() {
  </div>
  ) : (
  <>
+ <button onClick={handleGoogle} style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", marginBottom: 18 }}>
+ Doorgaan met Google
+ </button>
+
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, background: "rgba(15,23,42,0.6)", border: `1px solid ${C.border}`, borderRadius: 8, padding: 4, marginBottom: 18 }}>
  {(["password", "magic"] as Mode[]).map((item) => (
  <button key={item} onClick={() => { setMode(item); setError(""); }} style={{ border: 0, borderRadius: 6, padding: "9px 8px", background: mode === item ? `linear-gradient(135deg, ${C.blue}, ${C.indigo})` : "transparent", color: mode === item ? "#fff" : C.gray, fontSize: 13, fontWeight: 900, cursor: "pointer" }}>
