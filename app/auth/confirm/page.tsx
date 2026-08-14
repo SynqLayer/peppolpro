@@ -13,7 +13,7 @@ function AuthConfirmContent() {
  const supabase = createClient();
  const tokenHash = useMemo(() => searchParams.get("token_hash"), [searchParams]);
  const code = useMemo(() => searchParams.get("code"), [searchParams]);
- const type = useMemo(() => (searchParams.get("type") || "email") as EmailOtpType, [searchParams]);
+ const type = useMemo(() => (searchParams.get("type") || "magiclink") as EmailOtpType, [searchParams]);
  const [loading, setLoading] = useState(false);
  const [error, setError] = useState("");
 
@@ -27,7 +27,7 @@ function AuthConfirmContent() {
 
  setLoading(false);
  if (error) {
- setError("Deze loginlink is verlopen, al gebruikt of in een andere browser geopend. Vraag een nieuwe magic link aan.");
+ setError("Deze loginlink is verlopen of al gebruikt. Vraag een nieuwe magic link aan.");
  return;
  }
  router.push("/dashboard");

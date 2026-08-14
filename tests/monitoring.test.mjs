@@ -43,6 +43,10 @@ const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', impor
 const middlewareFile = readFileSync(new URL('../middleware.ts', import.meta.url), 'utf8');
 const invoiceParser = readFileSync(new URL('../lib/invoice-parser.ts', import.meta.url), 'utf8');
 const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
+const authConfirmPage = readFileSync(new URL('../app/auth/confirm/page.tsx', import.meta.url), 'utf8');
+const passwordResetPage = readFileSync(new URL('../app/wachtwoord-reset/page.tsx', import.meta.url), 'utf8');
+const loginPageSource = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
+const forgotPasswordPage = readFileSync(new URL('../app/wachtwoord-vergeten/page.tsx', import.meta.url), 'utf8');
 const homePage = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
 const loginPage = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
 const constants = readFileSync(new URL('../lib/constants.ts', import.meta.url), 'utf8');
@@ -51,6 +55,20 @@ const privacyPageSource = readFileSync(new URL('../app/privacy/page.tsx', import
 const peppolSendPage = readFileSync(new URL('../app/peppol-factuur-versturen/page.tsx', import.meta.url), 'utf8');
 const brevoSource = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
 
+
+test('auth email links use token_hash flow with code-flow fallback', () => {
+ assert.match(authConfirmPage, /searchParams\.get\("token_hash"\)/);
+ assert.match(authConfirmPage, /searchParams\.get\("code"\)/);
+ assert.match(authConfirmPage, /searchParams\.get\("type"\) \|\| "magiclink"/);
+ assert.match(authConfirmPage, /verifyOtp\(\{ type, token_hash: tokenHash \}\)/);
+ assert.match(authConfirmPage, /exchangeCodeForSession\(code \|\| ""\)/);
+ assert.match(passwordResetPage, /searchParams\.get\("token_hash"\)/);
+ assert.match(passwordResetPage, /searchParams\.get\("type"\) \|\| "recovery"/);
+ assert.match(passwordResetPage, /verifyOtp\(\{ type: "recovery", token_hash: tokenHash \}\)/);
+ assert.match(passwordResetPage, /exchangeCodeForSession\(code \|\| ""\)/);
+ assert.match(loginPageSource, /emailRedirectTo: `\$\{window\.location\.origin\}\/auth\/confirm`/);
+ assert.match(forgotPasswordPage, /redirectTo: `\$\{window\.location\.origin\}\/wachtwoord-reset`/);
+});
 
 test('homepage navigation exposes login and mobile menu overlays hero content', () => {
  assert.match(homePage, /document\.body\.style\.overflow = menuOpen \? "hidden" : ""/);

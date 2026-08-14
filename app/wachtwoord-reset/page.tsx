@@ -12,7 +12,7 @@ function PasswordResetForm() {
  const supabase = createClient();
  const tokenHash = useMemo(() => searchParams.get("token_hash"), [searchParams]);
  const code = useMemo(() => searchParams.get("code"), [searchParams]);
- const type = useMemo(() => searchParams.get("type"), [searchParams]);
+ const type = useMemo(() => searchParams.get("type") || "recovery", [searchParams]);
  const [password, setPassword] = useState("");
  const [confirmPassword, setConfirmPassword] = useState("");
  const [loading, setLoading] = useState(false);
@@ -41,7 +41,7 @@ function PasswordResetForm() {
  : await supabase.auth.exchangeCodeForSession(code || "");
  if (verifyError) {
  setLoading(false);
- setError("Deze resetlink is verlopen, al gebruikt of in een andere browser geopend. Vraag een nieuwe resetlink aan.");
+ setError("Deze resetlink is verlopen of al gebruikt. Vraag een nieuwe resetlink aan.");
  return;
  }
 
