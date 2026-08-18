@@ -1,7 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { redirect } from "next/navigation";
-import DashboardClient, { ApiKeyRecord, Conversion, MonitoringEvent, MonitoringTarget, Profile, SubscriptionState, TeamMember, WebhookConfig } from "./DashboardClient";
+import DashboardClient, { ApiKeyRecord, BillingInvoice, Conversion, MonitoringEvent, MonitoringTarget, Profile, SubscriptionState, TeamMember, WebhookConfig } from "./DashboardClient";
 
 export default async function DashboardPage({
  searchParams,
@@ -74,6 +74,14 @@ export default async function DashboardPage({
  .eq("user_id", user.id)
  .maybeSingle();
 
+ const { data: billingInvoicesData } = await supabase
+ .from("invoices")
+ .select("id, invoice_number, invoice_date, issued_at, currency, total_incl, amount, invoice_kind")
+ .eq("user_id", user.id)
+ .order("issued_at", { ascending: false, nullsFirst: false })
+ .order("invoice_date", { ascending: false, nullsFirst: false })
+ .limit(50);
+
  const effectiveProfile = monitoringAccess.ok && profile ? { ...profile, plan: monitoringAccess.entitlement.plan.id } : profile;
 
  return (
@@ -88,6 +96,7 @@ export default async function DashboardPage({
  webhookConfig={(webhookConfigData || null) as WebhookConfig | null}
  apiKeys={(apiKeysData || []) as ApiKeyRecord[]}
  subscription={(subscriptionData || null) as SubscriptionState | null}
+ billingInvoices={(billingInvoicesData || []) as BillingInvoice[]}
  paid={params.betaald === "1"}
  />
  );
