@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-
-type RecommandWebhookPayload = {
- eventType?: string;
- companyId?: string;
- status?: string;
- errorMessage?: string;
- [key: string]: unknown;
-};
+import { buildRecommandWebhookUpdate, type RecommandWebhookPayload, verifyRecommandWebhookSignature } from "@/lib/recommand-webhook";
 
 function jsonError(error: string, status: number) {
  return NextResponse.json({ success: false, error }, { status });
@@ -28,24 +20,6 @@ function createAdminClient() {
  });
 }
 
-export function verifyRecommandWebhookSignature(rawBody: string, signatureHeader: string | null, secret: string) {
- if (!signatureHeader?.startsWith("sha256=")) return false;
- const providedHex = signatureHeader.slice("sha256=".length);
- if (!/^[a-f0-9]{64}$/i.test(providedHex)) return false;
- const expectedHex = createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
- const provided = Buffer.from(providedHex, "hex");
- const expected = Buffer.from(expectedHex, "hex");
- if (provided.length !== expected.length) return false;
- return timingSafeEqual(provided, expected);
-}
-
-export function isVerifiedCompanyEvent(payload: RecommandWebhookPayload) {
- return payload.eventType === "company.verification"
-  && typeof payload.companyId === "string"
-  && payload.companyId.startsWith("c_")
-  && payload.status === "verified";
-}
-
 export async function POST(req: NextRequest) {
  let rawBody = "";
  try {
@@ -57,29 +31,21 @@ export async function POST(req: NextRequest) {
   }
 
   const payload = JSON.parse(rawBody) as RecommandWebhookPayload;
-  if (payload.eventType !== "company.verification") {
-   return NextResponse.json({ success: true, ignored: true });
-  }
-  if (typeof payload.companyId !== "string" || !payload.companyId.startsWith("c_")) {
-   return jsonError("Ongeldig Recommand company-id", 400);
-  }
+  const update = buildRecommandWebhookUpdate(payload);
+  if (!update.success) return jsonError(update.error, 400);
+  if (update.ignored) return NextResponse.json({ success: true, ignored: true });
 
   const admin = createAdminClient();
-  const updatePayload: Record<string, unknown> = {
-   recommand_raw_response: { webhook: payload },
-  };
-  if (payload.status === "verified") updatePayload.recommand_verified = true;
-
   const { error } = await admin
    .from("user_profiles")
-   .update(updatePayload)
-   .eq("recommand_company_id", payload.companyId);
+   .update(update.updatePayload)
+   .eq("recommand_company_id", update.companyId);
 
   if (error) return jsonError("Webhook kon profiel niet bijwerken", 500);
 
   return NextResponse.json({
    success: true,
-   verified: payload.status === "verified",
+   verified: update.verified,
   });
  } catch (error) {
   console.error("Recommand webhook error:", error instanceof Error ? error.message : error);

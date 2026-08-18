@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createCompany } from "@/lib/recommand";
+import { enterpriseNumberScheme, missingRequiredCompanyFields, shouldCreateRecommandCompany } from "@/lib/recommand-company-validation";
 import { createServerSupabase } from "@/lib/supabase-server";
 
 type ProfileRow = {
@@ -21,22 +22,6 @@ function jsonError(error: string, status: number, extra: Record<string, unknown>
  return NextResponse.json({ success: false, error, ...extra }, { status });
 }
 
-function missingRequiredFields(profile: ProfileRow) {
- const missing: string[] = [];
- if (!profile.company_name?.trim()) missing.push("bedrijfsnaam");
- if (!profile.kvk_kbo?.trim()) missing.push(profile.country === "BE" ? "KBO-nummer" : "KvK-nummer");
- if (!profile.btw_nr?.trim()) missing.push("btw-nummer");
- if (!profile.address?.trim()) missing.push("adres");
- if (!profile.postal_code?.trim()) missing.push("postcode");
- if (!profile.city?.trim()) missing.push("plaats");
- return missing;
-}
-
-function enterpriseNumberScheme(country?: string | null) {
- const normalized = (country || "NL").toUpperCase();
- return normalized === "BE" ? "0208" : "0106";
-}
-
 export async function POST() {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
@@ -50,7 +35,7 @@ export async function POST() {
 
  if (profileError || !profile) return jsonError("Bedrijfsprofiel niet gevonden", 404);
 
- if (profile.recommand_company_id) {
+ if (!shouldCreateRecommandCompany(profile)) {
  return NextResponse.json({
  success: true,
  companyId: profile.recommand_company_id,
@@ -61,7 +46,7 @@ export async function POST() {
  });
  }
 
- const missing = missingRequiredFields(profile);
+ const missing = missingRequiredCompanyFields(profile);
  if (missing.length > 0) {
  return jsonError(`Bedrijfsgegevens onvolledig: ${missing.join(", ")} ontbreekt. Vul deze gegevens eerst aan in onboarding.`, 400, { missing });
  }
