@@ -105,6 +105,17 @@ export type SubscriptionState = {
  canceled_at?: string | null;
 };
 
+export type BillingInvoice = {
+ id?: string | null;
+ invoice_number?: string | null;
+ invoice_date?: string | null;
+ issued_at?: string | null;
+ currency?: string | null;
+ total_incl?: number | string | null;
+ amount?: number | string | null;
+ invoice_kind?: string | null;
+};
+
 type Task = {
  title: string;
  detail: string;
@@ -234,6 +245,7 @@ export default function DashboardClient({
  webhookConfig,
  apiKeys,
  subscription,
+ billingInvoices,
 }: {
  user: { id: string; email: string };
  profile: Profile | null;
@@ -246,6 +258,7 @@ export default function DashboardClient({
  webhookConfig: WebhookConfig | null;
  apiKeys: ApiKeyRecord[];
  subscription: SubscriptionState | null;
+ billingInvoices: BillingInvoice[];
 }) {
  const [query, setQuery] = useState("");
  const [filter, setFilter] = useState("all");
@@ -558,6 +571,53 @@ export default function DashboardClient({
  </div>
  )}
  {recommandStatus && <div style={{ color: recommandStatus.includes("mislukt") || recommandStatus.includes("ontbreekt") ? "#fca5a5" : "#93c5fd", fontSize: 12, marginTop: 10 }}>{recommandStatus}</div>}
+ </section>
+
+ <section style={{ ...cardStyle, overflow: "hidden", marginBottom: 18 }}>
+ <div style={{ padding: "18px 18px 6px" }}>
+ <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+ <div>
+ <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Facturen</h2>
+ <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 13 }}>Abonnementsfacturen en creditnota&apos;s voor je account</p>
+ </div>
+ </div>
+ </div>
+ {billingInvoices.length === 0 ? (
+ <div style={{ padding: "22px 18px 24px", color: "#94a3b8", fontSize: 14 }}>
+ Nog geen abonnementsfacturen beschikbaar.
+ </div>
+ ) : (
+ <div className="table-wrap">
+ <table className="invoice-table">
+ <thead>
+ <tr>
+ <th>Nummer</th>
+ <th>Datum</th>
+ <th>Bedrag</th>
+ <th>Type</th>
+ <th>Acties</th>
+ </tr>
+ </thead>
+ <tbody>
+ {billingInvoices.map((invoice, index) => {
+ const invoiceNumber = invoice.invoice_number || `Factuur ${index + 1}`;
+ const amount = numberValue(invoice.total_incl ?? invoice.amount);
+ return (
+ <tr key={invoice.id || `${invoiceNumber}-${index}`}>
+ <td style={{ color: "#f8fafc", fontWeight: 900 }}>{invoiceNumber}</td>
+ <td style={{ color: "#94a3b8" }}>{formatDate(invoice.issued_at || invoice.invoice_date)}</td>
+ <td style={{ color: "#f8fafc", fontWeight: 800 }}>{formatCurrency(amount, invoice.currency || "EUR")}</td>
+ <td style={{ color: invoice.invoice_kind === "credit" ? "#fca5a5" : "#cbd5e1", fontWeight: 800 }}>{invoice.invoice_kind === "credit" ? "Creditnota" : "Factuur"}</td>
+ <td>
+ {invoice.id ? <a href={`/api/invoices/${invoice.id}`} className="action-link">Download</a> : <span className="action-muted">Niet beschikbaar</span>}
+ </td>
+ </tr>
+ );
+ })}
+ </tbody>
+ </table>
+ </div>
+ )}
  </section>
 
  <div className="content-grid">

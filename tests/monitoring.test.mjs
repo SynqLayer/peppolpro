@@ -366,6 +366,18 @@ test('paid subscription payments create invoices and refunds create separate cre
  assert.match(mollieWebhookRoute, /ensureCreditInvoice/);
 });
 
+test('paid and credit billing invoices are emailed with generated PDF attachments', () => {
+ assert.match(billingLib, /sendBillingInvoiceEmail/);
+ assert.match(billingLib, /generateBillingInvoicePdf/);
+ assert.match(billingLib, /subject: `Factuur \$\{invoice\.invoice_number\} — PeppolPro`/);
+ assert.match(billingLib, /attachment:\s*\[\s*\{\s*content: Buffer\.from\(pdf\)\.toString\("base64"\)/);
+ assert.match(billingLib, /name: `\$\{invoice\.invoice_number \|\| "factuur"\}\.pdf`/);
+ assert.match(billingLib, /await sendBillingInvoiceEmail\(supabase, invoice\.id\)/);
+ assert.match(billingLib, /await sendBillingInvoiceEmail\(supabase, creditInvoice\.id\)/);
+ assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
+ assert.match(mollieWebhookRoute, /await ensureCreditInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
+});
+
 test('every paid plan starts a Mollie recurring subscription and invoice flow', () => {
  assert.match(plans, /verzenden_25:\s*{[\s\S]*?paid: true,/);
  assert.match(plans, /verzenden_100:\s*{[\s\S]*?paid: true,/);
@@ -390,6 +402,22 @@ test('invoice route downloads only own on-the-fly PDFs without server-side cache
  assert.match(invoiceRoute, /"Cache-Control": "no-store"/);
  assert.match(invoicePdfLib, /PDFDocument\.create/);
  assert.doesNotMatch(`${invoiceRoute}\n${invoicePdfLib}`, /writeFile|createWriteStream|supabase\.storage|\.from\("storage"\)/);
+});
+
+test('dashboard lists only the signed-in users billing invoices with download links', () => {
+ assert.match(dashboardPage, /from\("invoices"\)/);
+ assert.match(dashboardPage, /select\("id, invoice_number, invoice_date, issued_at, currency, total_incl, amount, invoice_kind"\)/);
+ assert.match(dashboardPage, /\.eq\("user_id", user\.id\)/);
+ const billingInvoiceQuery = dashboardPage.match(/const \{ data: billingInvoicesData \} = await supabase[\s\S]*?\.limit\(50\);/)?.[0] || '';
+ assert.match(billingInvoiceQuery, /from\("invoices"\)/);
+ assert.match(billingInvoiceQuery, /\.eq\("user_id", user\.id\)/);
+ assert.doesNotMatch(billingInvoiceQuery, /monitoringOwnerId/);
+ assert.match(dashboard, /export type BillingInvoice/);
+ assert.match(dashboard, /billingInvoices: BillingInvoice\[\]/);
+ assert.match(dashboard, /<h2 style=\{\{ margin: 0, fontSize: 18, fontWeight: 900 \}\}>Facturen<\/h2>/);
+ assert.match(dashboard, /billingInvoices\.map/);
+ assert.match(dashboard, /href=\{`\/api\/invoices\/\$\{invoice\.id\}`\}/);
+ assert.match(dashboard, />Download<\/a>/);
 });
 
 test('mollie webhook records idempotency events and failed handler errors durably', () => {

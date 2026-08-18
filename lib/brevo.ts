@@ -102,3 +102,32 @@ export async function sendWelcomeEmail(to: string, name: string) {
  }),
  });
 }
+
+export async function sendTransactionalEmail({
+ to,
+ subject,
+ htmlContent,
+ attachment,
+}: {
+ to: { email: string; name?: string }[];
+ subject: string;
+ htmlContent: string;
+ attachment?: { content: string; name: string }[];
+}) {
+ if (!process.env.BREVO_API_KEY) return;
+
+ await fetch(BREVO_API, {
+ method: "POST",
+ headers: {
+ "api-key": process.env.BREVO_API_KEY,
+ "Content-Type": "application/json",
+ },
+ body: JSON.stringify({
+ sender: SENDER,
+ to,
+ subject,
+ htmlContent,
+ ...(attachment?.length ? { attachment } : {}),
+ }),
+ });
+}
