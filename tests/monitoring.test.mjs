@@ -39,6 +39,9 @@ const recommandRoute = readFileSync(new URL('../app/api/recommand/send/route.ts'
 const migration0011 = readFileSync(new URL('../supabase/migrations/0011_recommand_delivery_fields.sql', import.meta.url), 'utf8');
 const migration0012 = readFileSync(new URL('../supabase/migrations/0012_conversion_customer_email.sql', import.meta.url), 'utf8');
 const migration0013 = readFileSync(new URL('../supabase/migrations/0013_conversion_pdf_retention.sql', import.meta.url), 'utf8');
+const migration0014 = readFileSync(new URL('../supabase/migrations/0014_recommand_company_verification.sql', import.meta.url), 'utf8');
+const recommandCompanyRoute = readFileSync(new URL('../app/api/recommand/company/route.ts', import.meta.url), 'utf8');
+const recommandCompanyStatusRoute = readFileSync(new URL('../app/api/recommand/company/status/route.ts', import.meta.url), 'utf8');
 const conversionPdfRetentionLib = readFileSync(new URL('../lib/conversion-pdf-retention.ts', import.meta.url), 'utf8');
 const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
 const ublGenerator = readFileSync(new URL('../lib/ubl-generator.ts', import.meta.url), 'utf8');
@@ -394,6 +397,11 @@ test('dashboard keeps Peppol Inbox notice only in action points without upgrade 
 
 test('Recommand integration verifies recipients before send and stores raw responses', () => {
  assert.match(recommandLib, /Buffer\.from\(`\$\{apiKey\}:\$\{apiSecret\}`\)\.toString\("base64"\)/);
+ assert.match(recommandLib, /export async function createCompany\(payload: RecommandCompanyPayload\)/);
+ assert.match(recommandLib, /enterpriseNumberScheme: normalizeEnterpriseNumberScheme\(payload\.country, payload\.enterpriseNumberScheme\)/);
+ assert.match(recommandLib, /isSmpRecipient: false/);
+ assert.match(recommandLib, /export async function getCompany\(companyId: string\)/);
+ assert.match(recommandLib, /\/companies\/\$\{encodeURIComponent\(companyId\)\}/);
  assert.match(recommandLib, /export async function verifyRecipient\(peppolId: string\)/);
  assert.match(recommandLib, /\/verify/);
  assert.match(recommandLib, /export async function sendDocument\(companyId: string, payload/);
@@ -409,6 +417,35 @@ test('Recommand integration verifies recipients before send and stores raw respo
  assert.match(migration0011, /recommand_raw_response jsonb/);
  assert.match(migration0011, /verified_recipient boolean not null default false/);
  assert.match(migration0011, /sent_via_recommand_at timestamptz/);
+});
+
+test('Recommand company registration is send-only, idempotent, persisted and status-refreshable', () => {
+ assert.match(migration0014, /add column if not exists postal_code text/);
+ assert.match(migration0014, /add column if not exists city text/);
+ assert.match(migration0014, /add column if not exists recommand_company_id text/);
+ assert.match(migration0014, /add column if not exists recommand_verified boolean not null default false/);
+ assert.match(migration0014, /add column if not exists recommand_verification_url text/);
+ assert.match(migration0014, /add column if not exists recommand_raw_response jsonb/);
+ assert.match(recommandCompanyRoute, /auth\.getUser\(\)/);
+ assert.match(recommandCompanyRoute, /if \(!user\)/);
+ assert.match(recommandCompanyRoute, /postal_code, city, recommand_company_id/);
+ assert.match(recommandCompanyRoute, /profile\.recommand_company_id/);
+ assert.match(recommandCompanyRoute, /idempotent: true/);
+ assert.match(recommandCompanyRoute, /missingRequiredFields/);
+ assert.match(recommandCompanyRoute, /postcode/);
+ assert.match(recommandCompanyRoute, /plaats/);
+ assert.match(recommandCompanyRoute, /enterpriseNumberScheme: enterpriseNumberScheme\(profile\.country\)/);
+ assert.match(recommandCompanyRoute, /isSmpRecipient: false/);
+ assert.match(recommandCompanyRoute, /recommand_company_id: result\.companyId/);
+ assert.match(recommandCompanyRoute, /recommand_verification_url: result\.verificationUrl/);
+ assert.match(recommandCompanyRoute, /recommand_raw_response: rawResponse/);
+ assert.match(recommandCompanyStatusRoute, /getCompany\(profile\.recommand_company_id\)/);
+ assert.match(recommandCompanyStatusRoute, /recommand_verified: result\.isVerified/);
+ assert.match(recommandCompanyStatusRoute, /getCompany: result\.raw/);
+ assert.match(dashboard, /Peppol-verzending activeren/);
+ assert.match(dashboard, /Activeer verzenden/);
+ assert.match(dashboard, /Ik heb geverifieerd/);
+ assert.match(dashboard, /Verzenden actief/);
 });
 
 test('dashboard does not silently hide invoices when conversion query fails', () => {
@@ -457,6 +494,11 @@ test('subscription cancel route cancels at Mollie but keeps access until period 
 test('onboarding writes existing user_profiles columns', () => {
  assert.match(onboardingPage, /kvk_kbo:\s*country === "NL" \? kvk : kbo/);
  assert.match(onboardingPage, /btw_nr:\s*btw/);
+ assert.match(onboardingPage, /address: address\.trim\(\)/);
+ assert.match(onboardingPage, /postal_code: postalCode\.trim\(\)/);
+ assert.match(onboardingPage, /city: city\.trim\(\)/);
+ assert.match(onboardingPage, /Postcode \*/);
+ assert.match(onboardingPage, /Plaats \*/);
  assert.doesNotMatch(onboardingPage, /kvk_number:\s*/);
  assert.doesNotMatch(onboardingPage, /kbo_number:\s*/);
  assert.doesNotMatch(onboardingPage, /btw_number:\s*/);

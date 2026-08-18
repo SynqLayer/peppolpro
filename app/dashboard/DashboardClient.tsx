@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowUpRight, BellRing, FilePlus2, Filter, KeyRound, Search, UsersRound, XCircle } from "lucide-react";
+import { ArrowUpRight, BellRing, CheckCircle2, ExternalLink, FilePlus2, Filter, KeyRound, Search, UsersRound, XCircle } from "lucide-react";
 import { C } from "@/lib/constants";
 
 export type Profile = {
@@ -19,7 +19,12 @@ export type Profile = {
  btw_number?: string | null;
  btw_nr?: string | null;
  address?: string | null;
+ postal_code?: string | null;
+ city?: string | null;
  iban?: string | null;
+ recommand_company_id?: string | null;
+ recommand_verified?: boolean | null;
+ recommand_verification_url?: string | null;
 };
 
 export type Conversion = {
@@ -160,7 +165,7 @@ const profileComplete = (profile: Profile | null) => {
  if (!profile) return false;
  const kvk = profile.kvk_number || profile.kvk_kbo || profile.kbo_number;
  const vat = profile.btw_number || profile.btw_nr;
- return Boolean(profile.company_name && kvk && vat && profile.address);
+ return Boolean(profile.company_name && kvk && vat && profile.address && profile.postal_code && profile.city);
 };
 
 const relativeTime = (value?: string | null) => {
@@ -251,6 +256,11 @@ export default function DashboardClient({
  const [webhookUrl, setWebhookUrl] = useState(webhookConfig?.webhook_url || "");
  const [webhookDisclaimerAccepted, setWebhookDisclaimerAccepted] = useState(false);
  const [opsStatus, setOpsStatus] = useState<string | null>(null);
+ const [recommandCompanyId, setRecommandCompanyId] = useState(profile?.recommand_company_id || null);
+ const [recommandVerified, setRecommandVerified] = useState(profile?.recommand_verified === true);
+ const [recommandVerificationUrl, setRecommandVerificationUrl] = useState(profile?.recommand_verification_url || null);
+ const [recommandStatus, setRecommandStatus] = useState<string | null>(null);
+ const [recommandLoading, setRecommandLoading] = useState(false);
 
  const isFree = !profile?.plan || profile.plan === "free";
  const isMonitoring = profile?.plan === "monitoring" || profile?.plan === "monitoring_accountant";
@@ -337,6 +347,38 @@ export default function DashboardClient({
  });
  const data = await res.json().catch(() => ({}));
  setOpsStatus(res.ok ? "Webhook opgeslagen." : data.error || "Webhook opslaan mislukt");
+ }
+
+ async function handleRecommandCompanyCreate() {
+ setRecommandLoading(true);
+ setRecommandStatus("Recommand company aanmaken...");
+ const res = await fetch("/api/recommand/company", { method: "POST" });
+ const data = await res.json().catch(() => ({}));
+ setRecommandLoading(false);
+ if (!res.ok) {
+ setRecommandStatus(data.error || "Peppol-verzending activeren mislukt");
+ return;
+ }
+ setRecommandCompanyId(data.companyId || null);
+ setRecommandVerified(data.isVerified === true);
+ setRecommandVerificationUrl(data.verificationUrl || null);
+ setRecommandStatus(data.isVerified ? "Verzenden actief." : "Company aangemaakt. Rond de verificatie af via de link.");
+ }
+
+ async function handleRecommandCompanyStatus() {
+ setRecommandLoading(true);
+ setRecommandStatus("Verificatiestatus controleren...");
+ const res = await fetch("/api/recommand/company/status");
+ const data = await res.json().catch(() => ({}));
+ setRecommandLoading(false);
+ if (!res.ok) {
+ setRecommandStatus(data.error || "Verificatiestatus ophalen mislukt");
+ return;
+ }
+ setRecommandCompanyId(data.companyId || recommandCompanyId);
+ setRecommandVerified(data.isVerified === true);
+ setRecommandVerificationUrl(data.verificationUrl || recommandVerificationUrl);
+ setRecommandStatus(data.isVerified ? "Verzenden actief." : "Nog niet geverifieerd. Rond de identiteitscontrole af en probeer opnieuw.");
  }
 
  async function handleSubscriptionCancel() {
@@ -488,6 +530,35 @@ export default function DashboardClient({
  </div>
  </section>
  )}
+
+ <section style={{ ...cardStyle, padding: 18, marginBottom: 18 }}>
+ <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+ <div>
+ <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Peppol-verzending activeren</h2>
+ <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 13 }}>Maak een send-only Recommand company aan en rond bedrijfsverificatie af voordat je verzendt.</p>
+ </div>
+ {recommandVerified && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#86efac", fontSize: 13, fontWeight: 900 }}><CheckCircle2 size={16} />Verzenden actief</span>}
+ </div>
+ {!recommandCompanyId ? (
+ <div style={{ marginTop: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+ <button type="button" className="btn btn-primary" onClick={handleRecommandCompanyCreate} disabled={recommandLoading} style={{ cursor: recommandLoading ? "wait" : "pointer", opacity: recommandLoading ? 0.7 : 1 }}>Activeer verzenden</button>
+ <span style={{ color: "#94a3b8", fontSize: 12 }}>Naam, KvK/KBO, btw, adres, postcode en plaats zijn verplicht.</span>
+ </div>
+ ) : recommandVerified ? (
+ <div style={{ marginTop: 14, border: "1px solid rgba(16,185,129,0.24)", background: "rgba(16,185,129,0.10)", color: "#86efac", borderRadius: 8, padding: 14, fontSize: 13, fontWeight: 900 }}>
+ Verzenden actief voor company {recommandCompanyId}.
+ </div>
+ ) : (
+ <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+ <div style={{ border: "1px solid rgba(245,158,11,0.28)", background: "rgba(120,53,15,0.16)", borderRadius: 8, padding: 14 }}>
+ <div style={{ color: "#fbbf24", fontSize: 13, fontWeight: 900, marginBottom: 8 }}>Company aangemaakt, verificatie nodig</div>
+ {recommandVerificationUrl ? <a className="action-link" href={recommandVerificationUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open verificatielink</a> : <div style={{ color: "#94a3b8", fontSize: 12 }}>Geen verificatielink opgeslagen.</div>}
+ </div>
+ <button type="button" className="btn btn-primary" onClick={handleRecommandCompanyStatus} disabled={recommandLoading} style={{ width: "fit-content", cursor: recommandLoading ? "wait" : "pointer", opacity: recommandLoading ? 0.7 : 1 }}>Ik heb geverifieerd</button>
+ </div>
+ )}
+ {recommandStatus && <div style={{ color: recommandStatus.includes("mislukt") || recommandStatus.includes("ontbreekt") ? "#fca5a5" : "#93c5fd", fontSize: 12, marginTop: 10 }}>{recommandStatus}</div>}
+ </section>
 
  <div className="content-grid">
  <section style={{ ...cardStyle, overflow: "hidden" }}>

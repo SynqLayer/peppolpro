@@ -1,6 +1,5 @@
 "use client";
 import { useState, useRef } from "react";
-import { createClient } from "../../lib/supabase-client";
 import { C } from "../../lib/constants";
 
 export default function ConvertPage() {

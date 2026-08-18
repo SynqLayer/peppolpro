@@ -25,6 +25,26 @@ export type RecommandSendResult = {
  raw: RecommandRawResponse;
 };
 
+export type RecommandCompanyPayload = {
+ name: string;
+ address: string;
+ postalCode: string;
+ city: string;
+ country: "NL" | "BE" | string;
+ enterpriseNumber: string;
+ vatNumber: string;
+ enterpriseNumberScheme?: "0106" | "0208" | string;
+ isSmpRecipient?: boolean;
+};
+
+export type RecommandCompanyResult = {
+ success: boolean;
+ companyId: string | null;
+ verificationUrl: string | null;
+ isVerified: boolean;
+ raw: RecommandRawResponse;
+};
+
 function getCredentials() {
  const apiKey = process.env.RECOMMAND_API_KEY;
  const apiSecret = process.env.RECOMMAND_API_SECRET;
@@ -66,6 +86,51 @@ async function requestRecommand(path: string, init: RequestInit = {}): Promise<R
 
 function asObject(value: unknown): JsonObject {
  return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
+}
+
+function normalizeEnterpriseNumberScheme(country: string, explicitScheme?: string) {
+ if (explicitScheme) return explicitScheme;
+ if (country.toUpperCase() === "NL") return "0106";
+ if (country.toUpperCase() === "BE") return "0208";
+ throw new Error("Enterprise number scheme is verplicht voor dit land");
+}
+
+function normalizeCompanyPayload(payload: RecommandCompanyPayload) {
+ return {
+ ...payload,
+ country: payload.country.toUpperCase(),
+ enterpriseNumberScheme: normalizeEnterpriseNumberScheme(payload.country, payload.enterpriseNumberScheme),
+ isSmpRecipient: false,
+ };
+}
+
+export async function createCompany(payload: RecommandCompanyPayload): Promise<RecommandCompanyResult> {
+ const raw = await requestRecommand("/companies", {
+ method: "POST",
+ body: JSON.stringify(normalizeCompanyPayload(payload)),
+ });
+ const body = asObject(raw.body);
+ const company = asObject(body.company);
+ return {
+ success: raw.ok && body.success === true,
+ companyId: typeof company.id === "string" ? company.id : typeof body.id === "string" ? body.id : null,
+ verificationUrl: typeof body.verificationUrl === "string" ? body.verificationUrl : null,
+ isVerified: company.isVerified === true,
+ raw,
+ };
+}
+
+export async function getCompany(companyId: string): Promise<RecommandCompanyResult> {
+ const raw = await requestRecommand(`/companies/${encodeURIComponent(companyId)}`, { method: "GET" });
+ const body = asObject(raw.body);
+ const company = asObject(body.company);
+ return {
+ success: raw.ok && body.success === true,
+ companyId: typeof company.id === "string" ? company.id : companyId,
+ verificationUrl: typeof body.verificationUrl === "string" ? body.verificationUrl : null,
+ isVerified: company.isVerified === true,
+ raw,
+ };
 }
 
 export async function verifyRecipient(peppolId: string): Promise<RecommandVerifyResult> {
