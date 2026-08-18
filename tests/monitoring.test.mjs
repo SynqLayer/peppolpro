@@ -43,6 +43,9 @@ const migration0013 = readFileSync(new URL('../supabase/migrations/0013_conversi
 const migration0014 = readFileSync(new URL('../supabase/migrations/0014_recommand_company_verification.sql', import.meta.url), 'utf8');
 const recommandCompanyRoute = readFileSync(new URL('../app/api/recommand/company/route.ts', import.meta.url), 'utf8');
 const recommandCompanyStatusRoute = readFileSync(new URL('../app/api/recommand/company/status/route.ts', import.meta.url), 'utf8');
+const recommandWebhookRoute = readFileSync(new URL('../app/api/recommand/webhook/route.ts', import.meta.url), 'utf8');
+const recommandCompanyValidation = readFileSync(new URL('../lib/recommand-company-validation.ts', import.meta.url), 'utf8');
+const recommandWebhookLib = readFileSync(new URL('../lib/recommand-webhook.ts', import.meta.url), 'utf8');
 const conversionPdfRetentionLib = readFileSync(new URL('../lib/conversion-pdf-retention.ts', import.meta.url), 'utf8');
 const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
 const ublGenerator = readFileSync(new URL('../lib/ubl-generator.ts', import.meta.url), 'utf8');
@@ -431,10 +434,10 @@ test('Recommand integration verifies recipients before send, gates plan limit, a
 });
 
 test('Recommand company registration is send-only, idempotent, persisted and status-refreshable', () => {
- assert.match(migration0014, /add column if not exists postal_code text/);
- assert.match(migration0014, /add column if not exists city text/);
- assert.match(migration0014, /add column if not exists recommand_company_id text/);
- assert.match(migration0014, /add column if not exists recommand_verified boolean not null default false/);
+ assert.doesNotMatch(migration0014, /recommand_company_id text/);
+ assert.doesNotMatch(migration0014, /recommand_verified boolean/);
+ assert.doesNotMatch(migration0014, /postal_code text/);
+ assert.doesNotMatch(migration0014, /city text/);
  assert.match(migration0014, /add column if not exists recommand_verification_url text/);
  assert.match(migration0014, /add column if not exists recommand_raw_response jsonb/);
  assert.match(recommandCompanyRoute, /auth\.getUser\(\)/);
@@ -442,10 +445,11 @@ test('Recommand company registration is send-only, idempotent, persisted and sta
  assert.match(recommandCompanyRoute, /postal_code, city, recommand_company_id/);
  assert.match(recommandCompanyRoute, /profile\.recommand_company_id/);
  assert.match(recommandCompanyRoute, /idempotent: true/);
- assert.match(recommandCompanyRoute, /missingRequiredFields/);
- assert.match(recommandCompanyRoute, /postcode/);
- assert.match(recommandCompanyRoute, /plaats/);
- assert.match(recommandCompanyRoute, /enterpriseNumberScheme: enterpriseNumberScheme\(profile\.country\)/);
+ assert.match(recommandCompanyRoute, /missingRequiredCompanyFields/);
+ for (const field of ["bedrijfsnaam", "KvK-nummer", "btw-nummer", "adres", "postcode", "plaats"]) {
+  assert.match(recommandCompanyValidation, new RegExp(field));
+ }
+ assert.match(recommandCompanyRoute, /enterpriseNumberScheme\(profile\.country\)/);
  assert.match(recommandCompanyRoute, /isSmpRecipient: false/);
  assert.match(recommandCompanyRoute, /recommand_company_id: result\.companyId/);
  assert.match(recommandCompanyRoute, /recommand_verification_url: result\.verificationUrl/);
@@ -457,6 +461,48 @@ test('Recommand company registration is send-only, idempotent, persisted and sta
  assert.match(dashboard, /Activeer verzenden/);
  assert.match(dashboard, /Ik heb geverifieerd/);
  assert.match(dashboard, /Verzenden actief/);
+});
+
+test('Recommand company route blocks each required profile field before provider create', () => {
+ for (const required of [
+  'company_name?.trim()',
+  'kvk_kbo?.trim()',
+  'btw_nr?.trim()',
+  'address?.trim()',
+  'postal_code?.trim()',
+  'city?.trim()',
+ ]) {
+  assert.match(recommandCompanyValidation, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+ }
+ const validationBlock = recommandCompanyRoute.match(/const missing = missingRequiredCompanyFields\(profile\);[\s\S]*?if \(missing\.length > 0\)[\s\S]*?\n }/)?.[0] || '';
+ assert.match(validationBlock, /400/);
+ assert.doesNotMatch(validationBlock, /createCompany\(/);
+});
+
+test('Recommand company creation is idempotent before provider create', () => {
+ const idempotencyBlock = recommandCompanyRoute.match(/if \(!shouldCreateRecommandCompany\(profile\)\) \{[\s\S]*?\n \}/)?.[0] || '';
+ assert.match(idempotencyBlock, /idempotent: true/);
+ assert.doesNotMatch(idempotencyBlock, /createCompany\(/);
+});
+
+test('Recommand verification webhook verifies raw-body HMAC and rejects invalid signatures before DB writes', () => {
+ assert.match(recommandWebhookRoute, /await req\.text\(\)/);
+ assert.match(recommandWebhookRoute, /RECOMMAND_WEBHOOK_SECRET/);
+ assert.match(recommandWebhookLib, /createHmac\("sha256", secret\)\.update\(rawBody, "utf8"\)\.digest\("hex"\)/);
+ assert.match(recommandWebhookLib, /timingSafeEqual\(provided, expected\)/);
+ assert.doesNotMatch(recommandWebhookLib, /signatureHeader\s*={2,3}/);
+ assert.doesNotMatch(recommandWebhookLib, /providedHex\s*={2,3}\s*expectedHex/);
+ const invalidSignatureBlock = recommandWebhookRoute.match(/if \(!verifyRecommandWebhookSignature\(rawBody, signature, secret\)\) \{[\s\S]*?\n  \}/)?.[0] || '';
+ assert.match(invalidSignatureBlock, /401/);
+ assert.doesNotMatch(invalidSignatureBlock, /from\("user_profiles"\)/);
+});
+
+test('Recommand verification webhook marks matching company verified on valid verified event', () => {
+ assert.match(recommandWebhookLib, /payload\.eventType !== "company\.verification"/);
+ assert.match(recommandWebhookLib, /payload\.companyId\.startsWith\("c_"\)/);
+ assert.match(recommandWebhookLib, /payload\.status === "verified"/);
+ assert.match(recommandWebhookLib, /updatePayload\.recommand_verified = true/);
+ assert.match(recommandWebhookRoute, /from\("user_profiles"\)[\s\S]*\.update\(update\.updatePayload\)[\s\S]*\.eq\("recommand_company_id", update\.companyId\)/);
 });
 
 test('dashboard does not silently hide invoices when conversion query fails', () => {
