@@ -6,6 +6,7 @@ import { createClient } from "../../lib/supabase-client";
 import { C } from "../../lib/constants";
 import { InvoiceData, InvoiceLine } from "../../lib/ubl-generator";
 import { validateInvoiceData } from "../../lib/ubl-validator";
+import { buildRecommandInvoiceDocument, deriveRecommandRecipient, validateRecommandInvoiceData } from "../../lib/recommand-invoice";
 
 const today = new Date().toISOString().slice(0, 10);
 const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -13,16 +14,37 @@ const invoiceNo = `F-${new Date().getFullYear()}-001`;
 const emptyLine = (): InvoiceLine => ({ id: crypto.randomUUID(), description: "", quantity: 1, unitPrice: 0, vatPct: 21 });
 const countries = ["NL", "BE", "DE", "Andere"];
 
+type ProfileData = {
+ company_name?: string | null;
+ country?: string | null;
+ kvk_kbo?: string | null;
+ kvk_number?: string | null;
+ kbo_number?: string | null;
+ btw_nr?: string | null;
+ btw_number?: string | null;
+ address?: string | null;
+ postal_code?: string | null;
+ city?: string | null;
+ iban?: string | null;
+ recommand_verified?: boolean | null;
+ recommand_company_id?: string | null;
+};
+
 export default function NieuwPage() {
  const router = useRouter();
  const supabase = createClient();
  const [loadingProfile, setLoadingProfile] = useState(true);
  const [submitting, setSubmitting] = useState(false);
  const [errors, setErrors] = useState<string[]>([]);
+ const [sendStatus, setSendStatus] = useState<string | null>(null);
  const [xml, setXml] = useState("");
+ const [conversionId, setConversionId] = useState<string | null>(null);
+ const [recommandVerified, setRecommandVerified] = useState(false);
+ const [recommandCompanyId, setRecommandCompanyId] = useState<string | null>(null);
 
  const [supplierName, setSupplierName] = useState("");
  const [supplierAddress, setSupplierAddress] = useState("");
+ const [supplierPostalCode, setSupplierPostalCode] = useState("");
  const [supplierCity, setSupplierCity] = useState("");
  const [supplierCountry, setSupplierCountry] = useState("NL");
  const [supplierKvkKbo, setSupplierKvkKbo] = useState("");
@@ -31,6 +53,7 @@ export default function NieuwPage() {
 
  const [customerName, setCustomerName] = useState("");
  const [customerAddress, setCustomerAddress] = useState("");
+ const [customerPostalCode, setCustomerPostalCode] = useState("");
  const [customerCity, setCustomerCity] = useState("");
  const [customerCountry, setCustomerCountry] = useState("NL");
  const [customerVatNr, setCustomerVatNr] = useState("");
@@ -54,13 +77,17 @@ export default function NieuwPage() {
  }
  const { data } = await supabase.from("user_profiles").select("*").eq("id", user.id).single();
  if (data) {
- const profile = data as Record<string, string | null>;
+ const profile = data as ProfileData;
  setSupplierName(profile.company_name || "");
  setSupplierCountry(profile.country || "NL");
  setSupplierKvkKbo(profile.kvk_kbo || profile.kvk_number || profile.kbo_number || "");
  setSupplierVatNr(profile.btw_nr || profile.btw_number || "");
  setSupplierAddress(profile.address || "");
+ setSupplierPostalCode(profile.postal_code || "");
+ setSupplierCity(profile.city || "");
  setSupplierIban(profile.iban || "");
+ setRecommandVerified(profile.recommand_verified === true);
+ setRecommandCompanyId(profile.recommand_company_id || null);
  }
  setLoadingProfile(false);
  };
@@ -80,6 +107,7 @@ export default function NieuwPage() {
  const invoiceData = (): InvoiceData => ({
  supplierName,
  supplierAddress,
+ supplierPostalCode,
  supplierCity,
  supplierCountry,
  supplierVatNr,
@@ -87,6 +115,7 @@ export default function NieuwPage() {
  supplierIban,
  customerName,
  customerAddress,
+ customerPostalCode,
  customerCity,
  customerCountry,
  customerVatNr,
@@ -110,6 +139,8 @@ export default function NieuwPage() {
  const result = validateInvoiceData(data);
  setErrors(result.errors);
  setXml("");
+ setConversionId(null);
+ setSendStatus(null);
  if (!result.valid) return;
 
  setSubmitting(true);
@@ -125,6 +156,7 @@ export default function NieuwPage() {
  return;
  }
  setXml(body.xml);
+ setConversionId(body.conversionId || null);
  } catch {
  setErrors(["Netwerkfout. Probeer opnieuw."]);
  } finally {
@@ -140,6 +172,43 @@ export default function NieuwPage() {
  a.download = `peppolpro-${invoiceNumber}.xml`;
  a.click();
  URL.revokeObjectURL(url);
+ };
+
+ const sendViaPeppol = async () => {
+ const data = invoiceData();
+ const sendErrors = validateRecommandInvoiceData(data);
+ setErrors(sendErrors);
+ setSendStatus(null);
+ if (sendErrors.length > 0) return;
+ if (!recommandVerified || !recommandCompanyId) {
+ setErrors(["Verifieer eerst je bedrijf voordat je via Peppol verzendt."]);
+ return;
+ }
+ if (!conversionId) {
+ setErrors(["Genereer de UBL opnieuw voordat je verzendt."]);
+ return;
+ }
+
+ setSubmitting(true);
+ try {
+ const recipient = deriveRecommandRecipient(data);
+ const document = buildRecommandInvoiceDocument(data);
+ const res = await fetch("/api/recommand/send", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ conversionId, recipient, document }),
+ });
+ const body = await res.json().catch(() => ({}));
+ if (!res.ok) {
+ setErrors(body.errors || [body.error || "Verzenden via Peppol mislukt"]);
+ return;
+ }
+ setSendStatus(`Verzonden via Peppol. Document-ID: ${body.documentId}`);
+ } catch (error) {
+ setErrors([error instanceof Error ? error.message : "Verzenden via Peppol mislukt"]);
+ } finally {
+ setSubmitting(false);
+ }
  };
 
  const input = {
@@ -198,6 +267,7 @@ export default function NieuwPage() {
  <div className="form-grid">
  {field("Naam", supplierName, setSupplierName)}
  {field("Adres", supplierAddress, setSupplierAddress)}
+ {field("Postcode", supplierPostalCode, setSupplierPostalCode)}
  {field("Stad", supplierCity, setSupplierCity)}
  {select("Land", supplierCountry, setSupplierCountry, countries)}
  {field("KvK of KBO", supplierKvkKbo, setSupplierKvkKbo)}
@@ -210,6 +280,7 @@ export default function NieuwPage() {
  <div className="form-grid">
  {field("Naam", customerName, setCustomerName)}
  {field("Adres", customerAddress, setCustomerAddress)}
+ {field("Postcode", customerPostalCode, setCustomerPostalCode)}
  {field("Stad", customerCity, setCustomerCity)}
  {select("Land", customerCountry, setCustomerCountry, countries)}
  {field("BTW-nummer", customerVatNr, setCustomerVatNr)}
@@ -271,11 +342,17 @@ export default function NieuwPage() {
  {xml && (
  <Section title="XML-preview">
  <p style={{ color: C.dim, fontSize: 13, lineHeight: 1.6, margin: "0 0 14px" }}>
- Direct verzenden via Peppol is nog niet beschikbaar. Download de UBL en verstuur via je eigen access point.
+ UBL gegenereerd. Download de UBL of verzend direct via Peppol zodra je bedrijfsverificatie actief is.
  </p>
+ {!recommandVerified && (
+ <p style={{ color: "#fbbf24", fontSize: 13, lineHeight: 1.6, margin: "0 0 14px" }}>
+ Verifieer eerst je bedrijf via <a href="/dashboard#peppol-verzending" style={{ color: "#fde68a", fontWeight: 800 }}>het dashboardblok Peppol-verzending activeren</a>.
+ </p>
+ )}
+ {sendStatus && <p style={{ color: "#86efac", fontSize: 13, fontWeight: 800, margin: "0 0 14px" }}>{sendStatus}</p>}
  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
  <button onClick={downloadXml} style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700 }}>Download UBL/XML</button>
- <button disabled style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "rgba(148,163,184,0.08)", color: C.gray, fontWeight: 700, cursor: "not-allowed" }}>Verzenden via Peppol binnenkort</button>
+ <button onClick={sendViaPeppol} disabled={submitting || !recommandVerified} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : recommandVerified ? "Verzenden via Peppol" : "Verifieer eerst je bedrijf"}</button>
  <button onClick={() => router.push("/dashboard")} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 700 }}>Opslaan in dashboard</button>
  </div>
  <pre style={{ overflow: "auto", maxHeight: 420, background: "rgba(0,0,0,0.32)", borderRadius: 10, padding: 16, color: C.gray, fontSize: 12 }}>{xml}</pre>

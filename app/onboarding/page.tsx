@@ -10,6 +10,9 @@ export default function OnboardingPage() {
  const [kvk, setKvk] = useState("");
  const [kbo, setKbo] = useState("");
  const [btw, setBtw] = useState("");
+ const [address, setAddress] = useState("");
+ const [postalCode, setPostalCode] = useState("");
+ const [city, setCity] = useState("");
  const [loading, setLoading] = useState(false);
  const [error, setError] = useState("");
  const router = useRouter();
@@ -23,6 +26,9 @@ export default function OnboardingPage() {
  if (country === "NL" && !kvk) { setError("KvK-nummer is verplicht"); setLoading(false); return; }
  if (country === "BE" && !kbo) { setError("KBO-nummer is verplicht"); setLoading(false); return; }
  if (!btw) { setError("BTW-nummer is verplicht"); setLoading(false); return; }
+ if (!address.trim()) { setError("Adres is verplicht"); setLoading(false); return; }
+ if (!postalCode.trim()) { setError("Postcode is verplicht"); setLoading(false); return; }
+ if (!city.trim()) { setError("Plaats is verplicht"); setLoading(false); return; }
 
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) { router.push("/login"); return; }
@@ -34,6 +40,9 @@ export default function OnboardingPage() {
  country,
  kvk_kbo: country === "NL" ? kvk : kbo,
  btw_nr: btw,
+ address: address.trim(),
+ postal_code: postalCode.trim(),
+ city: city.trim(),
  onboarding_complete: true,
  })
  .eq("id", user.id);
@@ -98,6 +107,15 @@ export default function OnboardingPage() {
 
  <label style={labelStyle}>BTW-nummer *</label>
  <input type="text" value={btw} onChange={(e) => setBtw(e.target.value)} placeholder={country === "NL" ? "NL123456789B01" : "BE0123456789"} required style={inputStyle} />
+
+ <label style={labelStyle}>Adres *</label>
+ <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Straatnaam 1" required style={inputStyle} />
+
+ <label style={labelStyle}>Postcode *</label>
+ <input type="text" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder={country === "NL" ? "1234AB" : "1000"} required style={inputStyle} />
+
+ <label style={labelStyle}>Plaats *</label>
+ <input type="text" value={city} onChange={(e) => setCity(e.target.value)} placeholder={country === "NL" ? "Amsterdam" : "Brussel"} required style={inputStyle} />
 
  {error && <p style={{ fontSize: 13, color: "#ef4444", marginBottom: 12 }}>{error}</p>}
 

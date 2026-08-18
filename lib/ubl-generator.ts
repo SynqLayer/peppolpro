@@ -10,6 +10,7 @@ export interface InvoiceData {
  // Leverancier
  supplierName: string;
  supplierAddress: string;
+ supplierPostalCode?: string;
  supplierCity: string;
  supplierCountry: string;
  supplierVatNr: string;
@@ -19,6 +20,7 @@ export interface InvoiceData {
  // Klant
  customerName: string;
  customerAddress: string;
+ customerPostalCode?: string;
  customerCity: string;
  customerCountry: string;
  customerVatNr: string;
@@ -159,6 +161,7 @@ export function generateUBL(d: InvoiceData): string {
  <cac:PartyName><cbc:Name>${escapeXml(d.supplierName)}</cbc:Name></cac:PartyName>
  <cac:PostalAddress>
  <cbc:StreetName>${escapeXml(d.supplierAddress)}</cbc:StreetName>
+ ${d.supplierPostalCode ? `<cbc:PostalZone>${escapeXml(d.supplierPostalCode)}</cbc:PostalZone>` : ""}
  <cbc:CityName>${escapeXml(d.supplierCity)}</cbc:CityName>
  <cac:Country><cbc:IdentificationCode>${escapeXml(supCountry)}</cbc:IdentificationCode></cac:Country>
  </cac:PostalAddress>
@@ -178,6 +181,7 @@ export function generateUBL(d: InvoiceData): string {
  <cac:PartyName><cbc:Name>${escapeXml(d.customerName)}</cbc:Name></cac:PartyName>
  <cac:PostalAddress>
  <cbc:StreetName>${escapeXml(d.customerAddress)}</cbc:StreetName>
+ ${d.customerPostalCode ? `<cbc:PostalZone>${escapeXml(d.customerPostalCode)}</cbc:PostalZone>` : ""}
  <cbc:CityName>${escapeXml(d.customerCity)}</cbc:CityName>
  <cac:Country><cbc:IdentificationCode>${escapeXml(cusCountry)}</cbc:IdentificationCode></cac:Country>
  </cac:PostalAddress>

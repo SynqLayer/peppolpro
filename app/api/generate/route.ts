@@ -39,19 +39,23 @@ export async function POST(req: NextRequest) {
  await supabase.rpc("use_credit", { p_user_id: user.id });
  }
 
- await supabase.from("conversions").insert({
- user_id: user.id,
- filename: `peppolpro-${invoiceData.invoiceNumber}.xml`,
- status: "done",
- ubl_xml: xml,
- customer_name: summary.customerName || fallbackSummary.customerName,
- customer_email: invoiceData.customerEmail.trim(),
- total_amount: summary.totalAmount ?? fallbackSummary.totalAmount,
- invoice_number: summary.invoiceNumber || fallbackSummary.invoiceNumber,
- currency: summary.currency || fallbackSummary.currency,
- });
+ const { data: conversion, error: conversionError } = await supabase.from("conversions").insert({
+  user_id: user.id,
+  filename: `peppolpro-${invoiceData.invoiceNumber}.xml`,
+  status: "done",
+  ubl_xml: xml,
+  customer_name: summary.customerName || fallbackSummary.customerName,
+  customer_email: invoiceData.customerEmail.trim(),
+  total_amount: summary.totalAmount ?? fallbackSummary.totalAmount,
+  invoice_number: summary.invoiceNumber || fallbackSummary.invoiceNumber,
+  currency: summary.currency || fallbackSummary.currency,
+ }).select("id").single();
 
- return NextResponse.json({ xml });
+ if (conversionError || !conversion) {
+  return NextResponse.json({ error: "Factuur kon niet worden opgeslagen" }, { status: 500 });
+ }
+
+ return NextResponse.json({ xml, conversionId: conversion.id });
  } catch (err) {
  console.error("Generate error:", err);
  return NextResponse.json({ error: "Generatie mislukt" }, { status: 500 });
