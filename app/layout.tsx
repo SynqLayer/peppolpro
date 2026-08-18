@@ -7,7 +7,7 @@ export const metadata: Metadata = {
  default: "PeppolPro — PDF naar Peppol BIS 3.0 UBL zonder boekhoudpakket",
  template: "%s | PeppolPro",
  },
- description: "Genereer Peppol BIS 3.0 UBL/XML uit je factuurgegevens. Download je UBL-bestand; Peppol-verzending via bundels wordt binnenkort geactiveerd.",
+ description: "Genereer Peppol BIS 3.0 UBL/XML uit je factuurgegevens. Download je UBL-bestand of verzend via Peppol na bedrijfsverificatie met een verzendbundel.",
  keywords: ["peppol", "e-facturatie", "ubl factuur", "peppol verplicht belgie", "pdf naar ubl", "peppol factuur versturen", "e-invoice belgie"],
  authors: [{ name: "SynqLayer", url: "https://synqlayer.com" }],
  creator: "SynqLayer",

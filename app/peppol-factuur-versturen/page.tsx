@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
  title: "Peppol-factuur voorbereiden — UBL downloaden zonder boekhoudpakket",
- description: "Maak een Peppol BIS 3.0 UBL-bestand zonder boekhoudpakket. Download nu je UBL; Peppol-verzending via bundels wordt binnenkort geactiveerd.",
+ description: "Maak een Peppol BIS 3.0 UBL-bestand zonder boekhoudpakket. Download je UBL of verzend via Peppol na bedrijfsverificatie met een verzendbundel.",
  alternates: { canonical: "https://peppolpro.nl/peppol-factuur-versturen" },
 };
 
@@ -57,7 +57,7 @@ export default function PeppolFactuurVersturenPage() {
  Eerste 3 UBL-generaties gratis
  </h3>
  <p style={{ color: "#a5b4fc", marginBottom: "1.5rem" }}>
- Account aanmaken, gegevens invullen, UBL downloaden. Peppol-verzending via bundels wordt binnenkort geactiveerd.
+ Account aanmaken, gegevens invullen, UBL downloaden of na bedrijfsverificatie verzenden via Peppol met een verzendbundel.
  </p>
  <Link href="/login" style={buttonStyle}>
  Start gratis

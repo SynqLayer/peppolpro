@@ -36,6 +36,7 @@ const onboardingPage = readFileSync(new URL('../app/onboarding/page.tsx', import
 const migration0009 = readFileSync(new URL('../supabase/migrations/0009_payments_mollie_payment_id_unique_constraint.sql', import.meta.url), 'utf8');
 const recommandLib = readFileSync(new URL('../lib/recommand.ts', import.meta.url), 'utf8');
 const recommandRoute = readFileSync(new URL('../app/api/recommand/send/route.ts', import.meta.url), 'utf8');
+const recommandInvoice = readFileSync(new URL('../lib/recommand-invoice.ts', import.meta.url), 'utf8');
 const migration0011 = readFileSync(new URL('../supabase/migrations/0011_recommand_delivery_fields.sql', import.meta.url), 'utf8');
 const migration0012 = readFileSync(new URL('../supabase/migrations/0012_conversion_customer_email.sql', import.meta.url), 'utf8');
 const migration0013 = readFileSync(new URL('../supabase/migrations/0013_conversion_pdf_retention.sql', import.meta.url), 'utf8');
@@ -84,7 +85,7 @@ test('public copy does not claim temporary-only storage, VIES validation, or loo
  }
  assert.match(constants, /factuurhistorie kunt terugzien/);
  assert.match(constants, /BTW-validatie staat op de roadmap/);
- assert.match(homePage, /Peppol-verzending via bundels wordt binnenkort geactiveerd/);
+ assert.match(homePage, /verzend via Peppol na bedrijfsverificatie met een verzendbundel/);
 });
 
 test('middleware invokes proxy session refresh and excludes static assets', () => {
@@ -118,11 +119,11 @@ test('send tiers replace Compleet while monitoring tiers stay configured', () =>
  assert.match(plans, /free:\s*{[\s\S]*3 gratis UBL-generaties bij registratie/);
  assert.match(plans, /free:\s*{[\s\S]*Geen Peppol-verzending inbegrepen/);
  assert.match(plans, /verzenden_25:\s*{[\s\S]*amount:\s*"12\.00"/);
- assert.match(plans, /verzenden_25:\s*{[\s\S]*available:\s*false/);
+ assert.match(plans, /verzenden_25:\s*{[\s\S]*available:\s*true/);
  assert.match(plans, /verzenden_25:\s*{[\s\S]*includedSends:\s*25/);
  assert.match(plans, /verzenden_25:\s*{[\s\S]*extraSendPrice:\s*"0\.45"/);
  assert.match(plans, /verzenden_100:\s*{[\s\S]*amount:\s*"39\.00"/);
- assert.match(plans, /verzenden_100:\s*{[\s\S]*available:\s*false/);
+ assert.match(plans, /verzenden_100:\s*{[\s\S]*available:\s*true/);
  assert.match(plans, /verzenden_100:\s*{[\s\S]*includedSends:\s*100/);
  assert.match(plans, /verzenden_100:\s*{[\s\S]*extraSendPrice:\s*"0\.35"/);
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
@@ -135,18 +136,17 @@ test('send tiers replace Compleet while monitoring tiers stay configured', () =>
  assert.match(plans, /monitoring_accountant:\s*{[\s\S]*checkFrequency:\s*"daily"/);
 });
 
-test('unavailable sending plans cannot start checkout and are disabled in pricing UI', () => {
+test('sending plans are available for checkout and no longer shown as coming soon', () => {
  const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.url), 'utf8');
  const upgradePage = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
  const homePage = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
  assert.match(checkoutRoute, /planConfig\.available === false/);
- assert.match(checkoutRoute, /Dit plan is binnenkort beschikbaar/);
- assert.match(checkoutRoute, /status: 400/);
- assert.match(pricingPage, /available:\s*false/);
- assert.match(pricingPage, /Binnenkort beschikbaar/);
+ assert.match(plans, /verzenden_25:\s*{[\s\S]*available:\s*true/);
+ assert.match(plans, /verzenden_100:\s*{[\s\S]*available:\s*true/);
+ assert.doesNotMatch(plans, /verzenden_25:\s*{[\s\S]*Binnenkort beschikbaar/);
+ assert.doesNotMatch(plans, /verzenden_100:\s*{[\s\S]*Binnenkort beschikbaar/);
  assert.match(upgradePage, /plan\.available === false/);
- assert.match(upgradePage, /Binnenkort beschikbaar/);
- assert.match(`${pricingPage}\n${upgradePage}`, /Peppol-verzending wordt binnenkort geactiveerd\. UBL genereren en downloaden werkt nu al\./);
+ assert.doesNotMatch(`${pricingPage}\n${upgradePage}`, /Peppol-verzending wordt binnenkort geactiveerd\. UBL genereren en downloaden werkt nu al\./);
  assert.doesNotMatch(`${pricingPage}\n${upgradePage}\n${homePage}`, /Losse verzending: €1,95 per factuur/);
 });
 
@@ -395,7 +395,7 @@ test('dashboard keeps Peppol Inbox notice only in action points without upgrade 
  assert.doesNotMatch(dashboard, /Bekijk plannen/);
 });
 
-test('Recommand integration verifies recipients before send and stores raw responses', () => {
+test('Recommand integration verifies recipients before send, gates plan limit, and stores raw responses', () => {
  assert.match(recommandLib, /Buffer\.from\(`\$\{apiKey\}:\$\{apiSecret\}`\)\.toString\("base64"\)/);
  assert.match(recommandLib, /export async function createCompany\(payload: RecommandCompanyPayload\)/);
  assert.match(recommandLib, /enterpriseNumberScheme: normalizeEnterpriseNumberScheme\(payload\.country, payload\.enterpriseNumberScheme\)/);
@@ -408,10 +408,21 @@ test('Recommand integration verifies recipients before send and stores raw respo
  assert.match(recommandLib, /\/send/);
  assert.match(recommandLib, /export async function getDocumentStatus\(documentId: string\)/);
  assert.match(recommandLib, /\/documents\/\$\{encodeURIComponent\(documentId\)\}/);
+ assert.match(recommandRoute, /validateRecommandInvoiceDocument\(document\)/);
+ assert.match(recommandRoute, /Verzenden is geblokkeerd: vul de ontbrekende factuurgegevens aan/);
+ assert.match(recommandRoute, /recommand_company_id, recommand_verified/);
+ assert.match(recommandRoute, /profile\.recommand_company_id/);
+ assert.doesNotMatch(recommandRoute, /process\.env\.RECOMMAND_COMPANY_ID/);
+ assert.match(recommandRoute, /plan\.includedSends \|\| 0/);
+ assert.match(recommandRoute, /sent_via_recommand_at/);
+ assert.match(recommandRoute, /de limiet van \$\{limit\} Peppol-verzendingen bereikt/);
  assert.match(recommandRoute, /verifyRecipient\(recipient\)/);
  assert.match(recommandRoute, /verifyRecipientSupportsInvoice\(recipient\)/);
  assert.match(recommandRoute, /recipient_not_found/);
  assert.match(recommandRoute, /recommand_raw_response: \{ verify: verify\.raw, verifyDocumentSupport: support\.raw, send: send\.raw, documents: status \}/);
+ assert.match(recommandInvoice, /validateRecommandInvoiceData/);
+ assert.match(recommandInvoice, /Klant: postcode ontbreekt/);
+ assert.doesNotMatch(recommandInvoice, /postalZone: .*\|\|/);
  assert.match(migration0011, /recommand_document_id text/);
  assert.match(migration0011, /recommand_status text/);
  assert.match(migration0011, /recommand_raw_response jsonb/);
@@ -466,16 +477,27 @@ test('generate API requires an authenticated user before producing UBL', () => {
  assert.doesNotMatch(generateRoute, /if \(user\) \{[\s\S]*from\("conversions"\)\.insert/);
 });
 
-test('new invoice flow requires and stores customer email for manual sending fallback', () => {
+test('new invoice flow requires and stores customer email and can send only after company verification', () => {
  assert.match(migration0012, /alter table public\.conversions[\s\S]*add column if not exists customer_email text/i);
  assert.match(ublGenerator, /customerEmail: string/);
+ assert.match(ublGenerator, /supplierPostalCode\?: string/);
+ assert.match(ublGenerator, /customerPostalCode\?: string/);
  assert.match(ublValidator, /Klant: e-mailadres ontvanger ontbreekt/);
  assert.match(ublValidator, /Klant: e-mailadres ontvanger is ongeldig/);
  assert.match(nieuwPage, /const \[customerEmail, setCustomerEmail\] = useState\(""\)/);
- assert.match(nieuwPage, /E-mailadres ontvanger/);
- assert.match(nieuwPage, /field\("E-mailadres ontvanger", customerEmail, setCustomerEmail, "email"\)/);
+ assert.match(nieuwPage, /const \[customerPostalCode, setCustomerPostalCode\] = useState\(""\)/);
+ assert.match(nieuwPage, /const \[supplierPostalCode, setSupplierPostalCode\] = useState\(""\)/);
+ assert.match(nieuwPage, /recommandVerified/);
+ assert.match(nieuwPage, /dashboard#peppol-verzending/);
+ assert.match(nieuwPage, /Verifieer eerst je bedrijf/);
+ assert.match(nieuwPage, /fetch\("\/api\/recommand\/send"/);
+ assert.match(nieuwPage, /validateRecommandInvoiceData\(data\)/);
+ assert.match(nieuwPage, /buildRecommandInvoiceDocument\(data\)/);
+ assert.match(nieuwPage, /deriveRecommandRecipient\(data\)/);
+ assert.match(nieuwPage, /conversionId/);
  assert.match(nieuwPage, /customerEmail/);
  assert.match(generateRoute, /customer_email: invoiceData\.customerEmail\.trim\(\)/);
+ assert.match(generateRoute, /conversionId: conversion\.id/);
 });
 
 test('subscription cancel route cancels at Mollie but keeps access until period end', () => {

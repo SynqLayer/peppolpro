@@ -110,12 +110,12 @@ test('FAQ page includes FAQPage structured data for rich snippets', () => {
   assert.match(faqPage, /JSON\.stringify\(faqJsonLd\)/);
 });
 
-test('commercial Peppol copy is honest while direct sending is unavailable', () => {
+test('commercial Peppol copy requires verification and an active send bundle before direct sending', () => {
   const combined = `${rootPage}\n${pricingPage}\n${peppolSendPage}\n${layout}\n${constants}\n${plans}\n${brevo}\n${nieuwPage}`;
-  assert.match(combined, /Direct verzenden via Peppol is (nog niet|binnenkort) beschikbaar|Direct verzenden via Peppol is nog niet beschikbaar/);
-  assert.match(nieuwPage, /Download de UBL en verstuur via je eigen access point/);
-  assert.match(nieuwPage, /Verzenden via Peppol binnenkort/);
-  assert.doesNotMatch(combined, /verzend direct via Peppol|Verzenden én ontvangen via Peppol|Bulk verzenden|Klant ontvangt direct|3 Peppol-verzendingen/);
+  assert.match(combined, /bedrijfsverificatie/);
+  assert.match(nieuwPage, /Verifieer eerst je bedrijf/);
+  assert.match(nieuwPage, /Verzenden via Peppol/);
+  assert.doesNotMatch(combined, /Verzenden én ontvangen via Peppol|Bulk verzenden|Klant ontvangt direct|3 Peppol-verzendingen/);
 });
 
 test('legal pages describe starter credits and subprocessors consistently', () => {

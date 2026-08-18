@@ -531,7 +531,7 @@ export default function DashboardClient({
  </section>
  )}
 
- <section style={{ ...cardStyle, padding: 18, marginBottom: 18 }}>
+ <section id="peppol-verzending" style={{ ...cardStyle, padding: 18, marginBottom: 18 }}>
  <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
  <div>
  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Peppol-verzending activeren</h2>

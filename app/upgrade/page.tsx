@@ -23,7 +23,7 @@ export default function UpgradePage() {
  <div style={{ maxWidth: 680, marginTop: 28, marginBottom: 28 }}>
  <h1 style={{ margin: 0, fontSize: 42, lineHeight: 1.08, fontWeight: 900 }}>Upgrade je PeppolPro-account</h1>
  <p style={{ margin: "14px 0 0", color: "#94a3b8", fontSize: 16, lineHeight: 1.7 }}>
- Gratis is ideaal om te starten. Peppol-verzending wordt binnenkort geactiveerd. UBL genereren en downloaden werkt nu al. Monitoring blijft voor actieve bewaking.
+ Gratis is ideaal om te starten. Activeer een verzendbundel na bedrijfsverificatie om facturen direct via Peppol te versturen. Monitoring blijft voor actieve bewaking.
  </p>
  </div>
 
@@ -65,7 +65,7 @@ export default function UpgradePage() {
  </article>
  ))}
  </section>
- <p style={{ margin: "24px 0 0", color: "#94a3b8", fontSize: 14, textAlign: "center" }}>Peppol-verzending wordt binnenkort geactiveerd. UBL genereren en downloaden werkt nu al.</p>
+ <p style={{ margin: "24px 0 0", color: "#94a3b8", fontSize: 14, textAlign: "center" }}>Verzenden vereist een geverifieerd bedrijf en een actief verzendplan.</p>
  </div>
  </main>
  );

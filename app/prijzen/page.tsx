@@ -29,10 +29,10 @@ const plans = [
  "UBL-facturen genereren en downloaden",
  "Dashboard met historie en actiepunten",
  ],
- cta: "Binnenkort beschikbaar",
+ cta: "Activeer Verzenden 25",
  href: "/login",
  planId: "verzenden_25",
- available: false,
+ available: true,
  highlight: true,
  },
  {
@@ -45,10 +45,10 @@ const plans = [
  "UBL-facturen genereren en downloaden",
  "Dashboard met historie en actiepunten",
  ],
- cta: "Binnenkort beschikbaar",
+ cta: "Activeer Verzenden 100",
  href: "/login",
  planId: "verzenden_100",
- available: false,
+ available: true,
  highlight: false,
  },
  {
@@ -172,7 +172,7 @@ export default function PrijzenPage() {
  </div>
 
  <p style={{ fontSize: 13, color: C.dim, textAlign: "center", margin: "28px 0 38px" }}>
- Alle prijzen excl. btw. Maandelijks opzegbaar. Peppol-verzending wordt binnenkort geactiveerd. UBL genereren en downloaden werkt nu al.
+ Alle prijzen excl. btw. Maandelijks opzegbaar. Activeer een verzendbundel na bedrijfsverificatie om facturen direct via Peppol te versturen.
  </p>
 
  <div style={{ maxWidth: 780, margin: "0 auto" }}>

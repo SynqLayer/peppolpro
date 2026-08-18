@@ -5,6 +5,7 @@ import { generateUBL } from '../lib/ubl-generator.ts';
 const baseInvoice = {
  supplierName: 'Supplier BV',
  supplierAddress: 'Straat 1',
+ supplierPostalCode: '1234AB',
  supplierCity: 'Waddinxveen',
  supplierCountry: 'NL',
  supplierVatNr: 'NL005450830B62',
@@ -12,6 +13,7 @@ const baseInvoice = {
  supplierIban: 'NL64RABO0118774336',
  customerName: 'Belgische Klant BV',
  customerAddress: 'Gentseweg 1',
+ customerPostalCode: '9120',
  customerCity: 'Antwerpen',
  customerCountry: 'NL',
  customerVatNr: 'BE0674771986',
