@@ -355,6 +355,8 @@ test('billing migration adds invoice numbering, credit invoices and webhook even
 
 test('paid subscription payments create invoices and refunds create separate credit invoices', () => {
  assert.match(billingLib, /export async function ensurePaymentInvoice/);
+ assert.match(billingLib, /if \(!plan\.paid\) return null/);
+ assert.doesNotMatch(billingLib, /isMonitoringPlan/);
  assert.match(billingLib, /invoice_kind: "subscription"/);
  assert.match(billingLib, /next_billing_invoice_number/);
  assert.match(billingLib, /export async function ensureCreditInvoice/);
@@ -362,6 +364,22 @@ test('paid subscription payments create invoices and refunds create separate cre
  assert.match(billingLib, /original_invoice_number/);
  assert.match(mollieWebhookRoute, /ensurePaymentInvoice/);
  assert.match(mollieWebhookRoute, /ensureCreditInvoice/);
+});
+
+test('every paid plan starts a Mollie recurring subscription and invoice flow', () => {
+ assert.match(plans, /verzenden_25:\s*{[\s\S]*?paid: true,/);
+ assert.match(plans, /verzenden_100:\s*{[\s\S]*?paid: true,/);
+ assert.match(plans, /monitoring:\s*{[\s\S]*?paid: true,/);
+ assert.match(plans, /monitoring_accountant:\s*{[\s\S]*?paid: true,/);
+ assert.match(checkoutRoute, /if \(planConfig\.paid\) \{/);
+ assert.doesNotMatch(checkoutRoute, /isMonitoringPlan/);
+ assert.match(checkoutRoute, /sequenceType: customerId \? "first"/);
+ assert.match(checkoutRoute, /subscription_flow: customerId \? "recurring_first_payment"/);
+ assert.match(checkoutRoute, /from\("subscriptions"\)\.upsert/);
+ assert.match(mollieWebhookRoute, /if \(!customerId \|\| !planConfig\.paid\) return null/);
+ assert.doesNotMatch(mollieWebhookRoute, /if \(!isMonitoringPlan\(planConfig\.id\)\)[\s\S]*return NextResponse\.json\(\{ ok: true \}\)/);
+ assert.match(mollieWebhookRoute, /await ensureRecurringSubscription\(\{ supabase, payment, userId, plan: planConfig\.id/);
+ assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
 });
 
 test('invoice route downloads only own on-the-fly PDFs without server-side cache', () => {

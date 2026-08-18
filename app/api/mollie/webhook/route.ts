@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { ensureCreditInvoice, ensurePaymentInvoice } from "@/lib/billing";
 import { cancelSubscription, createSubscription, getPayment, getSubscription, MolliePayment, MollieSubscription } from "@/lib/mollie";
-import { getPlan, isMonitoringPlan } from "@/lib/plans";
+import { getPlan } from "@/lib/plans";
 
 const GRACE_DAYS = 7;
 
@@ -84,7 +84,7 @@ async function ensureRecurringSubscription({
 }) {
  const planConfig = getPlan(plan);
  const customerId = payment.customerId;
- if (!customerId || !isMonitoringPlan(planConfig.id)) return null;
+ if (!customerId || !planConfig.paid) return null;
  const { data: existing } = await supabase
  .from("subscriptions")
  .select("id, mollie_subscription_id, current_period_end")
@@ -192,10 +192,6 @@ export async function POST(req: NextRequest) {
 
  if (payment.status === "paid") {
  await supabase.from("user_profiles").update({ plan: planConfig.id }).eq("id", userId);
- if (!isMonitoringPlan(planConfig.id)) {
- await markWebhook(supabase, eventKey, "processed");
- return NextResponse.json({ ok: true });
- }
  const ensured = payment.subscriptionId
  ? null
  : await ensureRecurringSubscription({ supabase, payment, userId, plan: planConfig.id, baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://peppolpro.nl" });
