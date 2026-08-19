@@ -9,7 +9,7 @@ export default function GDPRPage() {
  <div style={{ maxWidth: 700, margin: "0 auto", padding: "100px 24px 60px" }}>
  <Link href="/" style={{ fontSize: 13, color: "#475569", textDecoration: "none", marginBottom: 20, display: "block" }}>← Terug naar home</Link>
  <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>AVG/GDPR Compliance</h1>
- <p style={{ fontSize: 13, color: "#475569", marginBottom: 32 }}>Laatst bijgewerkt: april 2026</p>
+ <p style={{ fontSize: 13, color: "#475569", marginBottom: 32 }}>Laatst bijgewerkt: 19 augustus 2026</p>
 
  <h2 style={h2}>Data Protection by Design</h2>
  <p style={p}>PeppolPro is ontworpen met privacy als uitgangspunt. Wij verwerken zo min mogelijk persoonsgegevens, alleen wat strikt noodzakelijk is voor de dienst.</p>
@@ -36,6 +36,7 @@ export default function GDPRPage() {
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Vercel — Website hosting met EU edge</li>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Mollie — Betalingsverwerking in EU</li>
  <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Brevo — Transactionele e-mail, verwerkt naam en e-mailadres</li>
+ <li style={{ fontSize: 14, color: "#94a3b8", lineHeight: 1.8, marginBottom: 6 }}>Recommand — Peppol access point, voor het registreren van je bedrijf op het Peppol-netwerk en het verzenden van facturen. Bij het activeren van verzenden moet een vertegenwoordiger van je bedrijf zich eenmalig identificeren via een externe identiteitscontrole van Recommand; dat verloopt volledig buiten PeppolPro om, en wij ontvangen of bewaren zelf geen kopie van dat identiteitsbewijs.</li>
  </ul>
 
  <h2 style={h2}>Data Breach Protocol</h2>
