@@ -6,6 +6,7 @@ import { Suspense, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase-client";
 import { C } from "@/lib/constants";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { checkoutIntentCookieValue, checkoutResumePath, readCheckoutIntentFromSearch } from "@/lib/checkout-intent";
 
 function AuthConfirmContent() {
  const router = useRouter();
@@ -14,6 +15,7 @@ function AuthConfirmContent() {
  const tokenHash = useMemo(() => searchParams.get("token_hash"), [searchParams]);
  const code = useMemo(() => searchParams.get("code"), [searchParams]);
  const type = useMemo(() => (searchParams.get("type") || "email") as EmailOtpType, [searchParams]);
+ const checkoutPlan = useMemo(() => readCheckoutIntentFromSearch(new URLSearchParams(searchParams.toString())), [searchParams]);
  const [loading, setLoading] = useState(false);
  const [error, setError] = useState("");
 
@@ -28,6 +30,11 @@ function AuthConfirmContent() {
  setLoading(false);
  if (error) {
  setError("Deze loginlink is verlopen, al gebruikt of in een andere browser geopend. Vraag een nieuwe magic link aan.");
+ return;
+ }
+ if (checkoutPlan) {
+ document.cookie = checkoutIntentCookieValue(checkoutPlan);
+ router.push(checkoutResumePath(checkoutPlan));
  return;
  }
  router.push("/dashboard");

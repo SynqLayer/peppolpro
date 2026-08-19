@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase-client";
 import { C } from "@/lib/constants";
+import {
+ appendCheckoutIntent,
+ checkoutIntentCookieValue,
+ clearCheckoutIntentCookieValue,
+ readCheckoutIntentFromSearch,
+} from "@/lib/checkout-intent";
 
 type Mode = "password" | "magic";
 
@@ -17,9 +23,12 @@ function authErrorMessage(message: string) {
  return "Inloggen lukt niet. Controleer je gegevens en probeer opnieuw.";
 }
 
-export default function LoginPage() {
+function LoginContent() {
  const router = useRouter();
+ const searchParams = useSearchParams();
  const supabase = createClient();
+ const checkoutPlan = readCheckoutIntentFromSearch(new URLSearchParams(searchParams.toString()));
+ const registerHref = checkoutPlan ? `/register?plan=${encodeURIComponent(checkoutPlan)}&redirect=checkout` : "/register";
  const [mode, setMode] = useState<Mode>("password");
  const [email, setEmail] = useState("");
  const [password, setPassword] = useState("");
@@ -27,16 +36,35 @@ export default function LoginPage() {
  const [sent, setSent] = useState(false);
  const [error, setError] = useState("");
 
+
  const handlePasswordLogin = async (event: FormEvent) => {
  event.preventDefault();
  setLoading(true);
  setError("");
  const { error } = await supabase.auth.signInWithPassword({ email, password });
- setLoading(false);
  if (error) {
+ setLoading(false);
  setError(authErrorMessage(error.message));
  return;
  }
+ if (checkoutPlan) {
+ document.cookie = checkoutIntentCookieValue(checkoutPlan);
+ const res = await fetch("/api/checkout", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ plan: checkoutPlan }),
+ });
+ const data = await res.json().catch(() => ({}));
+ setLoading(false);
+ if (data.checkoutUrl) {
+ document.cookie = clearCheckoutIntentCookieValue();
+ window.location.href = data.checkoutUrl;
+ return;
+ }
+ setError(data.error || "Ingelogd, maar checkout kon niet worden gestart. Probeer het opnieuw vanaf de prijzenpagina.");
+ return;
+ }
+ setLoading(false);
  router.push("/dashboard");
  };
 
@@ -44,20 +72,30 @@ export default function LoginPage() {
  event.preventDefault();
  setLoading(true);
  setError("");
+ try {
  const { error } = await supabase.auth.signInWithOtp({
  email,
- options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+ options: { emailRedirectTo: appendCheckoutIntent(`${window.location.origin}/auth/confirm`, checkoutPlan) },
  });
  setLoading(false);
  if (error) setError(authErrorMessage(error.message));
  else setSent(true);
+ } catch {
+ setLoading(false);
+ setError("Inloggen lukt niet. Controleer je gegevens en probeer opnieuw.");
+ }
  };
 
  const handleGoogle = async () => {
+ try {
+ if (checkoutPlan) document.cookie = checkoutIntentCookieValue(checkoutPlan);
  await supabase.auth.signInWithOAuth({
  provider: "google",
- options: { redirectTo: `${window.location.origin}/api/auth/callback` },
+ options: { redirectTo: appendCheckoutIntent(`${window.location.origin}/api/auth/callback`, checkoutPlan) },
  });
+ } catch {
+ setError("Inloggen via Google lukt niet. Probeer opnieuw of gebruik e-mail.");
+ }
  };
 
  const inputStyle = {
@@ -130,10 +168,18 @@ export default function LoginPage() {
  <div style={{ marginTop: 24, textAlign: "center" }}>
  <p style={{ fontSize: 12, color: `${C.dim}88`, margin: 0 }}>
  Nog geen account?{" "}
- <Link href="/register" style={{ color: C.blue, textDecoration: "none", fontWeight: 800 }}>Registreer</Link>
+ <Link href={registerHref} style={{ color: C.blue, textDecoration: "none", fontWeight: 800 }}>Registreer</Link>
  </p>
  </div>
  </section>
  </main>
+ );
+}
+
+export default function LoginPage() {
+ return (
+ <Suspense fallback={<main style={{ background: C.bg, minHeight: "100vh" }} />}>
+ <LoginContent />
+ </Suspense>
  );
 }
