@@ -7,12 +7,12 @@ interface GlassCardProps {
  children: ReactNode;
  delay?: number;
  highlight?: boolean;
+ reveal?: boolean;
  style?: React.CSSProperties;
 }
 
-export default function GlassCard({ children, delay = 0, highlight = false, style = {} }: GlassCardProps) {
- return (
- <Reveal delay={delay} style={style}>
+export default function GlassCard({ children, delay = 0, highlight = false, reveal = true, style = {} }: GlassCardProps) {
+ const card = (
  <div
  style={{
  background: highlight
@@ -54,6 +54,15 @@ export default function GlassCard({ children, delay = 0, highlight = false, styl
  )}
  {children}
  </div>
+ );
+
+ if (!reveal) {
+ return card;
+ }
+
+ return (
+ <Reveal delay={delay} style={style}>
+ {card}
  </Reveal>
  );
 }
