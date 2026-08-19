@@ -98,14 +98,14 @@ export default function PrijzenPage() {
  </div>
 
  <div className="pricing-grid">
- {plans.map((plan, index) => (
- <GlassCard key={plan.name} highlight={plan.highlight} delay={index * 0.08}>
+ {plans.map((plan) => (
+ <GlassCard key={plan.name} highlight={plan.highlight} reveal={false}>
  <div style={{ display: "flex", flexDirection: "column", minHeight: 410 }}>
  <div style={{ minHeight: 112 }}>
- <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+ <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
  <h2 style={{ fontSize: 14, color: plan.highlight ? C.blue : C.gray, fontWeight: 800, letterSpacing: 0 }}>{plan.name}</h2>
  {plan.badge && (
- <span style={{ fontSize: 11, fontWeight: 700, color: C.white, background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, padding: "5px 9px", borderRadius: 999 }}>
+ <span style={{ fontSize: 12, fontWeight: 700, color: C.white, background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, padding: "5px 9px", borderRadius: 999 }}>
  {plan.badge}
  </span>
  )}
