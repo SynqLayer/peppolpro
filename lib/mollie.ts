@@ -77,6 +77,7 @@ export async function createPayment({
  redirectUrl,
  webhookUrl,
  metadata,
+ locale: "nl_NL",
  };
  if (customerId) body.customerId = customerId;
  if (sequenceType) body.sequenceType = sequenceType;

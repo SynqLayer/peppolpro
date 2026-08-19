@@ -313,6 +313,7 @@ test('mollie subscriptions infrastructure creates customers, first payments and 
  assert.match(mollieLib, /export async function createCustomer/);
  assert.match(mollieLib, /export async function createSubscription/);
  assert.match(mollieLib, /export async function cancelSubscription/);
+ assert.match(mollieLib, /locale: "nl_NL"/);
  assert.match(checkoutRoute, /createCustomer/);
  assert.match(checkoutRoute, /sequenceType: customerId \? "first"/);
  assert.match(checkoutRoute, /type: customerId \? "subscription_first"/);
