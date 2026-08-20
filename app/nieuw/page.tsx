@@ -7,6 +7,7 @@ import { C } from "../../lib/constants";
 import { InvoiceData, InvoiceLine } from "../../lib/ubl-generator";
 import { validateInvoiceData } from "../../lib/ubl-validator";
 import { buildRecommandInvoiceDocument, deriveRecommandRecipient, validateRecommandInvoiceData } from "../../lib/recommand-invoice";
+import { parseDecimalCurrencyInput, sanitizeDecimalCurrencyInput } from "../../lib/decimal-input";
 
 const today = new Date().toISOString().slice(0, 10);
 const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -225,11 +226,19 @@ export default function NieuwPage() {
 
  const label = { display: "block", color: C.gray, fontSize: 12, fontWeight: 700, marginBottom: 6 };
 
- const field = (title: string, value: string, setter: (value: string) => void, type = "text") => (
+ const field = (title: string, value: string, setter: (value: string) => void, type = "text", inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]) => (
  <div>
  <label style={label}>{title}</label>
- <input type={type} value={value} onChange={(e) => setter(e.target.value)} style={input} />
+ <input type={type} inputMode={inputMode} value={value} onChange={(e) => setter(e.target.value)} style={input} />
  </div>
+ );
+
+ const amountField = (title: string, value: number, setter: (value: number) => void) => field(
+ title,
+ String(value),
+ (rawValue) => setter(parseDecimalCurrencyInput(sanitizeDecimalCurrencyInput(rawValue))),
+ "text",
+ "decimal",
  );
 
  const select = (title: string, value: string, setter: (value: string) => void, options: string[]) => (
@@ -306,7 +315,7 @@ export default function NieuwPage() {
  <div key={line.id} className="line-grid">
  <div>{field("Omschrijving", line.description, (value) => setLine(line.id, { description: value }))}</div>
  <div>{field("Aantal", String(line.quantity), (value) => setLine(line.id, { quantity: Number(value) }), "number")}</div>
- <div>{field("Prijs", String(line.unitPrice), (value) => setLine(line.id, { unitPrice: Number(value) }), "number")}</div>
+ <div>{amountField("Prijs", line.unitPrice, (value) => setLine(line.id, { unitPrice: value }))}</div>
  <div>{select("BTW%", String(line.vatPct), (value) => setLine(line.id, { vatPct: Number(value) }), ["0", "6", "9", "21"])}</div>
  <div>
  <label style={label}>Totaal excl.</label>
