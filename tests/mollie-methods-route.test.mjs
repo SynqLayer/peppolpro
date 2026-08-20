@@ -13,6 +13,7 @@ test('admin Mollie methods diagnostic route is secret protected and uses exact V
   assert.match(route, /https:\/\/api\.mollie\.com\/v2\/methods/);
   assert.match(route, /amount\[currency\]",\s*"EUR"/);
   assert.match(route, /amount\[value\]",\s*"12\.00"/);
+  assert.match(route, /searchParams\.get\("type"\) !== "oneoff"/);
   assert.match(route, /sequenceType",\s*"first"/);
   assert.match(route, /resource",\s*"payments"/);
   assert.match(route, /Authorization:\s*`Bearer \$\{apiKey\}`/);
