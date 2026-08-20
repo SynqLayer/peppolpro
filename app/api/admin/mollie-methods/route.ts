@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
  const url = new URL(MOLLIE_METHODS_URL);
  url.searchParams.set("amount[currency]", "EUR");
  url.searchParams.set("amount[value]", "12.00");
+ if (req.nextUrl.searchParams.get("type") !== "oneoff") {
  url.searchParams.set("sequenceType", "first");
+ }
  url.searchParams.set("resource", "payments");
 
  const response = await fetch(url, {
