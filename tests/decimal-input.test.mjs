@@ -13,3 +13,17 @@ test('currency input allows only digits and one decimal separator with max two d
  assert.equal(sanitizeDecimalCurrencyInput('1,2.3'), '1.23');
  assert.equal(sanitizeDecimalCurrencyInput('9.876'), '9.87');
 });
+
+test('currency input handles Dutch and international thousands separators', () => {
+ const cases = [
+  ['6991,09', 6991.09],
+  ['6.991,09', 6991.09],
+  ['6991.09', 6991.09],
+  ['150,50', 150.5],
+  ['150.5', 150.5],
+ ];
+
+ for (const [input, expected] of cases) {
+  assert.equal(parseDecimalCurrencyInput(input), expected, `${input} should parse as ${expected}`);
+ }
+});
