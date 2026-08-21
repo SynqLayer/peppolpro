@@ -64,6 +64,18 @@ const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8
 const privacyPageSource = readFileSync(new URL('../app/privacy/page.tsx', import.meta.url), 'utf8');
 const peppolSendPage = readFileSync(new URL('../app/peppol-factuur-versturen/page.tsx', import.meta.url), 'utf8');
 const brevoSource = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const packageLock = readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8');
+
+
+test('npm audit overrides pin brace-expansion and js-yaml to patched versions', () => {
+ assert.equal(packageJson.overrides['js-yaml'], '4.3.1');
+ assert.equal(packageJson.overrides['minimatch@3.1.5']['brace-expansion'], '1.1.18');
+ assert.equal(packageJson.overrides['minimatch@10.2.5']['brace-expansion'], '5.0.9');
+ assert.match(packageLock, /"node_modules\/brace-expansion"[\s\S]*"version": "5\.0\.9"/);
+ assert.match(packageLock, /"node_modules\/minimatch\/node_modules\/brace-expansion"[\s\S]*"version": "1\.1\.18"/);
+ assert.match(packageLock, /"node_modules\/js-yaml"[\s\S]*"version": "4\.3\.1"/);
+});
 
 
 test('homepage navigation exposes login and mobile menu overlays hero content', () => {
@@ -451,6 +463,29 @@ assert.match(dashboard, /Download XML/);
  assert.doesNotMatch(dashboard, /href="\/dashboard" className="action-link">Bekijken/);
  assert.doesNotMatch(dashboard, /Afgeleverd/);
  assert.doesNotMatch(dashboard, /Opnieuw verzenden/);
+});
+
+test('duplicate voided conversions are archived out of active dashboard metrics and lists', () => {
+ assert.match(dashboard, /duplicate_voided: \{ label: "Dubbel\/voided"/);
+ assert.match(dashboard, /const archivedStatuses = \["duplicate_voided"\]/);
+ assert.match(dashboard, /const isArchived = \(status\?: string \| null\) => archivedStatuses\.includes/);
+ assert.match(dashboard, /const activeConversions = useMemo\(\(\) => conversions\.filter\(\(conversion\) => !isArchived\(conversion\.status\)\)/);
+ assert.match(dashboard, /activeConversions\.reduce\(\(sum, conversion\) => sum \+ \(isOpen\(conversion\.status\)/);
+ assert.match(dashboard, /activeConversions\.filter\(\(conversion\) => isGenerated\(conversion\.status\)\)/);
+ assert.match(dashboard, /activeConversions\.filter\(\(conversion\) => isDraft\(conversion\.status\)/);
+ assert.match(dashboard, /activeConversions\.slice\(0, 8\)/);
+ assert.match(dashboard, /activeConversions\.length\} actief in archief/);
+ assert.doesNotMatch(dashboard, /openStatuses = \[[^\]]*duplicate_voided/);
+});
+
+test('Recommand send route refuses duplicate voided targets before provider calls or credit reservation', () => {
+ assert.match(recommandRoute, /function isVoidedDuplicate/);
+ assert.match(recommandRoute, /recommand_status === "duplicate_voided"/);
+ assert.match(recommandRoute, /if \(isVoidedDuplicate\(existing\)\) return jsonError\("Deze factuur is gemarkeerd als dubbel\/voided/);
+ assert.match(recommandRoute, /recommand_status\.neq\.duplicate_voided/);
+ assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
+ assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const recipient = normalizePeppolId'));
+ assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const reserved = await reserveSendCredit'));
 });
 
 test('dashboard keeps Peppol Inbox notice only in action points without upgrade plan button', () => {
