@@ -12,6 +12,8 @@ export type Profile = {
  full_name?: string | null;
  plan?: string | null;
  credits?: number | null;
+ send_credits?: number | null;
+ send_credits_expires_at?: string | null;
  onboarding_complete?: boolean | null;
  kvk_number?: string | null;
  kvk_kbo?: string | null;
@@ -275,11 +277,15 @@ export default function DashboardClient({
  const [recommandStatus, setRecommandStatus] = useState<string | null>(null);
  const [recommandLoading, setRecommandLoading] = useState(false);
 
+ const now = useMemo(() => new Date(), []);
  const isFree = !profile?.plan || profile.plan === "free";
+ const sendCredits = profile?.send_credits || 0;
+ const sendCreditsExpiresAt = profile?.send_credits_expires_at || null;
+ const sendCreditsExpired = !sendCreditsExpiresAt || new Date(sendCreditsExpiresAt).getTime() <= now.getTime();
+ const hasActiveSendCredits = sendCredits > 0 && !sendCreditsExpired;
  const isMonitoring = profile?.plan === "monitoring" || profile?.plan === "monitoring_accountant";
  const isMonitoringAccountant = profile?.plan === "monitoring_accountant";
  const hasInvoices = conversions.length > 0;
- const now = useMemo(() => new Date(), []);
  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
  const completeProfile = profileComplete(profile);
  const currency = conversions.find((conversion) => conversion.currency)?.currency || "EUR";
@@ -422,6 +428,7 @@ export default function DashboardClient({
  if (oldDrafts > 0) tasks.push({ title: `${oldDrafts} concept${oldDrafts === 1 ? "" : "en"} ouder dan 3 dagen`, detail: "Rond deze facturen af of verwijder ze uit je workflow.", href: "/nieuw", tone: "amber" });
  if (failedCount > 0) tasks.push({ title: `${failedCount} factuur${failedCount === 1 ? "" : "en"} mislukt`, detail: "Controleer de gegevens en genereer de UBL opnieuw.", href: "/convert", tone: "red" });
  if (!completeProfile) tasks.push({ title: "Profiel onvolledig", detail: "KvK/KBO, BTW-nummer of adres ontbreekt nog.", href: "/onboarding", tone: "blue" });
+ if (!hasActiveSendCredits) tasks.push({ title: "Geen actief verzendtegoed", detail: "Koop een eenmalige verzendbundel om via Peppol te verzenden.", href: "/upgrade", tone: "blue" });
  if (isFree) tasks.push({ title: "Peppol Inbox nog niet beschikbaar", detail: "Direct ontvangen via PeppolPro is nog niet beschikbaar.", href: "/upgrade", tone: "blue" });
 
  const onboardingSteps = [
@@ -443,7 +450,7 @@ export default function DashboardClient({
  .btn-primary { color: #fff; background: linear-gradient(135deg, ${C.blue}, ${C.indigo}); border: 1px solid rgba(255,255,255,0.08); }
  .btn-green { color: #03120d; background: #34d399; border: 1px solid #34d399; }
  .btn-ghost { color: #cbd5e1; background: rgba(15,23,42,0.62); border: 1px solid rgba(148,163,184,0.16); }
- .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+ .kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
  .content-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .85fr); gap: 18px; align-items: start; }
  .table-tools { display: grid; grid-template-columns: minmax(220px, 1fr) 180px; gap: 10px; margin-top: 16px; width: 100%; }
  .control { display: flex; align-items: center; gap: 8px; background: rgba(2,6,23,0.38); border: 1px solid rgba(148,163,184,0.14); border-radius: 8px; padding: 0 12px; min-height: 40px; color: #94a3b8; }
@@ -508,6 +515,7 @@ export default function DashboardClient({
  <KpiCard label="Openstaand bedrag" value={formatCurrency(openAmount, currency)} caption="Concepten en UBL-bestanden in behandeling" accent="#f59e0b" />
  <KpiCard label="UBL gegenereerd" value={String(generatedCount)} caption={`${generatedCount} UBL-bestand${generatedCount === 1 ? "" : "en"} succesvol gegenereerd`} accent="#34d399" />
  <KpiCard label="Resterende UBL-generaties" value={isFree ? String(profile?.credits ?? 0) : "Betaald"} caption={isFree ? "Gratis starttegoed" : "Betaald plan actief"} accent="#818cf8" />
+ <KpiCard label="Verzendtegoed" value={String(sendCredits)} caption={hasActiveSendCredits ? `Geldig tot ${formatDate(sendCreditsExpiresAt)}` : "Koop een verzendbundel"} accent="#22c55e" />
  </section>
 
  {!hasInvoices ? (
@@ -559,9 +567,9 @@ export default function DashboardClient({
  <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
  <div>
  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Peppol-verzending activeren</h2>
- <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 13 }}>Maak een send-only Recommand company aan en rond bedrijfsverificatie af voordat je verzendt.</p>
+ <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 13 }}>Maak een send-only Recommand company aan, rond bedrijfsverificatie af en koop verzendtegoed voordat je verzendt.</p>
  </div>
- {recommandVerified && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#86efac", fontSize: 13, fontWeight: 900 }}><CheckCircle2 size={16} />Verzenden actief</span>}
+ {recommandVerified && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#86efac", fontSize: 13, fontWeight: 900 }}><CheckCircle2 size={16} />Bedrijf geverifieerd</span>}
  </div>
  {!recommandCompanyId ? (
  <div style={{ marginTop: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -570,7 +578,7 @@ export default function DashboardClient({
  </div>
  ) : recommandVerified ? (
  <div style={{ marginTop: 14, border: "1px solid rgba(16,185,129,0.24)", background: "rgba(16,185,129,0.10)", color: "#86efac", borderRadius: 8, padding: 14, fontSize: 13, fontWeight: 900 }}>
- Verzenden actief voor company {recommandCompanyId}.
+ Bedrijf geverifieerd voor company {recommandCompanyId}. {hasActiveSendCredits ? `${sendCredits} verzendingen beschikbaar tot ${formatDate(sendCreditsExpiresAt)}.` : "Koop nog een verzendbundel om daadwerkelijk via Peppol te verzenden."}
  </div>
  ) : (
  <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
@@ -589,13 +597,13 @@ export default function DashboardClient({
  <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
  <div>
  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Facturen</h2>
- <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 13 }}>Abonnementsfacturen en creditnota&apos;s voor je account</p>
+ <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 13 }}>Facturen voor verzendbundels, monitoring-abonnementen en creditnota&apos;s</p>
  </div>
  </div>
  </div>
  {billingInvoices.length === 0 ? (
  <div style={{ padding: "22px 18px 24px", color: "#94a3b8", fontSize: 14 }}>
- Nog geen abonnementsfacturen beschikbaar.
+ Nog geen betaalfacturen beschikbaar.
  </div>
  ) : (
  <div className="table-wrap">
@@ -618,7 +626,7 @@ export default function DashboardClient({
  <td style={{ color: "#f8fafc", fontWeight: 900 }}>{invoiceNumber}</td>
  <td style={{ color: "#94a3b8" }}>{formatDate(invoice.issued_at || invoice.invoice_date)}</td>
  <td style={{ color: "#f8fafc", fontWeight: 800 }}>{formatCurrency(amount, invoice.currency || "EUR")}</td>
- <td style={{ color: invoice.invoice_kind === "credit" ? "#fca5a5" : "#cbd5e1", fontWeight: 800 }}>{invoice.invoice_kind === "credit" ? "Creditnota" : "Factuur"}</td>
+ <td style={{ color: invoice.invoice_kind === "credit" ? "#fca5a5" : "#cbd5e1", fontWeight: 800 }}>{invoice.invoice_kind === "credit" ? "Creditnota" : invoice.invoice_kind === "credits" ? "Verzendbundel" : "Factuur"}</td>
  <td>
  {invoice.id ? <a href={`/api/invoices/${invoice.id}`} className="action-link">Download</a> : <span className="action-muted">Niet beschikbaar</span>}
  </td>

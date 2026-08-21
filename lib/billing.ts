@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { MolliePayment } from "@/lib/mollie";
-import { getPlan } from "@/lib/plans";
+import { getCreditBundle, getPlan } from "@/lib/plans";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { generateBillingInvoicePdf } from "@/lib/invoice-pdf";
 
@@ -108,8 +108,8 @@ export async function ensurePaymentInvoice({
 }) {
  if (payment.status !== "paid") return null;
  const planId = paymentRow.plan || payment.metadata?.plan;
- const plan = getPlan(planId);
- if (!plan.paid) return null;
+ const product = getCreditBundle(planId) || getPlan(planId);
+ if (!product.paid) return null;
 
  const { data: existing } = await supabase
  .from("invoices")
@@ -140,7 +140,7 @@ export async function ensurePaymentInvoice({
  vat_amount: vatAmount,
  vat_rate: VAT_RATE,
  issued_at: issuedAt,
- invoice_kind: "subscription",
+ invoice_kind: product.recurring ? "subscription" : "credits",
  })
  .select("id, invoice_number")
  .single();

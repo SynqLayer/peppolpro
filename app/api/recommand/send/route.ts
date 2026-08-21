@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsInvoice } from "@/lib/recommand";
-import { getPlan } from "@/lib/plans";
 import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
 
 type InvoicePayload = {
@@ -15,9 +14,10 @@ type InvoicePayload = {
 };
 
 type ProfileRow = {
- plan?: string | null;
  recommand_company_id?: string | null;
  recommand_verified?: boolean | null;
+ send_credits?: number | null;
+ send_credits_expires_at?: string | null;
 };
 
 function jsonError(message: string, status: number, extra: Record<string, unknown> = {}) {
@@ -32,10 +32,6 @@ function isObject(value: unknown): value is Record<string, unknown> {
  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function currentMonthStartIso() {
- const now = new Date();
- return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-}
 
 function hasAs4Receipt(value: unknown): boolean {
  if (!value) return false;
@@ -80,7 +76,7 @@ export async function POST(request: NextRequest) {
 
  const { data: profile, error: profileError } = await supabase
   .from("user_profiles")
-  .select("plan, recommand_company_id, recommand_verified")
+  .select("recommand_company_id, recommand_verified, send_credits, send_credits_expires_at")
   .eq("id", user.id)
   .single<ProfileRow>();
 
@@ -89,21 +85,13 @@ export async function POST(request: NextRequest) {
   return jsonError("Verifieer eerst je bedrijf voordat je via Peppol verzendt.", 403, { upgradeUrl: "/dashboard#peppol-verzending" });
  }
 
- const plan = getPlan(profile.plan);
- const limit = plan.includedSends || 0;
- if (limit <= 0) {
-  return jsonError("Je huidige plan bevat geen Peppol-verzendingen. Kies een verzendbundel om te verzenden.", 402, { upgradeUrl: "/upgrade" });
+ const sendCredits = profile.send_credits || 0;
+ const creditsExpireAt = profile.send_credits_expires_at ? new Date(profile.send_credits_expires_at) : null;
+ if (sendCredits <= 0) {
+  return jsonError("Je hebt geen verzendtegoed. Koop een verzendbundel om via Peppol te verzenden.", 402, { upgradeUrl: "/upgrade", sendCredits });
  }
-
- const { count: sendsThisMonth, error: countError } = await supabase
-  .from("conversions")
-  .select("id", { count: "exact", head: true })
-  .eq("user_id", user.id)
-  .gte("sent_via_recommand_at", currentMonthStartIso());
-
- if (countError) return jsonError("Verzendlimiet kon niet worden gecontroleerd", 500);
- if ((sendsThisMonth || 0) >= limit) {
-  return jsonError(`Je hebt deze maand de limiet van ${limit} Peppol-verzendingen bereikt. Upgrade je plan om verder te verzenden.`, 402, { upgradeUrl: "/upgrade", sendsThisMonth: sendsThisMonth || 0, limit });
+ if (!creditsExpireAt || creditsExpireAt.getTime() <= Date.now()) {
+  return jsonError("Je verzendtegoed is verlopen. Koop een nieuwe verzendbundel om via Peppol te verzenden.", 402, { upgradeUrl: "/upgrade", sendCredits, expiresAt: profile.send_credits_expires_at });
  }
 
  const { data: existing, error: existingError } = await supabase
@@ -152,5 +140,16 @@ export async function POST(request: NextRequest) {
   return jsonError("Recommand heeft het document niet geaccepteerd. Controleer de factuurgegevens en probeer opnieuw.", 502, { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status });
  }
 
- return NextResponse.json({ success: true, documentId: send.documentId, status: recommandStatus, verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status });
+ const { data: debitRows, error: debitError } = await supabase
+  .from("user_profiles")
+  .update({ send_credits: sendCredits - 1 })
+  .eq("id", user.id)
+  .gt("send_credits", 0)
+  .select("send_credits")
+  .single();
+ if (debitError || !debitRows) {
+  return jsonError("Document verzonden, maar verzendtegoed kon niet worden bijgewerkt. Neem contact op met support.", 500, { documentId: send.documentId, status: recommandStatus });
+ }
+
+ return NextResponse.json({ success: true, documentId: send.documentId, status: recommandStatus, remainingCredits: debitRows.send_credits, verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status });
 }

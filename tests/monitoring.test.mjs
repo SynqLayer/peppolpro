@@ -27,6 +27,7 @@ const monitoringAccess = readFileSync(new URL('../lib/monitoring-access.ts', imp
 const migration0007 = readFileSync(new URL('../supabase/migrations/0007_mollie_subscriptions.sql', import.meta.url), 'utf8');
 const dashboardPage = readFileSync(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
 const migration0008 = readFileSync(new URL('../supabase/migrations/0008_billing_invoices_webhook_events.sql', import.meta.url), 'utf8');
+const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_credit_bundles.sql', import.meta.url), 'utf8');
 const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
 const invoicePdfLib = readFileSync(new URL('../lib/invoice-pdf.ts', import.meta.url), 'utf8');
 const invoiceRoute = readFileSync(new URL('../app/api/invoices/[invoiceId]/route.ts', import.meta.url), 'utf8');
@@ -116,44 +117,39 @@ test('legacy duplicate Mollie webhook re-export and fix script are removed', () 
  assert.equal(existsSync(new URL('../fix_page.py', import.meta.url)), false);
 });
 
-test('send tiers replace Compleet while monitoring tiers stay configured', () => {
- assert.match(plans, /PlanId = "free" \| "verzenden_25" \| "verzenden_100" \| "monitoring" \| "monitoring_accountant"/);
+test('send credit bundles replace Compleet while monitoring tiers stay configured', () => {
+ assert.match(plans, /PlanId = "free" \| "monitoring" \| "monitoring_accountant"/);
+ assert.match(plans, /CreditBundleId = "send_credits_10" \| "send_credits_25" \| "send_credits_50"/);
  assert.doesNotMatch(plans, /\bcompleet\b/i);
  assert.match(plans, /free:\s*{[\s\S]*3 gratis UBL-generaties bij registratie/);
  assert.match(plans, /free:\s*{[\s\S]*Geen Peppol-verzending inbegrepen/);
- assert.match(plans, /verzenden_25:\s*{[\s\S]*amount:\s*"12\.00"/);
- assert.match(plans, /verzenden_25:\s*{[\s\S]*available:\s*true/);
- assert.match(plans, /verzenden_25:\s*{[\s\S]*includedSends:\s*25/);
- assert.match(plans, /verzenden_25:\s*{[\s\S]*extraSendPrice:\s*"0\.45"/);
- assert.match(plans, /verzenden_100:\s*{[\s\S]*amount:\s*"39\.00"/);
- assert.match(plans, /verzenden_100:\s*{[\s\S]*available:\s*true/);
- assert.match(plans, /verzenden_100:\s*{[\s\S]*includedSends:\s*100/);
- assert.match(plans, /verzenden_100:\s*{[\s\S]*extraSendPrice:\s*"0\.35"/);
+ assert.match(plans, /send_credits_10:\s*{[\s\S]*amount:\s*"9\.00"/);
+ assert.match(plans, /send_credits_25:\s*{[\s\S]*amount:\s*"19\.00"/);
+ assert.match(plans, /send_credits_50:\s*{[\s\S]*amount:\s*"34\.00"/);
+ assert.match(plans, /validMonths:\s*12/);
+ assert.doesNotMatch(plans, /includedSends|extraSendPrice/);
  assert.match(plans, /monitoring:\s*{[\s\S]*amount:\s*"9\.00"/);
- assert.doesNotMatch(plans, /monitoring:\s*{[\s\S]*available:\s*false/);
- assert.match(plans, /monitoring:\s*{[\s\S]*maxTargets:\s*10/);
- assert.match(plans, /monitoring:\s*{[\s\S]*checkFrequency:\s*"weekly"/);
+ assert.match(plans, /monitoring:\s*{[\s\S]*recurring:\s*true/);
  assert.match(plans, /monitoring_accountant:\s*{[\s\S]*amount:\s*"39\.00"/);
- assert.doesNotMatch(plans, /monitoring_accountant:\s*{[\s\S]*available:\s*false/);
- assert.match(plans, /monitoring_accountant:\s*{[\s\S]*maxTargets:\s*null/);
- assert.match(plans, /monitoring_accountant:\s*{[\s\S]*checkFrequency:\s*"daily"/);
+ assert.match(plans, /monitoring_accountant:\s*{[\s\S]*recurring:\s*true/);
 });
 
-test('sending plans are available for checkout and no longer shown as coming soon', () => {
+test('send credit bundles are available for checkout and no longer shown as coming soon', () => {
  const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.url), 'utf8');
  const upgradePage = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
  const homePage = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
- assert.match(checkoutRoute, /planConfig\.available === false/);
- assert.match(plans, /verzenden_25:\s*{[\s\S]*available:\s*true/);
- assert.match(plans, /verzenden_100:\s*{[\s\S]*available:\s*true/);
+ assert.match(checkoutRoute, /product\.available === false/);
+ assert.match(plans, /send_credits_10:\s*{[\s\S]*available:\s*true/);
+ assert.match(plans, /send_credits_25:\s*{[\s\S]*available:\s*true/);
+ assert.match(plans, /send_credits_50:\s*{[\s\S]*available:\s*true/);
  assert.match(plans, /publicPricingPlans/);
- assert.doesNotMatch(plans, /verzenden_25:\s*{[\s\S]*Binnenkort beschikbaar/);
- assert.doesNotMatch(plans, /verzenden_100:\s*{[\s\S]*Binnenkort beschikbaar/);
+ assert.doesNotMatch(plans, /Verzenden 25|Verzenden 100|includedSends|extraSendPrice/);
  assert.doesNotMatch(constants, /export const PRICING/);
  assert.match(homePage, /publicPricingPlans/);
  assert.match(pricingPage, /publicPricingPlans/);
- assert.match(upgradePage, /plan\.available === false/);
+ assert.match(upgradePage, /creditBundles/);
  assert.doesNotMatch(`${constants}\n${pricingPage}\n${upgradePage}\n${homePage}\n${layout}\n${peppolSendPage}`, /verzend(?:en|ing|bundels)?[^\n.]{0,80}binnenkort|binnenkort[^\n.]{0,80}verzend/i);
+ assert.doesNotMatch(`${pricingPage}\n${upgradePage}`, /Peppol-verzending wordt binnenkort geactiveerd\. UBL genereren en downloaden werkt nu al\./);
  assert.doesNotMatch(`${pricingPage}\n${upgradePage}\n${homePage}`, /Losse verzending: €1,95 per factuur/);
 });
 
@@ -319,8 +315,8 @@ test('mollie subscriptions infrastructure creates customers, first payments and 
  assert.match(mollieLib, /export async function cancelSubscription/);
  assert.match(mollieLib, /locale: "nl_NL"/);
  assert.match(checkoutRoute, /createCustomer/);
- assert.match(checkoutRoute, /sequenceType: customerId \? "first"/);
- assert.match(checkoutRoute, /type: customerId \? "subscription_first"/);
+ assert.match(checkoutRoute, /sequenceType: "first"/);
+ assert.match(checkoutRoute, /type: "subscription_first"/);
  assert.match(checkoutRoute, /from\("subscriptions"\)\.upsert/);
 });
 
@@ -351,7 +347,7 @@ test('central monitoring entitlement requires active subscription and unexpired 
 test('billing migration adds invoice numbering, credit invoices and webhook event idempotency', () => {
  assert.match(migration0008, /invoice_number_sequences/);
  assert.match(migration0008, /next_billing_invoice_number/);
- assert.match(migration0008, /invoice_kind in \('sales','subscription','credit'\)/);
+ assert.match(migration0016, /invoice_kind in \('sales','subscription','credits','credit'\)/);
  assert.match(migration0008, /original_invoice_number text/);
  assert.match(migration0008, /create table if not exists public\.webhook_events/);
  assert.match(migration0008, /event_key text not null unique/);
@@ -360,9 +356,9 @@ test('billing migration adds invoice numbering, credit invoices and webhook even
 
 test('paid subscription payments create invoices and refunds create separate credit invoices', () => {
  assert.match(billingLib, /export async function ensurePaymentInvoice/);
- assert.match(billingLib, /if \(!plan\.paid\) return null/);
+ assert.match(billingLib, /if \(!product\.paid\) return null/);
  assert.doesNotMatch(billingLib, /isMonitoringPlan/);
- assert.match(billingLib, /invoice_kind: "subscription"/);
+ assert.match(billingLib, /invoice_kind: product\.recurring \? "subscription" : "credits"/);
  assert.match(billingLib, /next_billing_invoice_number/);
  assert.match(billingLib, /export async function ensureCreditInvoice/);
  assert.match(billingLib, /invoice_kind: "credit"/);
@@ -383,17 +379,17 @@ test('paid and credit billing invoices are emailed with generated PDF attachment
  assert.match(mollieWebhookRoute, /await ensureCreditInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
 });
 
-test('every paid plan starts a Mollie recurring subscription and invoice flow', () => {
- assert.match(plans, /verzenden_25:\s*{[\s\S]*?paid: true,/);
- assert.match(plans, /verzenden_100:\s*{[\s\S]*?paid: true,/);
+test('monitoring paid plans start a Mollie recurring subscription and invoice flow while credit bundles stay one-off', () => {
+ assert.match(plans, /send_credits_25:\s*{[\s\S]*?paid: true,/);
+ assert.match(plans, /send_credits_50:\s*{[\s\S]*?paid: true,/);
  assert.match(plans, /monitoring:\s*{[\s\S]*?paid: true,/);
  assert.match(plans, /monitoring_accountant:\s*{[\s\S]*?paid: true,/);
- assert.match(checkoutRoute, /if \(planConfig\.paid\) \{/);
- assert.doesNotMatch(checkoutRoute, /isMonitoringPlan/);
- assert.match(checkoutRoute, /sequenceType: customerId \? "first"/);
- assert.match(checkoutRoute, /subscription_flow: customerId \? "recurring_first_payment"/);
+ assert.match(checkoutRoute, /if \(!isMonitoringPlan\(product\.id\)\)/);
+ assert.match(checkoutRoute, /if \(isCreditBundle\(product\.id\)\)/);
+ assert.match(checkoutRoute, /sequenceType: "first"/);
+ assert.match(checkoutRoute, /subscription_flow: "recurring_first_payment"/);
  assert.match(checkoutRoute, /from\("subscriptions"\)\.upsert/);
- assert.match(mollieWebhookRoute, /if \(!customerId \|\| !planConfig\.paid\) return null/);
+ assert.match(mollieWebhookRoute, /!planConfig\.paid \|\| !planConfig\.recurring/);
  assert.doesNotMatch(mollieWebhookRoute, /if \(!isMonitoringPlan\(planConfig\.id\)\)[\s\S]*return NextResponse\.json\(\{ ok: true \}\)/);
  assert.match(mollieWebhookRoute, /await ensureRecurringSubscription\(\{ supabase, payment, userId, plan: planConfig\.id/);
  assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
@@ -470,9 +466,9 @@ test('Recommand integration verifies recipients before send, gates plan limit, a
  assert.match(recommandRoute, /recommand_company_id, recommand_verified/);
  assert.match(recommandRoute, /profile\.recommand_company_id/);
  assert.doesNotMatch(recommandRoute, /process\.env\.RECOMMAND_COMPANY_ID/);
- assert.match(recommandRoute, /plan\.includedSends \|\| 0/);
+ assert.match(recommandRoute, /sendCredits <= 0/);
  assert.match(recommandRoute, /sent_via_recommand_at/);
- assert.match(recommandRoute, /de limiet van \$\{limit\} Peppol-verzendingen bereikt/);
+ assert.match(recommandRoute, /Je hebt geen verzendtegoed/);
  assert.match(recommandRoute, /verifyRecipient\(recipient\)/);
  assert.match(recommandRoute, /verifyRecipientSupportsInvoice\(recipient\)/);
  assert.match(recommandRoute, /recipient_not_found/);

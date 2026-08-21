@@ -8,7 +8,6 @@ import { InvoiceData, InvoiceLine } from "../../lib/ubl-generator";
 import { validateInvoiceData } from "../../lib/ubl-validator";
 import { buildRecommandInvoiceDocument, deriveRecommandRecipient, validateRecommandInvoiceData } from "../../lib/recommand-invoice";
 import { parseDecimalCurrencyInput, parseDecimalInput, sanitizeDecimalCurrencyDisplayInput, sanitizeDecimalDisplayInput } from "../../lib/decimal-input";
-import { isSendingPlan } from "../../lib/plans";
 
 const today = new Date().toISOString().slice(0, 10);
 const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -31,6 +30,8 @@ type ProfileData = {
  recommand_verified?: boolean | null;
  recommand_company_id?: string | null;
  plan?: string | null;
+ send_credits?: number | null;
+ send_credits_expires_at?: string | null;
 };
 
 export default function NieuwPage() {
@@ -44,7 +45,8 @@ export default function NieuwPage() {
  const [conversionId, setConversionId] = useState<string | null>(null);
  const [recommandVerified, setRecommandVerified] = useState(false);
  const [recommandCompanyId, setRecommandCompanyId] = useState<string | null>(null);
- const [profilePlan, setProfilePlan] = useState("free");
+ const [sendCredits, setSendCredits] = useState(0);
+ const [sendCreditsExpiresAt, setSendCreditsExpiresAt] = useState<string | null>(null);
  const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
  const [quantityInputs, setQuantityInputs] = useState<Record<string, string>>({});
 
@@ -94,7 +96,8 @@ export default function NieuwPage() {
  setSupplierIban(profile.iban || "");
  setRecommandVerified(profile.recommand_verified === true);
  setRecommandCompanyId(profile.recommand_company_id || null);
- setProfilePlan(profile.plan || "free");
+ setSendCredits(profile.send_credits || 0);
+ setSendCreditsExpiresAt(profile.send_credits_expires_at || null);
  }
  setLoadingProfile(false);
  };
@@ -160,7 +163,8 @@ export default function NieuwPage() {
  });
  };
 
- const hasSendBundle = isSendingPlan(profilePlan);
+ const sendCreditsExpired = !sendCreditsExpiresAt || new Date(sendCreditsExpiresAt).getTime() <= Date.now();
+ const hasSendBundle = sendCredits > 0 && !sendCreditsExpired;
 
  const submit = async () => {
  const data = invoiceData();
@@ -204,7 +208,7 @@ export default function NieuwPage() {
 
  const sendViaPeppol = async () => {
  if (!hasSendBundle) {
- setErrors(["Je bedrijf is geverifieerd, maar je hebt nog geen verzendbundel. Activeer Verzenden 25 of Verzenden 100 om via Peppol te verzenden."]);
+ setErrors(["Je bedrijf is geverifieerd, maar je hebt geen actief verzendtegoed. Koop een verzendbundel om via Peppol te verzenden."]);
  setSendStatus(null);
  return;
  }
@@ -236,6 +240,7 @@ export default function NieuwPage() {
  setErrors(body.errors || [body.error || "Verzenden via Peppol mislukt"]);
  return;
  }
+ if (typeof body.remainingCredits === "number") setSendCredits(body.remainingCredits);
  setSendStatus(`Verzonden via Peppol. Document-ID: ${body.documentId}`);
  } catch (error) {
  setErrors([error instanceof Error ? error.message : "Verzenden via Peppol mislukt"]);
@@ -319,6 +324,10 @@ export default function NieuwPage() {
  </div>
 
  {loadingProfile && <p style={{ color: C.dim, marginBottom: 18 }}>Profiel laden...</p>}
+
+ <div style={{ marginBottom: 18, border: `1px solid ${hasSendBundle ? "rgba(34,197,94,0.28)" : "rgba(245,158,11,0.28)"}`, background: hasSendBundle ? "rgba(34,197,94,0.10)" : "rgba(120,53,15,0.16)", color: hasSendBundle ? "#86efac" : "#fbbf24", borderRadius: 8, padding: 14, fontSize: 13, fontWeight: 800 }}>
+  Verzendtegoed: {sendCredits} credit{sendCredits === 1 ? "" : "s"}. {hasSendBundle ? `Geldig tot ${new Intl.DateTimeFormat("nl-NL").format(new Date(sendCreditsExpiresAt || ""))}.` : "Koop een verzendbundel om via Peppol te verzenden."}
+ </div>
 
  <Section title="Uw bedrijf">
  <div className="form-grid">
