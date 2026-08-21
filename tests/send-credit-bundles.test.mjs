@@ -9,6 +9,7 @@ const mollieWebhookRoute = readFileSync(new URL('../app/api/mollie/webhook/route
 const recommandRoute = readFileSync(new URL('../app/api/recommand/send/route.ts', import.meta.url), 'utf8');
 const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
 const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_credit_bundles.sql', import.meta.url), 'utf8');
+const migration0019 = readFileSync(new URL('../supabase/migrations/0019_idempotent_send_credit_grants.sql', import.meta.url), 'utf8');
 const dashboard = readFileSync(new URL('../app/dashboard/DashboardClient.tsx', import.meta.url), 'utf8');
 const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
 const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.url), 'utf8');
@@ -67,6 +68,13 @@ test('paid bundle webhook grants exact credits, extends expiry 12 months and cre
  assert.match(mollieWebhookRoute, /credits: bundle\.credits/);
  assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription: null \}\)/);
  assert.match(billingLib, /invoice_kind: product\.recurring \? "subscription" : "credits"/);
+});
+
+test('send credit grant is idempotent when a Mollie webhook retries after partial success', () => {
+ assert.match(migration0019, /create or replace function public\.grant_send_credit_bundle/);
+ assert.match(migration0019, /on conflict \(payment_id\) do nothing/);
+ assert.match(migration0019, /if found then[\s\S]*send_credits = send_credits \+ p_credits/);
+ assert.match(migration0019, /grant execute on function public\.grant_send_credit_bundle/);
 });
 
 test('send route is idempotent for already-sent targets before validation, provider calls or debit', () => {
