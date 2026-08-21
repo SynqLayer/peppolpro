@@ -7,7 +7,8 @@ import { C } from "../../lib/constants";
 import { InvoiceData, InvoiceLine } from "../../lib/ubl-generator";
 import { validateInvoiceData } from "../../lib/ubl-validator";
 import { buildRecommandInvoiceDocument, deriveRecommandRecipient, validateRecommandInvoiceData } from "../../lib/recommand-invoice";
-import { parseDecimalCurrencyInput, sanitizeDecimalCurrencyInput } from "../../lib/decimal-input";
+import { parseDecimalCurrencyInput, parseDecimalInput, sanitizeDecimalCurrencyDisplayInput, sanitizeDecimalDisplayInput } from "../../lib/decimal-input";
+import { isSendingPlan } from "../../lib/plans";
 
 const today = new Date().toISOString().slice(0, 10);
 const due = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -29,6 +30,7 @@ type ProfileData = {
  iban?: string | null;
  recommand_verified?: boolean | null;
  recommand_company_id?: string | null;
+ plan?: string | null;
 };
 
 export default function NieuwPage() {
@@ -42,6 +44,9 @@ export default function NieuwPage() {
  const [conversionId, setConversionId] = useState<string | null>(null);
  const [recommandVerified, setRecommandVerified] = useState(false);
  const [recommandCompanyId, setRecommandCompanyId] = useState<string | null>(null);
+ const [profilePlan, setProfilePlan] = useState("free");
+ const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
+ const [quantityInputs, setQuantityInputs] = useState<Record<string, string>>({});
 
  const [supplierName, setSupplierName] = useState("");
  const [supplierAddress, setSupplierAddress] = useState("");
@@ -89,6 +94,7 @@ export default function NieuwPage() {
  setSupplierIban(profile.iban || "");
  setRecommandVerified(profile.recommand_verified === true);
  setRecommandCompanyId(profile.recommand_company_id || null);
+ setProfilePlan(profile.plan || "free");
  }
  setLoadingProfile(false);
  };
@@ -135,6 +141,27 @@ export default function NieuwPage() {
  setLines((current) => current.map((line) => line.id === id ? { ...line, ...patch } : line));
  };
 
+ const addLine = () => {
+ const line = emptyLine();
+ setLines((current) => [...current, line]);
+ };
+
+ const removeLine = (id: string) => {
+ setLines((current) => current.filter((item) => item.id !== id));
+ setPriceInputs((current) => {
+ const next = { ...current };
+ delete next[id];
+ return next;
+ });
+ setQuantityInputs((current) => {
+ const next = { ...current };
+ delete next[id];
+ return next;
+ });
+ };
+
+ const hasSendBundle = isSendingPlan(profilePlan);
+
  const submit = async () => {
  const data = invoiceData();
  const result = validateInvoiceData(data);
@@ -176,6 +203,11 @@ export default function NieuwPage() {
  };
 
  const sendViaPeppol = async () => {
+ if (!hasSendBundle) {
+ setErrors(["Je bedrijf is geverifieerd, maar je hebt nog geen verzendbundel. Activeer Verzenden 25 of Verzenden 100 om via Peppol te verzenden."]);
+ setSendStatus(null);
+ return;
+ }
  const data = invoiceData();
  const sendErrors = validateRecommandInvoiceData(data);
  setErrors(sendErrors);
@@ -233,10 +265,26 @@ export default function NieuwPage() {
  </div>
  );
 
- const amountField = (title: string, value: number, setter: (value: number) => void) => field(
+ const amountField = (title: string, line: InvoiceLine) => field(
  title,
- String(value),
- (rawValue) => setter(parseDecimalCurrencyInput(sanitizeDecimalCurrencyInput(rawValue))),
+ priceInputs[line.id] ?? String(line.unitPrice),
+ (rawValue) => {
+  const visibleValue = sanitizeDecimalCurrencyDisplayInput(rawValue);
+  setPriceInputs((current) => ({ ...current, [line.id]: visibleValue }));
+  setLine(line.id, { unitPrice: parseDecimalCurrencyInput(visibleValue) });
+ },
+ "text",
+ "decimal",
+ );
+
+ const quantityField = (title: string, line: InvoiceLine) => field(
+ title,
+ quantityInputs[line.id] ?? String(line.quantity),
+ (rawValue) => {
+  const visibleValue = sanitizeDecimalDisplayInput(rawValue, 3);
+  setQuantityInputs((current) => ({ ...current, [line.id]: visibleValue }));
+  setLine(line.id, { quantity: parseDecimalInput(visibleValue, 3) });
+ },
  "text",
  "decimal",
  );
@@ -314,19 +362,19 @@ export default function NieuwPage() {
  {lines.map((line) => (
  <div key={line.id} className="line-grid">
  <div>{field("Omschrijving", line.description, (value) => setLine(line.id, { description: value }))}</div>
- <div>{field("Aantal", String(line.quantity), (value) => setLine(line.id, { quantity: Number(value) }), "number")}</div>
- <div>{amountField("Prijs", line.unitPrice, (value) => setLine(line.id, { unitPrice: value }))}</div>
+ <div>{quantityField("Aantal", line)}</div>
+ <div>{amountField("Prijs", line)}</div>
  <div>{select("BTW%", String(line.vatPct), (value) => setLine(line.id, { vatPct: Number(value) }), ["0", "6", "9", "21"])}</div>
  <div>
  <label style={label}>Totaal excl.</label>
  <input readOnly value={`€${(line.quantity * line.unitPrice).toFixed(2)}`} style={{ ...input, color: C.gray }} />
  </div>
- <button onClick={() => setLines((current) => current.filter((item) => item.id !== line.id))} disabled={lines.length === 1} style={{ height: 42, borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.gray, cursor: lines.length === 1 ? "not-allowed" : "pointer" }}>
+ <button onClick={() => removeLine(line.id)} disabled={lines.length === 1} style={{ height: 42, borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.gray, cursor: lines.length === 1 ? "not-allowed" : "pointer" }}>
  Verwijder
  </button>
  </div>
  ))}
- <button onClick={() => setLines((current) => [...current, emptyLine()])} style={{ justifySelf: "start", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 700, cursor: "pointer" }}>
+ <button onClick={addLine} style={{ justifySelf: "start", padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 700, cursor: "pointer" }}>
  + Regel toevoegen
  </button>
  </div>
@@ -358,10 +406,15 @@ export default function NieuwPage() {
  Verifieer eerst je bedrijf via <a href="/dashboard#peppol-verzending" style={{ color: "#fde68a", fontWeight: 800 }}>het dashboardblok Peppol-verzending activeren</a>.
  </p>
  )}
+ {recommandVerified && !hasSendBundle && (
+ <p style={{ color: "#fbbf24", fontSize: 13, lineHeight: 1.6, margin: "0 0 14px" }}>
+ Je bedrijf is geverifieerd, maar je hebt nog geen verzendbundel. Activeer <a href="/upgrade" style={{ color: "#fde68a", fontWeight: 800 }}>Verzenden 25 of Verzenden 100</a> om via Peppol te verzenden.
+ </p>
+ )}
  {sendStatus && <p style={{ color: "#86efac", fontSize: 13, fontWeight: 800, margin: "0 0 14px" }}>{sendStatus}</p>}
  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
  <button onClick={downloadXml} style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700 }}>Download UBL/XML</button>
- <button onClick={sendViaPeppol} disabled={submitting || !recommandVerified} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : recommandVerified ? "Verzenden via Peppol" : "Verifieer eerst je bedrijf"}</button>
+ <button onClick={hasSendBundle ? sendViaPeppol : () => router.push("/upgrade")} disabled={submitting || !recommandVerified} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : !recommandVerified ? "Verifieer eerst je bedrijf" : hasSendBundle ? "Verzenden via Peppol" : "Activeer verzendbundel"}</button>
  <button onClick={() => router.push("/dashboard")} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 700 }}>Opslaan in dashboard</button>
  </div>
  <pre style={{ overflow: "auto", maxHeight: 420, background: "rgba(0,0,0,0.32)", borderRadius: 10, padding: 16, color: C.gray, fontSize: 12 }}>{xml}</pre>

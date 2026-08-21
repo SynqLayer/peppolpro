@@ -434,7 +434,10 @@ test('dashboard uses honest UBL statuses and shows generated UBL count instead o
  assert.match(dashboard, /UBL gegenereerd/);
  assert.match(dashboard, /value=\{String\(generatedCount\)\}/);
  assert.doesNotMatch(dashboard, /value=\{formatCurrency\(generatedAmount/);
- assert.match(dashboard, /Direct verzenden niet beschikbaar/);
+ assert.match(dashboard, /Download XML/);
+ assert.match(dashboard, /Verzenden via Nieuwe factuur/);
+ assert.doesNotMatch(dashboard, /Direct verzenden niet beschikbaar/);
+ assert.doesNotMatch(dashboard, /href="\/dashboard" className="action-link">Bekijken/);
  assert.doesNotMatch(dashboard, /Afgeleverd/);
  assert.doesNotMatch(dashboard, /Opnieuw verzenden/);
 });
@@ -583,6 +586,10 @@ test('new invoice flow requires and stores customer email and can send only afte
  assert.match(nieuwPage, /recommandVerified/);
  assert.match(nieuwPage, /dashboard#peppol-verzending/);
  assert.match(nieuwPage, /Verifieer eerst je bedrijf/);
+ assert.match(nieuwPage, /Activeer verzendbundel/);
+ assert.match(nieuwPage, /Je bedrijf is geverifieerd, maar je hebt nog geen verzendbundel/);
+ assert.match(nieuwPage, /quantityField\(\"Aantal\", line\)/);
+ assert.doesNotMatch(nieuwPage, /Number\(value\).*quantity/);
  assert.match(nieuwPage, /fetch\("\/api\/recommand\/send"/);
  assert.match(nieuwPage, /validateRecommandInvoiceData\(data\)/);
  assert.match(nieuwPage, /buildRecommandInvoiceDocument\(data\)/);
