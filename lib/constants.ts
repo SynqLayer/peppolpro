@@ -15,22 +15,16 @@ export const C = {
 export const STEPS = [
  { n: "01", icon: "📄", t: "Upload je PDF", d: "Sleep je factuur-PDF in het uploadvenster. Elk formaat, elke layout — onze AI herkent ze allemaal." },
  { n: "02", icon: "🧠", t: "AI leest alles", d: "Gemini AI extraheert automatisch alle velden: leverancier, klant, BTW-nummers, bedragen en regelomschrijvingen." },
- { n: "03", icon: "📥", t: "Download UBL", d: "Download een Peppol BIS 3.0 UBL/XML-bestand. Peppol-verzending wordt binnenkort geactiveerd." },
+ { n: "03", icon: "📥", t: "Download UBL", d: "Download een Peppol BIS 3.0 UBL/XML-bestand of verzend via Peppol na bedrijfsverificatie met een verzendbundel." },
 ];
 
 export const FEATURES = [
  { icon: "🧠", t: "AI-Powered Parsing", d: "Geen handmatig invullen. Upload je PDF en onze AI leest leverancier, klant, BTW-nummers, bedragen en regeldetails automatisch." },
  { icon: "📋", t: "UBL 2.1 Compliant", d: "Output voldoet aan EN 16931 — de Europese standaard. Geaccepteerd door elk Peppol access point." },
- { icon: "📡", t: "Peppol-verzending", d: "Peppol-verzending wordt binnenkort geactiveerd. UBL genereren en downloaden werkt nu al." },
+ { icon: "📡", t: "Peppol-verzending", d: "Verzend via Peppol na bedrijfsverificatie met een actieve verzendbundel. UBL genereren en downloaden werkt ook zonder verzending." },
  { icon: "✅", t: "BTW-checks binnenkort", d: "Automatische BTW-validatie staat op de roadmap. Controleer BTW-nummers voorlopig zelf vóór je de UBL gebruikt." },
  { icon: "🇳🇱", t: "NL + BE Ready", d: "Gebouwd voor Nederlandse en Belgische ondernemers. Tweetalig, compliant met beide regelgevingen." },
  { icon: "🔐", t: "AVG/GDPR bewust", d: "Factuurdata wordt opgeslagen in je account voor je factuurhistorie. Je kunt opgeslagen facturen en conversies verwijderen." },
-];
-
-export const PRICING = [
- { name: "Gratis", price: "€0", period: "", sub: "Probeer het uit", features: ["3 gratis UBL-generaties bij registratie", "PDF → UBL conversie", "Geen verzending inbegrepen", "Download als XML"], cta: "Start gratis", hl: false },
- { name: "Verzenden 25", price: "€12", period: "/maand", sub: "Binnenkort beschikbaar", features: ["25 verzendingen inbegrepen", "€0,45 per extra verzending", "UBL-generatie en download", "Factuurhistorie"], cta: "Binnenkort beschikbaar", hl: true, available: false },
- { name: "Verzenden 100", price: "€39", period: "/maand", sub: "Binnenkort beschikbaar", features: ["100 verzendingen inbegrepen", "€0,35 per extra verzending", "UBL-generatie en download", "Factuurhistorie"], cta: "Binnenkort beschikbaar", hl: false, available: false },
 ];
 
 export const FAQ = [

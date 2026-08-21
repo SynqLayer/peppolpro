@@ -146,10 +146,14 @@ test('sending plans are available for checkout and no longer shown as coming soo
  assert.match(checkoutRoute, /planConfig\.available === false/);
  assert.match(plans, /verzenden_25:\s*{[\s\S]*available:\s*true/);
  assert.match(plans, /verzenden_100:\s*{[\s\S]*available:\s*true/);
+ assert.match(plans, /publicPricingPlans/);
  assert.doesNotMatch(plans, /verzenden_25:\s*{[\s\S]*Binnenkort beschikbaar/);
  assert.doesNotMatch(plans, /verzenden_100:\s*{[\s\S]*Binnenkort beschikbaar/);
+ assert.doesNotMatch(constants, /export const PRICING/);
+ assert.match(homePage, /publicPricingPlans/);
+ assert.match(pricingPage, /publicPricingPlans/);
  assert.match(upgradePage, /plan\.available === false/);
- assert.doesNotMatch(`${pricingPage}\n${upgradePage}`, /Peppol-verzending wordt binnenkort geactiveerd\. UBL genereren en downloaden werkt nu al\./);
+ assert.doesNotMatch(`${constants}\n${pricingPage}\n${upgradePage}\n${homePage}\n${layout}\n${peppolSendPage}`, /verzend(?:en|ing|bundels)?[^\n.]{0,80}binnenkort|binnenkort[^\n.]{0,80}verzend/i);
  assert.doesNotMatch(`${pricingPage}\n${upgradePage}\n${homePage}`, /Losse verzending: €1,95 per factuur/);
 });
 
@@ -434,7 +438,7 @@ test('dashboard uses honest UBL statuses and shows generated UBL count instead o
  assert.match(dashboard, /UBL gegenereerd/);
  assert.match(dashboard, /value=\{String\(generatedCount\)\}/);
  assert.doesNotMatch(dashboard, /value=\{formatCurrency\(generatedAmount/);
- assert.match(dashboard, /Download XML/);
+assert.match(dashboard, /Download XML/);
  assert.match(dashboard, /Verzenden via Nieuwe factuur/);
  assert.doesNotMatch(dashboard, /Direct verzenden niet beschikbaar/);
  assert.doesNotMatch(dashboard, /href="\/dashboard" className="action-link">Bekijken/);

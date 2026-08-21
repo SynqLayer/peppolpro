@@ -19,6 +19,12 @@ export type PlanConfig = {
  checkFrequency?: CheckFrequency;
 };
 
+export type PublicPricingPlan = PlanConfig & {
+ href: string;
+ highlight: boolean;
+ badge?: string;
+};
+
 export const PLANS: Record<PlanId, PlanConfig> = {
  free: {
  id: "free",
@@ -120,6 +126,13 @@ export const PLANS: Record<PlanId, PlanConfig> = {
 export const paidPlans = Object.values(PLANS).filter((plan) => plan.paid);
 export const sendingPlans = [PLANS.verzenden_25, PLANS.verzenden_100];
 export const monitoringPlans = [PLANS.monitoring, PLANS.monitoring_accountant];
+
+export const publicPricingPlans: PublicPricingPlan[] = [
+ { ...PLANS.free, href: "/login", cta: "Start gratis", highlight: false },
+ { ...PLANS.verzenden_25, href: "/login", highlight: true, badge: "Populair" },
+ { ...PLANS.verzenden_100, href: "/login", highlight: false },
+ { ...PLANS.monitoring, href: "/login", highlight: false },
+];
 
 export function getPlan(plan: string | null | undefined) {
  return PLANS[(plan || "free") as PlanId] || PLANS.free;

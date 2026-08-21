@@ -59,7 +59,7 @@ export default function PeppolVerplichtBelgiePage() {
 
  <h2 style={h2Style}>Wat kost het?</h2>
  <p style={pStyle}>
- Facturen genereren en downloaden is beschikbaar in PeppolPro. Direct verzenden en ontvangen via PeppolPro is nog niet beschikbaar. Gebruik voor verzending voorlopig je eigen access point of boekhoudpakket.
+ Facturen genereren en downloaden is beschikbaar in PeppolPro. Direct verzenden via PeppolPro kan met een actieve verzendbundel na bedrijfsverificatie. Ontvangen via PeppolPro is nog niet beschikbaar; gebruik daarvoor voorlopig je eigen access point of boekhoudpakket.
  </p>
 
  <div style={{ background: "#1e1b4b", border: "1px solid #6366f1", borderRadius: 12, padding: "2rem", marginTop: "3rem", textAlign: "center" }}>

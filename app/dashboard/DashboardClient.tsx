@@ -700,7 +700,7 @@ export default function DashboardClient({
  <td><StatusBadge status={conversion.status} /></td>
  <td>
  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
- {conversion.ubl_xml ? <button type="button" onClick={() => downloadConversionXml(conversion, invoiceNumber)} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}>Download XML</button> : <span className="action-muted">Geen XML</span>}
+{conversion.ubl_xml ? <button type="button" onClick={() => downloadConversionXml(conversion, invoiceNumber)} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}>Download XML</button> : <span className="action-muted">Geen XML</span>}
  <Link href="/convert" className="action-link">Nieuwe PDF</Link>
  <span className="action-muted">Verzenden via Nieuwe factuur</span>
  </div>

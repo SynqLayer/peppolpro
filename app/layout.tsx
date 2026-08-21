@@ -17,13 +17,13 @@ export const metadata: Metadata = {
  url: "https://peppolpro.nl",
  siteName: "PeppolPro",
  title: "PeppolPro — Peppol-facturen zonder boekhoudpakket",
- description: "Genereer Peppol BIS 3.0 UBL/XML en download je bestand. Verzenden via bundels volgt binnenkort.",
+ description: "Genereer Peppol BIS 3.0 UBL/XML en download je bestand. Verzenden via Peppol kan na bedrijfsverificatie met een verzendbundel.",
  images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "PeppolPro" }],
  },
  twitter: {
  card: "summary_large_image",
  title: "PeppolPro — Peppol-facturen zonder boekhoudpakket",
- description: "Genereer Peppol BIS 3.0 UBL/XML en download je bestand. Verzenden via bundels volgt binnenkort.",
+ description: "Genereer Peppol BIS 3.0 UBL/XML en download je bestand. Verzenden via Peppol kan na bedrijfsverificatie met een verzendbundel.",
  },
  robots: {
  index: true,
