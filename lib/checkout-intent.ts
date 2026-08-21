@@ -1,7 +1,7 @@
 export const CHECKOUT_REDIRECT = "checkout";
 export const CHECKOUT_INTENT_COOKIE = "peppolpro_checkout_plan";
 export const CHECKOUT_INTENT_MAX_AGE_SECONDS = 60 * 60;
-const CHECKOUT_PLANS = new Set(["verzenden_25", "verzenden_100", "monitoring", "monitoring_accountant"]);
+const CHECKOUT_PLANS: Set<string> = new Set(["send_credits_10", "send_credits_25", "send_credits_50", "monitoring", "monitoring_accountant"]);
 
 export function isCheckoutRedirect(value: string | null | undefined) {
  return value === CHECKOUT_REDIRECT;
