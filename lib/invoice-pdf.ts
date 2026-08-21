@@ -70,7 +70,7 @@ export async function generateBillingInvoicePdf(invoice: InvoicePdfInput) {
  page.drawText("Omschrijving", { x: 48, y, size: 10, font: bold, color: muted });
  page.drawText("Bedrag", { x: 440, y, size: 10, font: bold, color: muted });
  y -= 24;
- page.drawText(invoice.invoice_kind === "credit" ? "Credit abonnement PeppolPro monitoring" : "PeppolPro monitoring abonnement", { x: 48, y, size: 12, font, color: dark });
+ page.drawText(invoice.invoice_kind === "credit" ? "Credit abonnement PeppolPro monitoring" : invoice.invoice_kind === "credits" ? "PeppolPro verzendbundel credits" : "PeppolPro monitoring abonnement", { x: 48, y, size: 12, font, color: dark });
  page.drawText(money(totalExcl, currency), { x: 440, y, size: 12, font, color: dark });
 
  y -= 70;

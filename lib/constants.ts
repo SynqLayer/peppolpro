@@ -15,13 +15,13 @@ export const C = {
 export const STEPS = [
  { n: "01", icon: "📄", t: "Upload je PDF", d: "Sleep je factuur-PDF in het uploadvenster. Elk formaat, elke layout — onze AI herkent ze allemaal." },
  { n: "02", icon: "🧠", t: "AI leest alles", d: "Gemini AI extraheert automatisch alle velden: leverancier, klant, BTW-nummers, bedragen en regelomschrijvingen." },
- { n: "03", icon: "📥", t: "Download UBL", d: "Download een Peppol BIS 3.0 UBL/XML-bestand of verzend via Peppol na bedrijfsverificatie met een verzendbundel." },
+ { n: "03", icon: "📥", t: "Download of verzend", d: "Download een Peppol BIS 3.0 UBL/XML-bestand of verzend via Peppol na bedrijfsverificatie met vooraf gekocht verzendtegoed." },
 ];
 
 export const FEATURES = [
  { icon: "🧠", t: "AI-Powered Parsing", d: "Geen handmatig invullen. Upload je PDF en onze AI leest leverancier, klant, BTW-nummers, bedragen en regeldetails automatisch." },
  { icon: "📋", t: "UBL 2.1 Compliant", d: "Output voldoet aan EN 16931 — de Europese standaard. Geaccepteerd door elk Peppol access point." },
- { icon: "📡", t: "Peppol-verzending", d: "Verzend via Peppol na bedrijfsverificatie met een actieve verzendbundel. UBL genereren en downloaden werkt ook zonder verzending." },
+ { icon: "📡", t: "Peppol-verzending", d: "Verzend via Peppol na bedrijfsverificatie met een eenmalig gekochte verzendbundel. Geen maandelijks verzendabonnement nodig." },
  { icon: "✅", t: "BTW-checks binnenkort", d: "Automatische BTW-validatie staat op de roadmap. Controleer BTW-nummers voorlopig zelf vóór je de UBL gebruikt." },
  { icon: "🇳🇱", t: "NL + BE Ready", d: "Gebouwd voor Nederlandse en Belgische ondernemers. Tweetalig, compliant met beide regelgevingen." },
  { icon: "🔐", t: "AVG/GDPR bewust", d: "Factuurdata wordt opgeslagen in je account voor je factuurhistorie. Je kunt opgeslagen facturen en conversies verwijderen." },

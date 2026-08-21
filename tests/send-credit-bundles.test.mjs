@@ -1,0 +1,89 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { creditBundles } from '../lib/plans.ts';
+
+const plans = readFileSync(new URL('../lib/plans.ts', import.meta.url), 'utf8');
+const checkoutRoute = readFileSync(new URL('../app/api/checkout/route.ts', import.meta.url), 'utf8');
+const mollieWebhookRoute = readFileSync(new URL('../app/api/mollie/webhook/route.ts', import.meta.url), 'utf8');
+const recommandRoute = readFileSync(new URL('../app/api/recommand/send/route.ts', import.meta.url), 'utf8');
+const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
+const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_credit_bundles.sql', import.meta.url), 'utf8');
+const dashboard = readFileSync(new URL('../app/dashboard/DashboardClient.tsx', import.meta.url), 'utf8');
+const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
+const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.url), 'utf8');
+const upgradePage = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
+
+test('send credit bundles replace old sending subscriptions in plan source', () => {
+ assert.deepEqual(creditBundles.map((bundle) => [bundle.id, bundle.credits, bundle.amount]), [
+  ['send_credits_10', 10, '9.00'],
+  ['send_credits_25', 25, '19.00'],
+  ['send_credits_50', 50, '34.00'],
+ ]);
+ assert.doesNotMatch(plans, /verzenden_25:\s*\{/);
+ assert.doesNotMatch(plans, /verzenden_100:\s*\{/);
+ assert.doesNotMatch(plans, /includedSends|extraSendPrice/);
+});
+
+test('migration adds send credit wallet and purchase ledger without applying production data', () => {
+ assert.match(migration0016, /add column if not exists send_credits integer not null default 0/);
+ assert.match(migration0016, /add column if not exists send_credits_expires_at timestamptz/);
+ assert.match(migration0016, /create table if not exists public\.send_credit_purchases/);
+ assert.match(migration0016, /payment_id text not null unique/);
+ assert.match(migration0016, /bundle_id text not null check \(bundle_id in \('send_credits_10','send_credits_25','send_credits_50'\)\)/);
+ assert.match(migration0016, /invoice_kind in \('sales','subscription','credits','credit'\)/);
+ assert.match(migration0016, /create or replace function public\.grant_send_credit_bundle/);
+});
+
+test('bundle checkout is one-off Mollie payment and records credit_purchase', () => {
+ const bundleBlock = checkoutRoute.match(new RegExp('if \\(isCreditBundle\\(product\\.id\\)\\) \\{[\\s\\S]*?return NextResponse\\.json\\(\\{ checkoutUrl: payment\\._links\\.checkout\\.href \\}\\);\\n  \\}'))?.[0] || '';
+ assert.match(bundleBlock, /purchase_type: "send_credit_bundle"/);
+ assert.match(bundleBlock, /bundle_id: product\.id/);
+ assert.match(bundleBlock, /type: "credit_purchase"/);
+ assert.match(bundleBlock, /credits: product\.credits/);
+ assert.match(bundleBlock, /sequence_type: "oneoff"/);
+ assert.doesNotMatch(bundleBlock, /sequenceType/);
+ assert.doesNotMatch(bundleBlock, /createCustomer|from\("subscriptions"\)\.upsert/);
+});
+
+test('paid bundle webhook grants exact credits, extends expiry 12 months and creates credits invoice', () => {
+ assert.match(mollieWebhookRoute, /grantSendCredits/);
+ assert.match(mollieWebhookRoute, /bundle\.validMonths/);
+ assert.match(mollieWebhookRoute, /addMonths\(start, bundle\.validMonths\)/);
+ assert.match(mollieWebhookRoute, /rpc\("grant_send_credit_bundle"/);
+ assert.match(mollieWebhookRoute, /grant_send_credit_bundle/);
+ assert.match(mollieWebhookRoute, /credits: bundle\.credits/);
+ assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription: null \}\)/);
+ assert.match(billingLib, /invoice_kind: product\.recurring \? "subscription" : "credits"/);
+});
+
+test('send route blocks zero or expired credits before provider send', () => {
+ assert.match(recommandRoute, /select\("recommand_company_id, recommand_verified, send_credits, send_credits_expires_at"\)/);
+ assert.match(recommandRoute, /sendCredits <= 0/);
+ assert.match(recommandRoute, /Je hebt geen verzendtegoed/);
+ assert.match(recommandRoute, /creditsExpireAt\.getTime\(\) <= Date\.now\(\)/);
+ assert.match(recommandRoute, /Je verzendtegoed is verlopen/);
+ const creditGateBlock = recommandRoute.match(/const sendCredits = profile\.send_credits[\s\S]*?const \{ data: existing/)?.[0] || '';
+ assert.doesNotMatch(creditGateBlock, /sendDocument\(/);
+});
+
+test('send route deducts exactly one credit only after successful Recommand send', () => {
+ const failBlock = recommandRoute.match(new RegExp('if \\(!send\\.success\\) \\{[\\s\\S]*?\\n \\}'))?.[0] || '';
+ assert.doesNotMatch(failBlock, /send_credits|debit|update\(/);
+ assert.match(recommandRoute, /if \(!send\.success\)/);
+ assert.match(recommandRoute, /send_credits: sendCredits - 1/);
+ assert.match(recommandRoute, /\.gt\("send_credits", 0\)/);
+ assert.match(recommandRoute, /remainingCredits: debitRows\.send_credits/);
+});
+
+test('UI surfaces bundles and remaining send credit wallet', () => {
+ assert.match(pricingPage, /publicPricingPlans/);
+ assert.match(upgradePage, /creditBundles/);
+ for (const source of [pricingPage, upgradePage]) {
+  assert.doesNotMatch(source, /Verzenden 25|Verzenden 100|€0,45|€0,35/);
+ }
+ assert.match(dashboard, /label="Verzendtegoed"/);
+ assert.match(dashboard, /send_credits_expires_at/);
+ assert.match(nieuwPage, /Verzendtegoed:/);
+ assert.match(nieuwPage, /Koop een verzendbundel om via Peppol te verzenden/);
+});
