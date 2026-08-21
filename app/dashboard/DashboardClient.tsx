@@ -323,6 +323,17 @@ export default function DashboardClient({
 
  const visibleConversions = showAll ? filteredConversions : filteredConversions.slice(0, 10);
 
+ const downloadConversionXml = (conversion: Conversion, fallbackName: string) => {
+  if (!conversion.ubl_xml) return;
+  const blob = new Blob([conversion.ubl_xml], { type: "application/xml" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${fallbackName.replace(/[^a-z0-9-_]/gi, "-") || "factuur"}.xml`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+ };
+
  async function handleBulkImport(event: React.ChangeEvent<HTMLInputElement>) {
  const file = event.target.files?.[0];
  if (!file) return;
@@ -689,9 +700,9 @@ export default function DashboardClient({
  <td><StatusBadge status={conversion.status} /></td>
  <td>
  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
- <Link href="/dashboard" className="action-link">Bekijken</Link>
- <Link href="/convert" className="action-link">PDF</Link>
- <span className="action-muted">Direct verzenden niet beschikbaar</span>
+ {conversion.ubl_xml ? <button type="button" onClick={() => downloadConversionXml(conversion, invoiceNumber)} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}>Download XML</button> : <span className="action-muted">Geen XML</span>}
+ <Link href="/convert" className="action-link">Nieuwe PDF</Link>
+ <span className="action-muted">Verzenden via Nieuwe factuur</span>
  </div>
  </td>
  </tr>
