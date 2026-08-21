@@ -35,6 +35,18 @@ test('migration adds send credit wallet and purchase ledger without applying pro
  assert.match(migration0016, /create or replace function public\.grant_send_credit_bundle/);
 });
 
+test('atomic send-credit reservation migration is auth-bound and checks expiry in SQL', () => {
+ const migration0017 = readFileSync(new URL('../supabase/migrations/0017_atomic_send_credit_reservation.sql', import.meta.url), 'utf8');
+ assert.match(migration0017, /create or replace function public\.reserve_send_credit/);
+ assert.match(migration0017, /auth\.uid\(\) <> p_user_id/);
+ assert.match(migration0017, /set send_credits = up\.send_credits - 1/);
+ assert.match(migration0017, /up\.send_credits > 0/);
+ assert.match(migration0017, /up\.send_credits_expires_at > now\(\)/);
+ assert.match(migration0017, /returning up\.send_credits/);
+ assert.match(migration0017, /create or replace function public\.release_send_credit/);
+ assert.match(migration0017, /set send_credits = up\.send_credits \+ 1/);
+});
+
 test('bundle checkout is one-off Mollie payment and records credit_purchase', () => {
  const bundleBlock = checkoutRoute.match(new RegExp('if \\(isCreditBundle\\(product\\.id\\)\\) \\{[\\s\\S]*?return NextResponse\\.json\\(\\{ checkoutUrl: payment\\._links\\.checkout\\.href \\}\\);\\n  \\}'))?.[0] || '';
  assert.match(bundleBlock, /purchase_type: "send_credit_bundle"/);
@@ -57,23 +69,37 @@ test('paid bundle webhook grants exact credits, extends expiry 12 months and cre
  assert.match(billingLib, /invoice_kind: product\.recurring \? "subscription" : "credits"/);
 });
 
-test('send route blocks zero or expired credits before provider send', () => {
- assert.match(recommandRoute, /select\("recommand_company_id, recommand_verified, send_credits, send_credits_expires_at"\)/);
- assert.match(recommandRoute, /sendCredits <= 0/);
- assert.match(recommandRoute, /Je hebt geen verzendtegoed/);
- assert.match(recommandRoute, /creditsExpireAt\.getTime\(\) <= Date\.now\(\)/);
- assert.match(recommandRoute, /Je verzendtegoed is verlopen/);
- const creditGateBlock = recommandRoute.match(/const sendCredits = profile\.send_credits[\s\S]*?const \{ data: existing/)?.[0] || '';
- assert.doesNotMatch(creditGateBlock, /sendDocument\(/);
+test('send route is idempotent for already-sent targets before validation, provider calls or debit', () => {
+ assert.match(recommandRoute, /function existingSendResponse/);
+ assert.match(recommandRoute, /function hasCompletedSend/);
+ assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
+ const beforeRecipientValidation = recommandRoute.match(/const existing = await fetchTarget[\s\S]*?const recipient = normalizePeppolId/)?.[0] || '';
+ assert.match(beforeRecipientValidation, /hasCompletedSend\(existing\)/);
+ assert.doesNotMatch(beforeRecipientValidation, /sendDocument\(|reserve_send_credit|verifyRecipient\(/);
 });
 
-test('send route deducts exactly one credit only after successful Recommand send', () => {
- const failBlock = recommandRoute.match(new RegExp('if \\(!send\\.success\\) \\{[\\s\\S]*?\\n \\}'))?.[0] || '';
- assert.doesNotMatch(failBlock, /send_credits|debit|update\(/);
- assert.match(recommandRoute, /if \(!send\.success\)/);
- assert.match(recommandRoute, /send_credits: sendCredits - 1/);
- assert.match(recommandRoute, /\.gt\("send_credits", 0\)/);
- assert.match(recommandRoute, /remainingCredits: debitRows\.send_credits/);
+test('send route claims a target and reserves credits atomically before provider calls', () => {
+ assert.match(recommandRoute, /function claimTargetForSending/);
+ assert.match(recommandRoute, /recommand_status: "sending"/);
+ assert.match(recommandRoute, /\.is\("recommand_document_id", null\)/);
+ assert.match(recommandRoute, /\.is\("sent_via_recommand_at", null\)/);
+ assert.match(recommandRoute, /rpc\("reserve_send_credit"/);
+ const reserveBeforeProvider = recommandRoute.match(/const reserved = await reserveSendCredit[\s\S]*?const verify = await verifyRecipient/)?.[0] || '';
+ assert.match(reserveBeforeProvider, /reserveSendCredit/);
+ assert.doesNotMatch(recommandRoute, /send_credits: sendCredits - 1/);
+ assert.doesNotMatch(recommandRoute, /const sendCredits = profile\.send_credits/);
+});
+
+test('send route releases reserved credits on provider-side failure paths', () => {
+ assert.match(recommandRoute, /rpc\("release_send_credit"/);
+ assert.match(recommandRoute, /const releaseAfterFailure = async \(\) => releaseSendCredit/);
+ const recipientFailBlock = recommandRoute.match(/if \(!verify\.isValid\) \{[\s\S]*?return jsonError\("Ontvanger is niet gevonden/)?.[0] || '';
+ const supportFailBlock = recommandRoute.match(/if \(!support\.isValid\) \{[\s\S]*?return jsonError\("Ontvanger ondersteunt/)?.[0] || '';
+ const sendFailBlock = recommandRoute.match(/if \(!send\.success\) \{[\s\S]*?return jsonError\("Recommand heeft/)?.[0] || '';
+ const catchBlock = recommandRoute.match(/catch \(error\) \{[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
+ for (const block of [recipientFailBlock, supportFailBlock, sendFailBlock, catchBlock]) {
+  assert.match(block, /releaseAfterFailure\(\)/);
+ }
 });
 
 test('UI surfaces bundles and remaining send credit wallet', () => {

@@ -466,9 +466,9 @@ test('Recommand integration verifies recipients before send, gates plan limit, a
  assert.match(recommandRoute, /recommand_company_id, recommand_verified/);
  assert.match(recommandRoute, /profile\.recommand_company_id/);
  assert.doesNotMatch(recommandRoute, /process\.env\.RECOMMAND_COMPANY_ID/);
- assert.match(recommandRoute, /sendCredits <= 0/);
+ assert.match(recommandRoute, /rpc\("reserve_send_credit"/);
  assert.match(recommandRoute, /sent_via_recommand_at/);
- assert.match(recommandRoute, /Je hebt geen verzendtegoed/);
+ assert.match(recommandRoute, /Je hebt geen geldig verzendtegoed/);
  assert.match(recommandRoute, /verifyRecipient\(recipient\)/);
  assert.match(recommandRoute, /verifyRecipientSupportsInvoice\(recipient\)/);
  assert.match(recommandRoute, /recipient_not_found/);
