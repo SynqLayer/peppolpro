@@ -4,7 +4,9 @@ import ParticleField from "../components/ParticleField";
 import Reveal from "../components/Reveal";
 import GlassCard from "../components/GlassCard";
 import Divider from "../components/Divider";
-import { C, STEPS, FEATURES, PRICING, FAQ } from "../lib/constants";
+import { C, STEPS, FEATURES, FAQ } from "../lib/constants";
+import PlanButton from "../components/PlanButton";
+import { publicPricingPlans } from "../lib/plans";
 
 export default function Home() {
  const [scrollY, setScrollY] = useState(0);
@@ -281,14 +283,14 @@ export default function Home() {
  <div style={{ textAlign: "center", marginBottom: 56 }}>
  <span style={{ fontSize: 11, color: "#10b981", fontWeight: 700, letterSpacing: 3, textTransform: "uppercase" }}>Prijzen</span>
  <h2 style={{ fontSize: "clamp(28px, 4.5vw, 46px)", fontWeight: 800, marginTop: 8, letterSpacing: "-1px" }}>Simpel en eerlijk</h2>
- <p style={{ color: C.dim, marginTop: 10, fontSize: 15 }}>Peppol-verzending binnenkort beschikbaar</p>
+ <p style={{ color: C.dim, marginTop: 10, fontSize: 15 }}>Peppol-verzending actief na bedrijfsverificatie met verzendbundel</p>
  </div>
  </Reveal>
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20, alignItems: "start" }}>
- {PRICING.map((p, i) => (
- <GlassCard key={i} delay={i * 0.12} highlight={p.hl}>
- {p.hl && (
- <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, color: "#fff", fontSize: 10, fontWeight: 700, padding: "4px 14px", borderRadius: 100, letterSpacing: 1, textTransform: "uppercase" }}>Populair</div>
+ {publicPricingPlans.map((p, i) => (
+ <GlassCard key={p.id} delay={i * 0.12} highlight={p.highlight}>
+ {p.badge && (
+ <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, color: "#fff", fontSize: 10, fontWeight: 700, padding: "4px 14px", borderRadius: 100, letterSpacing: 1, textTransform: "uppercase" }}>{p.badge}</div>
  )}
  <div style={{ marginBottom: 24 }}>
  <div style={{ fontSize: 13, fontWeight: 600, color: C.dim, marginBottom: 4 }}>{p.name}</div>
@@ -296,7 +298,7 @@ export default function Home() {
  <span style={{ fontSize: 42, fontWeight: 800 }}>{p.price}</span>
  {p.period && <span style={{ fontSize: 14, color: C.dim }}>{p.period}</span>}
  </div>
- <div style={{ fontSize: 12, color: `${C.dim}99`, marginTop: 2 }}>{p.sub}</div>
+ <div style={{ fontSize: 12, color: `${C.dim}99`, marginTop: 2 }}>{p.description}</div>
  </div>
  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
  {p.features.map((f, j) => (
@@ -305,7 +307,20 @@ export default function Home() {
  </div>
  ))}
  </div>
- {p.available === false ? (
+ {p.paid && p.available !== false ? (
+ <PlanButton
+ plan={p.id}
+ label={p.cta}
+ style={{
+ padding: "13px 0",
+ borderRadius: 10,
+ border: p.highlight ? "none" : `1px solid ${C.border}`,
+ background: p.highlight ? `linear-gradient(135deg, ${C.blue}, ${C.indigo})` : "transparent",
+ color: p.highlight ? "#fff" : C.gray,
+ fontWeight: 600,
+ }}
+ />
+ ) : p.paid && p.available === false ? (
  <button disabled style={{
  display: "block",
  width: "100%",
@@ -323,14 +338,14 @@ export default function Home() {
  Binnenkort beschikbaar
  </button>
  ) : (
- <a href="/login" style={{
+ <a href={p.href} style={{
  display: "block",
  width: "100%",
  padding: "13px 0",
  borderRadius: 10,
- border: p.hl ? "none" : `1px solid ${C.border}`,
- background: p.hl ? `linear-gradient(135deg, ${C.blue}, ${C.indigo})` : "transparent",
- color: p.hl ? "#fff" : C.gray,
+ border: `1px solid ${C.border}`,
+ background: "transparent",
+ color: C.gray,
  fontWeight: 600,
  fontSize: 14,
  cursor: "pointer",

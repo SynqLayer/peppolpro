@@ -34,7 +34,7 @@ export default function PeppolFactuurVersturenPage() {
 
  <h2 style={h2Style}>Hoe werkt het netwerk?</h2>
  <p style={pStyle}>
- Peppol is een Europees netwerk van access points. Je kunt de UBL downloaden en verzenden via je eigen access point of boekhoudpakket. PeppolPro activeert verzendbundels binnenkort; UBL genereren en downloaden werkt nu al.
+ Peppol is een Europees netwerk van access points. Je kunt de UBL downloaden en verzenden via je eigen access point of boekhoudpakket. Met een actieve verzendbundel en bedrijfsverificatie kun je via PeppolPro verzenden; UBL genereren en downloaden werkt ook los daarvan.
  </p>
 
  <h2 style={h2Style}>Wat kost het?</h2>

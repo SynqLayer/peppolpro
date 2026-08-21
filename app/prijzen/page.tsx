@@ -2,70 +2,7 @@ import Link from "next/link";
 import GlassCard from "../../components/GlassCard";
 import PlanButton from "../../components/PlanButton";
 import { C } from "../../lib/constants";
-
-const plans = [
- {
- name: "GRATIS",
- price: "€0",
- period: "",
- features: [
- "3 gratis UBL-generaties bij registratie",
- "UBL-facturen genereren en downloaden",
- "Geen Peppol-verzending inbegrepen",
- ],
- cta: "Start gratis",
- href: "/login",
- planId: null,
- highlight: false,
- },
- {
- name: "VERZENDEN 25",
- price: "€12",
- period: "/maand",
- badge: "Populair",
- features: [
- "25 Peppol-verzendingen inbegrepen",
- "€0,45 per extra verzending",
- "UBL-facturen genereren en downloaden",
- "Dashboard met historie en actiepunten",
- ],
- cta: "Activeer Verzenden 25",
- href: "/login",
- planId: "verzenden_25",
- available: true,
- highlight: true,
- },
- {
- name: "VERZENDEN 100",
- price: "€39",
- period: "/maand",
- features: [
- "100 Peppol-verzendingen inbegrepen",
- "€0,35 per extra verzending",
- "UBL-facturen genereren en downloaden",
- "Dashboard met historie en actiepunten",
- ],
- cta: "Activeer Verzenden 100",
- href: "/login",
- planId: "verzenden_100",
- available: true,
- highlight: false,
- },
- {
- name: "MONITORING",
- price: "€9",
- period: "/maand",
- features: [
- "Maximaal 10 monitoring targets",
- "Wekelijkse Peppol Directory-check",
- "Alerts bij statuswijzigingen of fouten",
- ],
- cta: "Activeer Monitoring",
- href: "/login",
- planId: "monitoring",
- highlight: false,
- },
-];
+import { publicPricingPlans } from "../../lib/plans";
 
 export default function PrijzenPage() {
  return (
@@ -98,8 +35,8 @@ export default function PrijzenPage() {
  </div>
 
  <div className="pricing-grid">
- {plans.map((plan) => (
- <GlassCard key={plan.name} highlight={plan.highlight} reveal={false}>
+ {publicPricingPlans.map((plan) => (
+ <GlassCard key={plan.id} highlight={plan.highlight} reveal={false}>
  <div style={{ display: "flex", flexDirection: "column", minHeight: 410 }}>
  <div style={{ minHeight: 112 }}>
  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
@@ -125,9 +62,9 @@ export default function PrijzenPage() {
  ))}
  </ul>
 
- {plan.planId && plan.available !== false ? (
+ {plan.paid && plan.available !== false ? (
  <PlanButton
- plan={plan.planId}
+ plan={plan.id}
  label={plan.cta}
  style={{
  background: plan.highlight ? `linear-gradient(135deg, ${C.blue}, ${C.indigo})` : "#6366f1",
@@ -135,7 +72,7 @@ export default function PrijzenPage() {
  borderRadius: 10,
  }}
  />
- ) : plan.planId && plan.available === false ? (
+ ) : plan.paid && plan.available === false ? (
  <button disabled style={{
  width: "100%",
  background: "rgba(100,116,139,0.18)",
