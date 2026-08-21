@@ -142,11 +142,13 @@ const statusMap: Record<string, { label: string; bg: string; color: string; bord
  delivered: { label: "Klaar om te verzenden", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
  failed: { label: "Mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
  error: { label: "Mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
+ duplicate_voided: { label: "Dubbel/voided", bg: "rgba(148,163,184,0.10)", color: "#94a3b8", border: "rgba(148,163,184,0.18)", group: "gearchiveerd" },
 };
 
 const generatedStatuses = ["success", "done"];
 const openStatuses = ["draft", "concept", "processing", "sent", "delivered"];
 const failedStatuses = ["failed", "error", "mislukt"];
+const archivedStatuses = ["duplicate_voided"];
 
 const numberValue = (value?: number | string | null) => {
  if (typeof value === "number") return value;
@@ -173,6 +175,7 @@ const isGenerated = (status?: string | null) => generatedStatuses.includes((stat
 const isFailed = (status?: string | null) => failedStatuses.includes((status || "").toLowerCase());
 const isDraft = (status?: string | null) => ["draft", "concept"].includes((status || "").toLowerCase());
 const isOpen = (status?: string | null) => openStatuses.includes((status || "").toLowerCase());
+const isArchived = (status?: string | null) => archivedStatuses.includes((status || "").toLowerCase());
 
 const profileComplete = (profile: Profile | null) => {
  if (!profile) return false;
@@ -285,15 +288,16 @@ export default function DashboardClient({
  const hasActiveSendCredits = sendCredits > 0 && !sendCreditsExpired;
  const isMonitoring = profile?.plan === "monitoring" || profile?.plan === "monitoring_accountant";
  const isMonitoringAccountant = profile?.plan === "monitoring_accountant";
- const hasInvoices = conversions.length > 0;
+ const activeConversions = useMemo(() => conversions.filter((conversion) => !isArchived(conversion.status)), [conversions]);
+ const hasInvoices = activeConversions.length > 0;
  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
  const completeProfile = profileComplete(profile);
- const currency = conversions.find((conversion) => conversion.currency)?.currency || "EUR";
+ const currency = activeConversions.find((conversion) => conversion.currency)?.currency || "EUR";
 
- const invoicesThisMonth = conversions.filter((conversion) => conversion.created_at && new Date(conversion.created_at) >= monthStart).length;
- const openAmount = conversions.reduce((sum, conversion) => sum + (isOpen(conversion.status) ? numberValue(conversion.total_amount) : 0), 0);
- const generatedCount = conversions.filter((conversion) => isGenerated(conversion.status)).length;
- const failedCount = conversions.filter((conversion) => isFailed(conversion.status)).length;
+ const invoicesThisMonth = activeConversions.filter((conversion) => conversion.created_at && new Date(conversion.created_at) >= monthStart).length;
+ const openAmount = activeConversions.reduce((sum, conversion) => sum + (isOpen(conversion.status) ? numberValue(conversion.total_amount) : 0), 0);
+ const generatedCount = activeConversions.filter((conversion) => isGenerated(conversion.status)).length;
+ const failedCount = activeConversions.filter((conversion) => isFailed(conversion.status)).length;
 
  const chartData = useMemo(() => {
  const formatter = new Intl.DateTimeFormat("nl-NL", { month: "short" });
@@ -304,7 +308,7 @@ export default function DashboardClient({
  return { key, maand: formatter.format(date), naam: fullFormatter.format(date), omzet: 0 };
  });
 
- conversions.forEach((conversion) => {
+ activeConversions.forEach((conversion) => {
  if (!conversion.created_at || !isGenerated(conversion.status)) return;
  const date = new Date(conversion.created_at);
  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -313,11 +317,11 @@ export default function DashboardClient({
  });
 
  return months;
- }, [conversions, now]);
+ }, [activeConversions, now]);
 
  const filteredConversions = useMemo(() => {
  const term = query.trim().toLowerCase();
- return conversions.filter((conversion) => {
+ return activeConversions.filter((conversion) => {
  const matchesQuery = !term
  || (conversion.customer_name || "").toLowerCase().includes(term)
  || (conversion.invoice_number || "").toLowerCase().includes(term)
@@ -325,7 +329,7 @@ export default function DashboardClient({
  const matchesStatus = filter === "all" || statusGroup(conversion.status) === filter;
  return matchesQuery && matchesStatus;
  });
- }, [conversions, filter, query]);
+ }, [activeConversions, filter, query]);
 
  const visibleConversions = showAll ? filteredConversions : filteredConversions.slice(0, 10);
 
@@ -424,7 +428,7 @@ export default function DashboardClient({
 
  const tasks: Task[] = [];
  const threeDaysAgo = now.getTime() - 3 * 24 * 60 * 60 * 1000;
- const oldDrafts = conversions.filter((conversion) => isDraft(conversion.status) && conversion.created_at && new Date(conversion.created_at).getTime() < threeDaysAgo).length;
+ const oldDrafts = activeConversions.filter((conversion) => isDraft(conversion.status) && conversion.created_at && new Date(conversion.created_at).getTime() < threeDaysAgo).length;
  if (oldDrafts > 0) tasks.push({ title: `${oldDrafts} concept${oldDrafts === 1 ? "" : "en"} ouder dan 3 dagen`, detail: "Rond deze facturen af of verwijder ze uit je workflow.", href: "/nieuw", tone: "amber" });
  if (failedCount > 0) tasks.push({ title: `${failedCount} factuur${failedCount === 1 ? "" : "en"} mislukt`, detail: "Controleer de gegevens en genereer de UBL opnieuw.", href: "/convert", tone: "red" });
  if (!completeProfile) tasks.push({ title: "Profiel onvolledig", detail: "KvK/KBO, BTW-nummer of adres ontbreekt nog.", href: "/onboarding", tone: "blue" });
@@ -437,7 +441,7 @@ export default function DashboardClient({
  { title: "Eerste UBL-factuur maken", done: hasInvoices, href: "/nieuw", cta: "Factuur maken" },
  ];
  const progress = onboardingSteps.filter((step) => step.done).length;
- const activityItems = conversions.slice(0, 8);
+ const activityItems = activeConversions.slice(0, 8);
 
  return (
  <main style={{ minHeight: "100vh", background: `radial-gradient(circle at 30% 0%, rgba(59,130,246,0.12), transparent 32%), ${C.bg}`, color: C.white, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -511,7 +515,7 @@ export default function DashboardClient({
  </header>
 
  <section className="kpi-grid">
- <KpiCard label="Facturen deze maand" value={String(invoicesThisMonth)} caption={`${conversions.length} totaal in archief`} accent="#38bdf8" />
+ <KpiCard label="Facturen deze maand" value={String(invoicesThisMonth)} caption={`${activeConversions.length} actief in archief`} accent="#38bdf8" />
  <KpiCard label="Openstaand bedrag" value={formatCurrency(openAmount, currency)} caption="Concepten en UBL-bestanden in behandeling" accent="#f59e0b" />
  <KpiCard label="UBL gegenereerd" value={String(generatedCount)} caption={`${generatedCount} UBL-bestand${generatedCount === 1 ? "" : "en"} succesvol gegenereerd`} accent="#34d399" />
  <KpiCard label="Resterende UBL-generaties" value={isFree ? String(profile?.credits ?? 0) : "Betaald"} caption={isFree ? "Gratis starttegoed" : "Betaald plan actief"} accent="#818cf8" />

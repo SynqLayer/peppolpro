@@ -66,6 +66,10 @@ function hasCompletedSend(row?: TargetRow | null) {
  return !!row?.recommand_document_id || !!row?.sent_via_recommand_at;
 }
 
+function isVoidedDuplicate(row?: TargetRow | null) {
+ return row?.recommand_status === "duplicate_voided";
+}
+
 async function fetchTarget(supabase: Awaited<ReturnType<typeof createServerSupabase>>, table: "conversions" | "invoices", targetId: string, userId: string) {
  const { data, error } = await supabase
   .from(table)
@@ -94,7 +98,7 @@ async function claimTargetForSending(supabase: Awaited<ReturnType<typeof createS
   .eq("user_id", userId)
   .is("recommand_document_id", null)
   .is("sent_via_recommand_at", null)
-  .or("recommand_status.is.null,recommand_status.neq.sending")
+  .or("recommand_status.is.null,and(recommand_status.neq.sending,recommand_status.neq.duplicate_voided)")
   .select(TARGET_SELECT)
   .maybeSingle<TargetRow>();
  if (error || !data) return null;
@@ -161,6 +165,7 @@ export async function POST(request: NextRequest) {
 
  const existing = await fetchTarget(supabase, targetTable, targetId, user.id);
  if (!existing) return jsonError("Factuur niet gevonden", 404);
+ if (isVoidedDuplicate(existing)) return jsonError("Deze factuur is gemarkeerd als dubbel/voided en kan niet via Peppol worden verzonden.", 409);
  if (hasCompletedSend(existing)) return existingSendResponse(existing);
 
  const recipient = normalizePeppolId(input.recipient || input.peppolId || input.peppolAddress);
