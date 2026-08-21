@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { missingRequiredCompanyFields, shouldCreateRecommandCompany } from '../lib/recommand-company-validation.ts';
-import { buildRecommandWebhookUpdate, verifyRecommandWebhookSignature } from '../lib/recommand-webhook.ts';
+import { buildRecommandWebhookUpdate, hashRecommandWebhookRawBody, recommandWebhookEventKey, verifyRecommandWebhookSignature } from '../lib/recommand-webhook.ts';
 
 const completeProfile = {
  company_name: 'SynqLayer',
@@ -57,4 +57,27 @@ test('Recommand webhook met geldige signature zet recommand_verified op true', (
  assert.deepEqual(update.updatePayload.recommand_raw_response, {
   webhook: { eventType: 'company.verification', companyId: 'c_123', status: 'verified' },
  });
+});
+
+test('Recommand webhook failed/rejected zet bestaande verificatie niet terug naar false', () => {
+ for (const status of ['failed', 'rejected']) {
+  const update = buildRecommandWebhookUpdate({ eventType: 'company.verification', companyId: 'c_123', status });
+  assert.equal(update.success, true);
+  assert.equal(update.ignored, false);
+  assert.equal(update.verified, false);
+  assert.equal(Object.hasOwn(update.updatePayload, 'recommand_verified'), false);
+  assert.deepEqual(update.updatePayload.recommand_raw_response, {
+   webhook: { eventType: 'company.verification', companyId: 'c_123', status },
+  });
+ }
+});
+
+test('Recommand webhook gebruikt provider event-id of hash fallback als idempotency-key', () => {
+ const payloadWithId = { eventType: 'company.verification', eventId: 'evt_123', companyId: 'c_123', status: 'verified' };
+ assert.equal(recommandWebhookEventKey(payloadWithId, JSON.stringify(payloadWithId)), 'recommand:evt_123');
+
+ const rawBody = JSON.stringify({ eventType: 'company.verification', companyId: 'c_123', status: 'rejected', note: 'x' });
+ const fallback = recommandWebhookEventKey(JSON.parse(rawBody), rawBody);
+ assert.match(fallback, /^recommand:[a-f0-9]{64}$/);
+ assert.notEqual(fallback, `recommand:${hashRecommandWebhookRawBody(rawBody)}`);
 });

@@ -1,6 +1,9 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export type RecommandWebhookPayload = {
+ id?: string;
+ eventId?: string;
+ event_id?: string;
  eventType?: string;
  companyId?: string;
  status?: string;
@@ -19,6 +22,25 @@ export function verifyRecommandWebhookSignature(rawBody: string, signatureHeader
  return timingSafeEqual(provided, expected);
 }
 
+export function hashRecommandWebhookRawBody(rawBody: string) {
+ return createHash("sha256").update(rawBody, "utf8").digest("hex");
+}
+
+function providerEventId(payload: RecommandWebhookPayload) {
+ for (const candidate of [payload.eventId, payload.event_id, payload.id]) {
+  if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+ }
+ return null;
+}
+
+export function recommandWebhookEventKey(payload: RecommandWebhookPayload, rawBody: string) {
+ const explicitId = providerEventId(payload);
+ if (explicitId) return `recommand:${explicitId}`;
+ const companyId = typeof payload.companyId === "string" ? payload.companyId : "unknown_company";
+ const status = typeof payload.status === "string" ? payload.status : "unknown_status";
+ return `recommand:${hashRecommandWebhookRawBody(`${rawBody}:${companyId}:${status}`)}`;
+}
+
 export function buildRecommandWebhookUpdate(payload: RecommandWebhookPayload) {
  if (payload.eventType !== "company.verification") {
   return { success: true as const, ignored: true as const };
@@ -29,6 +51,7 @@ export function buildRecommandWebhookUpdate(payload: RecommandWebhookPayload) {
  const updatePayload: Record<string, unknown> = {
   recommand_raw_response: { webhook: payload },
  };
+ // Bewust beleid: alleen een latere verified-call zet true. Failed/rejected trekt verificatie niet terug.
  if (payload.status === "verified") updatePayload.recommand_verified = true;
  return {
   success: true as const,

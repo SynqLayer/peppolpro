@@ -48,14 +48,21 @@ async function markWebhook(supabase: ReturnType<typeof createAdminClient>, event
 async function startWebhook(supabase: ReturnType<typeof createAdminClient>, payment: MolliePayment) {
  const eventKey = `${payment.id}:${payment.status}`;
  const { data, error } = await supabase
-  .from("webhook_events")
-  .insert({ event_key: eventKey, mollie_payment_id: payment.id, payment_status: payment.status, status: "processing" })
-  .select("event_key")
+  .rpc("claim_mollie_webhook_event", {
+   p_event_key: eventKey,
+   p_mollie_payment_id: payment.id,
+   p_payment_status: payment.status,
+   p_processing_stale_after: "2 minutes",
+  })
   .maybeSingle();
- if (error?.code === "23505") return { eventKey, duplicate: true };
  if (error) throw error;
- if (!data) return { eventKey, duplicate: true };
- return { eventKey, duplicate: false };
+ const action = (data as { action?: string } | null)?.action;
+ return {
+  eventKey,
+  duplicate: action === "processed_duplicate" || action === "processing_duplicate" || !action,
+  reclaimed: action === "reclaimed",
+  action,
+ };
 }
 
 async function cancelKnownSubscription(supabase: ReturnType<typeof createAdminClient>, userId: string) {
