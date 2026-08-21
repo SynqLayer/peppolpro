@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase-client";
 import { C } from "@/lib/constants";
+import {
+ appendCheckoutIntent,
+ checkoutIntentCookieValue,
+ checkoutResumePath,
+ readCheckoutIntentFromSearch,
+} from "@/lib/checkout-intent";
 
 function registerErrorMessage(message: string) {
  const lower = message.toLowerCase();
@@ -14,15 +20,19 @@ function registerErrorMessage(message: string) {
  return "Registreren lukt niet. Controleer je gegevens en probeer opnieuw.";
 }
 
-export default function RegisterPage() {
+function RegisterContent() {
  const router = useRouter();
+ const searchParams = useSearchParams();
  const supabase = createClient();
+ const checkoutPlan = readCheckoutIntentFromSearch(new URLSearchParams(searchParams.toString()));
+ const loginHref = checkoutPlan ? `/login?plan=${encodeURIComponent(checkoutPlan)}&redirect=checkout` : "/login";
  const [email, setEmail] = useState("");
  const [password, setPassword] = useState("");
  const [confirmPassword, setConfirmPassword] = useState("");
  const [loading, setLoading] = useState(false);
  const [sent, setSent] = useState(false);
  const [error, setError] = useState("");
+
 
  const handleRegister = async (event: FormEvent) => {
  event.preventDefault();
@@ -40,7 +50,7 @@ export default function RegisterPage() {
  const { data, error } = await supabase.auth.signUp({
  email,
  password,
- options: { emailRedirectTo: `${window.location.origin}/api/auth/callback?redirect=/onboarding` },
+ options: { emailRedirectTo: checkoutPlan ? appendCheckoutIntent(`${window.location.origin}/api/auth/callback`, checkoutPlan) : `${window.location.origin}/api/auth/callback?redirect=/onboarding` },
  });
  setLoading(false);
 
@@ -48,7 +58,8 @@ export default function RegisterPage() {
  setError(registerErrorMessage(error.message));
  return;
  }
- if (data.session) router.push("/onboarding");
+ if (checkoutPlan) document.cookie = checkoutIntentCookieValue(checkoutPlan);
+ if (data.session) router.push(checkoutPlan ? checkoutResumePath(checkoutPlan) : "/onboarding");
  else setSent(true);
  };
 
@@ -81,7 +92,7 @@ export default function RegisterPage() {
  <div style={{ textAlign: "center", padding: "18px 0" }}>
  <h2 style={{ fontSize: 18, fontWeight: 900, color: C.white, marginBottom: 8 }}>Check je inbox</h2>
  <p style={{ fontSize: 14, color: C.dim, lineHeight: 1.6 }}>Bevestig je e-mailadres via de link die we naar <strong style={{ color: C.white }}>{email}</strong> hebben gestuurd.</p>
- <Link href="/login" style={{ display: "inline-flex", marginTop: 18, color: "#fff", background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, borderRadius: 8, padding: "10px 14px", textDecoration: "none", fontWeight: 900 }}>Naar login</Link>
+ <Link href={loginHref} style={{ display: "inline-flex", marginTop: 18, color: "#fff", background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, borderRadius: 8, padding: "10px 14px", textDecoration: "none", fontWeight: 900 }}>Naar login</Link>
  </div>
  ) : (
  <form onSubmit={handleRegister} style={{ display: "grid", gap: 12 }}>
@@ -107,10 +118,18 @@ export default function RegisterPage() {
  <div style={{ marginTop: 24, textAlign: "center" }}>
  <p style={{ fontSize: 12, color: `${C.dim}88`, margin: 0 }}>
  Al een account?{" "}
- <Link href="/login" style={{ color: C.blue, textDecoration: "none", fontWeight: 800 }}>Log in</Link>
+ <Link href={loginHref} style={{ color: C.blue, textDecoration: "none", fontWeight: 800 }}>Log in</Link>
  </p>
  </div>
  </section>
  </main>
+ );
+}
+
+export default function RegisterPage() {
+ return (
+ <Suspense fallback={<main style={{ background: C.bg, minHeight: "100vh" }} />}>
+ <RegisterContent />
+ </Suspense>
  );
 }

@@ -91,7 +91,7 @@ test('login page shows configured Google OAuth provider with callback redirect',
  assert.match(loginPage, /signInWithOAuth/);
  assert.match(loginPage, /provider:\s*"google"/);
  assert.match(loginPage, /Doorgaan met Google/);
- assert.match(loginPage, /redirectTo: `\$\{window\.location\.origin\}\/api\/auth\/callback`/);
+ assert.match(loginPage, /appendCheckoutIntent\(`\$\{window\.location\.origin\}\/api\/auth\/callback`, checkoutPlan\)/);
 });
 
 test('public copy does not claim temporary-only storage, VIES validation, or loose sending', () => {

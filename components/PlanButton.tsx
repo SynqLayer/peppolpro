@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { checkoutLoginPath } from "@/lib/checkout-intent";
 
 export default function PlanButton({
  plan,
@@ -27,7 +28,7 @@ export default function PlanButton({
  if (data.checkoutUrl) {
  window.location.href = data.checkoutUrl;
  } else if (res.status === 401) {
- router.push("/login");
+ router.push(checkoutLoginPath(plan));
  } else {
  alert(data.error || "Iets ging mis, probeer opnieuw.");
  }
