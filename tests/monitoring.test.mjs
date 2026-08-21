@@ -28,6 +28,7 @@ const migration0007 = readFileSync(new URL('../supabase/migrations/0007_mollie_s
 const dashboardPage = readFileSync(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
 const migration0008 = readFileSync(new URL('../supabase/migrations/0008_billing_invoices_webhook_events.sql', import.meta.url), 'utf8');
 const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_credit_bundles.sql', import.meta.url), 'utf8');
+const migration0018 = readFileSync(new URL('../supabase/migrations/0018_webhook_robustness_and_grants.sql', import.meta.url), 'utf8');
 const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
 const invoicePdfLib = readFileSync(new URL('../lib/invoice-pdf.ts', import.meta.url), 'utf8');
 const invoiceRoute = readFileSync(new URL('../app/api/invoices/[invoiceId]/route.ts', import.meta.url), 'utf8');
@@ -421,10 +422,19 @@ test('dashboard lists only the signed-in users billing invoices with download li
  assert.match(dashboard, />Download<\/a>/);
 });
 
-test('mollie webhook records idempotency events and failed handler errors durably', () => {
+test('mollie webhook records idempotency events and reclaims stale processing rows', () => {
  assert.match(mollieWebhookRoute, /startWebhook/);
  assert.match(mollieWebhookRoute, /eventKey = `\$\{payment\.id\}:\$\{payment\.status\}`/);
- assert.match(mollieWebhookRoute, /duplicate: true/);
+ assert.match(mollieWebhookRoute, /rpc\("claim_mollie_webhook_event"/);
+ assert.match(mollieWebhookRoute, /p_processing_stale_after: "2 minutes"/);
+ assert.match(mollieWebhookRoute, /processed_duplicate/);
+ assert.match(mollieWebhookRoute, /processing_duplicate/);
+ assert.match(mollieWebhookRoute, /reclaimed/);
+ assert.match(migration0018, /create or replace function public\.claim_mollie_webhook_event/);
+ assert.match(migration0018, /v_existing\.status = 'processed'/);
+ assert.match(migration0018, /v_existing\.status = 'failed'/);
+ assert.match(migration0018, /v_existing\.status = 'processing'[\s\S]*now\(\) - p_processing_stale_after/);
+ assert.match(migration0018, /set status = 'processing'/);
  assert.match(mollieWebhookRoute, /markWebhook\(supabase, eventKey, "processed"\)/);
  assert.match(mollieWebhookRoute, /markWebhook\(supabase, eventKey, "failed", message\)/);
  assert.match(mollieWebhookRoute, /failed_preprocess/);
@@ -481,6 +491,27 @@ test('Recommand integration verifies recipients before send, gates plan limit, a
  assert.match(migration0011, /recommand_raw_response jsonb/);
  assert.match(migration0011, /verified_recipient boolean not null default false/);
  assert.match(migration0011, /sent_via_recommand_at timestamptz/);
+});
+
+test('Recommand webhook logs idempotent events and preserves verification on failed statuses', () => {
+ assert.match(recommandWebhookLib, /recommandWebhookEventKey/);
+ assert.match(recommandWebhookLib, /eventId, payload\.event_id, payload\.id/);
+ assert.match(recommandWebhookLib, /hashRecommandWebhookRawBody\(`\$\{rawBody\}:\$\{companyId\}:\$\{status\}`\)/);
+ assert.match(recommandWebhookLib, /Failed\/rejected trekt verificatie niet terug/);
+ assert.doesNotMatch(recommandWebhookLib, /recommand_verified\s*=\s*false/);
+ assert.match(recommandWebhookRoute, /from\("recommand_webhook_events"\)/);
+ assert.match(recommandWebhookRoute, /upsert\(eventRow, \{ onConflict: "event_key", ignoreDuplicates: true \}\)/);
+ assert.match(recommandWebhookRoute, /processing_status: "processed"/);
+ assert.match(migration0018, /create table if not exists public\.recommand_webhook_events/);
+ assert.match(migration0018, /event_key text not null unique/);
+ assert.match(migration0018, /raw_body_hash text not null/);
+ assert.match(migration0018, /alter table public\.recommand_webhook_events enable row level security/);
+});
+
+test('server-only webhook tables revoke anon and authenticated grants', () => {
+ assert.match(migration0018, /revoke all on table public\.webhook_events from anon, authenticated/);
+ assert.match(migration0018, /revoke all on table public\.recommand_webhook_events from anon, authenticated/);
+ assert.match(migration0018, /grant all on table public\.recommand_webhook_events to service_role/);
 });
 
 test('Recommand company registration is send-only, idempotent, persisted and status-refreshable', () => {
