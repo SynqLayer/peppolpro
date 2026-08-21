@@ -29,6 +29,7 @@ const dashboardPage = readFileSync(new URL('../app/dashboard/page.tsx', import.m
 const migration0008 = readFileSync(new URL('../supabase/migrations/0008_billing_invoices_webhook_events.sql', import.meta.url), 'utf8');
 const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_credit_bundles.sql', import.meta.url), 'utf8');
 const migration0018 = readFileSync(new URL('../supabase/migrations/0018_webhook_robustness_and_grants.sql', import.meta.url), 'utf8');
+const migration0020 = readFileSync(new URL('../supabase/migrations/0020_harden_billing_table_grants.sql', import.meta.url), 'utf8');
 const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
 const invoicePdfLib = readFileSync(new URL('../lib/invoice-pdf.ts', import.meta.url), 'utf8');
 const invoiceRoute = readFileSync(new URL('../app/api/invoices/[invoiceId]/route.ts', import.meta.url), 'utf8');
@@ -512,6 +513,18 @@ test('server-only webhook tables revoke anon and authenticated grants', () => {
  assert.match(migration0018, /revoke all on table public\.webhook_events from anon, authenticated/);
  assert.match(migration0018, /revoke all on table public\.recommand_webhook_events from anon, authenticated/);
  assert.match(migration0018, /grant all on table public\.recommand_webhook_events to service_role/);
+});
+
+test('billing table grants are least-privilege for app access paths', () => {
+ assert.match(migration0020, /revoke all on table public\.payments from anon, authenticated/);
+ assert.match(migration0020, /revoke all on table public\.send_credit_purchases from anon, authenticated/);
+ assert.match(migration0020, /revoke all on table public\.subscriptions from anon, authenticated/);
+ assert.match(migration0020, /grant select on table public\.subscriptions to authenticated/);
+ assert.match(migration0020, /create policy "read own subscriptions"/);
+ assert.match(dashboardPage, /from\("subscriptions"\)/);
+ assert.match(cancelSubscriptionRoute, /from\("subscriptions"\)/);
+ assert.match(monitoringAccess, /from\("subscriptions"\)/);
+ assert.doesNotMatch(`${dashboardPage}\n${cancelSubscriptionRoute}\n${monitoringAccess}`, /from\("payments"\)|from\("send_credit_purchases"\)/);
 });
 
 test('Recommand company registration is send-only, idempotent, persisted and status-refreshable', () => {
