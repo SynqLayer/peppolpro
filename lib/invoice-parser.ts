@@ -253,6 +253,7 @@ export function validateParsedInvoiceForConversion(parsed: ParsedInvoice): Parse
  const reasons: string[] = [];
  const invoiceNumber = parsed.invoice?.number?.trim();
  const customerName = parsed.buyer?.name?.trim();
+ const currency = parsed.invoice?.currency?.trim().toUpperCase();
  const total = Number(parsed.totals?.total);
  const lines = Array.isArray(parsed.lines) ? parsed.lines : [];
 
@@ -260,8 +261,16 @@ export function validateParsedInvoiceForConversion(parsed: ParsedInvoice): Parse
  if (!customerName) reasons.push("missing_customer_name");
  if (lines.length === 0) reasons.push("missing_invoice_lines");
  if (!Number.isFinite(total) || total <= 0) reasons.push("missing_or_zero_total");
+ if (currency !== "EUR") reasons.push("unsupported_currency");
 
  return { valid: reasons.length === 0, reasons };
+}
+
+export function parsedInvoiceAssumptions(parsed: ParsedInvoice) {
+ const assumptions: string[] = [];
+ if (!parsed.invoice?.date?.trim()) assumptions.push("invoice_date_defaulted_to_today");
+ if (!parsed.invoice?.due_date?.trim()) assumptions.push("due_date_defaulted");
+ return assumptions;
 }
 
 export function describeInvoiceParserError(error: unknown) {

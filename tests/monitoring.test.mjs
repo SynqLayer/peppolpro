@@ -132,6 +132,11 @@ test('invoice parser uses configurable stable Gemini model and structured JSON o
  assert.match(convertRoute, /De factuurherkenning is tijdelijk niet beschikbaar/);
  assert.match(convertRoute, /validateParsedInvoiceForConversion/);
  assert.match(convertRoute, /De factuur kon niet betrouwbaar worden gelezen/);
+ assert.match(convertRoute, /We kunnen op dit moment alleen EUR-facturen omzetten/);
+ assert.match(convertRoute, /customerEmail: ""/);
+ assert.doesNotMatch(convertRoute, /unknown@example\.invalid|invoiceNumber: parsed\.invoice\.number \|\| "factuur"/);
+ assert.match(convertRoute, /parsedInvoiceAssumptions/);
+ assert.match(convertRoute, /assumptions/);
  assert.ok(convertRoute.indexOf('validateParsedInvoiceForConversion(parsed)') < convertRoute.indexOf('use_credit'));
  assert.ok(convertRoute.indexOf('validateParsedInvoiceForConversion(parsed)') < convertRoute.indexOf('convert_success'));
 });

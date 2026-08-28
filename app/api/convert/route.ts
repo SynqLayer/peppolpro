@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "../../../lib/supabase-server";
-import { ParsedInvoice, parseInvoicePDF, describeInvoiceParserError, InvoiceParserError, validateParsedInvoiceForConversion } from "../../../lib/invoice-parser";
+import { ParsedInvoice, parseInvoicePDF, describeInvoiceParserError, InvoiceParserError, validateParsedInvoiceForConversion, parsedInvoiceAssumptions } from "../../../lib/invoice-parser";
 import { generateUBL, InvoiceData } from "../../../lib/ubl-generator";
 import { parseUblSummary } from "../../../lib/ubl-summary";
 
@@ -28,8 +28,8 @@ function parsedToInvoiceData(parsed: ParsedInvoice): InvoiceData {
  customerCountry: parsed.buyer.country || "NL",
  customerVatNr: parsed.buyer.btw_number || "",
  buyerReference: parsed.invoice.reference || undefined,
- customerEmail: "unknown@example.invalid",
- invoiceNumber: parsed.invoice.number || "factuur",
+ customerEmail: "",
+ invoiceNumber: parsed.invoice.number || "",
  invoiceDate: parsed.invoice.date || new Date().toISOString().slice(0, 10),
  dueDate: parsed.invoice.due_date || parsed.invoice.date || new Date().toISOString().slice(0, 10),
  currency: parsed.invoice.currency || "EUR",
@@ -157,8 +157,13 @@ export async function POST(request: NextRequest) {
    total: parsed.totals?.total ?? null,
    currency: parsed.invoice?.currency ?? null,
   });
+  if (parsedValidation.reasons.includes("unsupported_currency")) {
+   return NextResponse.json({ error: "We kunnen op dit moment alleen EUR-facturen omzetten. Pas de factuur aan of vul de gegevens handmatig in via Nieuwe factuur." }, { status: 422 });
+  }
   return NextResponse.json({ error: "De factuur kon niet betrouwbaar worden gelezen. Vul de gegevens handmatig in via Nieuwe factuur, dan maken we daar een correcte UBL van." }, { status: 422 });
  }
+
+ const assumptions = parsedInvoiceAssumptions(parsed);
 
  // Generate UBL
  const invoiceData = parsedToInvoiceData(parsed);
@@ -207,13 +212,14 @@ export async function POST(request: NextRequest) {
  await admin.from("scan_logs").insert({
  user_id: user.id,
  action: "convert_success",
- meta: { conversion_id: conversion.id, filename, total: parsed.totals.total },
+ meta: { conversion_id: conversion.id, filename, total: parsed.totals.total, assumptions },
  });
 
  return NextResponse.json({
  success: true,
  conversion_id: conversion.id,
  parsed,
+ assumptions,
  ubl_xml: ublXml,
  });
  } catch (err: unknown) {
