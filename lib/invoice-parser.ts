@@ -244,6 +244,26 @@ export function parseGeminiInvoiceJson(text: string): ParsedInvoice {
  }
 }
 
+export interface ParsedInvoiceValidationResult {
+ valid: boolean;
+ reasons: string[];
+}
+
+export function validateParsedInvoiceForConversion(parsed: ParsedInvoice): ParsedInvoiceValidationResult {
+ const reasons: string[] = [];
+ const invoiceNumber = parsed.invoice?.number?.trim();
+ const customerName = parsed.buyer?.name?.trim();
+ const total = Number(parsed.totals?.total);
+ const lines = Array.isArray(parsed.lines) ? parsed.lines : [];
+
+ if (!invoiceNumber) reasons.push("missing_invoice_number");
+ if (!customerName) reasons.push("missing_customer_name");
+ if (lines.length === 0) reasons.push("missing_invoice_lines");
+ if (!Number.isFinite(total) || total <= 0) reasons.push("missing_or_zero_total");
+
+ return { valid: reasons.length === 0, reasons };
+}
+
 export function describeInvoiceParserError(error: unknown) {
  if (error instanceof InvoiceParserError) {
   return {

@@ -5,6 +5,7 @@ import {
  extractFirstJsonValue,
  InvoiceParserError,
  describeInvoiceParserError,
+ validateParsedInvoiceForConversion,
 } from '../lib/invoice-parser.ts';
 
 const invoiceJson = JSON.stringify({
@@ -49,4 +50,34 @@ test('invalid json yields typed parser error with log-safe details', () => {
    return true;
   },
  );
+});
+
+const validParsedInvoice = JSON.parse(invoiceJson);
+
+test('parsed invoice validation rejects parses without invoice lines', () => {
+ const result = validateParsedInvoiceForConversion({ ...validParsedInvoice, lines: [] });
+ assert.equal(result.valid, false);
+ assert.ok(result.reasons.includes('missing_invoice_lines'));
+});
+
+test('parsed invoice validation rejects missing or zero totals', () => {
+ const result = validateParsedInvoiceForConversion({ ...validParsedInvoice, totals: { subtotal: 0, total_vat: 0, total: 0 } });
+ assert.equal(result.valid, false);
+ assert.ok(result.reasons.includes('missing_or_zero_total'));
+});
+
+test('parsed invoice validation rejects missing invoice number or customer name', () => {
+ const result = validateParsedInvoiceForConversion({
+  ...validParsedInvoice,
+  buyer: { ...validParsedInvoice.buyer, name: null },
+  invoice: { ...validParsedInvoice.invoice, number: null },
+ });
+ assert.equal(result.valid, false);
+ assert.ok(result.reasons.includes('missing_invoice_number'));
+ assert.ok(result.reasons.includes('missing_customer_name'));
+});
+
+test('parsed invoice validation allows a complete non-zero invoice', () => {
+ const result = validateParsedInvoiceForConversion(validParsedInvoice);
+ assert.deepEqual(result, { valid: true, reasons: [] });
 });
