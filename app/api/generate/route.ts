@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ error: "Factuur kon niet worden opgeslagen" }, { status: 500 });
  }
 
- return NextResponse.json({ xml, conversionId: conversion.id });
+ return NextResponse.json({ xml, conversionId: conversion.id, totalAmount: summary.totalAmount ?? fallbackSummary.totalAmount, currency: summary.currency || fallbackSummary.currency });
  } catch (err) {
  console.error("Generate error:", err);
  return NextResponse.json({ error: "Generatie mislukt" }, { status: 500 });
