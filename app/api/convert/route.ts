@@ -8,6 +8,11 @@ import { parseUblSummary } from "../../../lib/ubl-summary";
 
 export const maxDuration = 60;
 
+async function releaseUblCredit(admin: ReturnType<typeof createAdminSupabase>, userId: string) {
+ const { data } = await admin.rpc("release_ubl_credit", { p_user_id: userId }).maybeSingle<{ credits: number }>();
+ return data || null;
+}
+
 function parsedToInvoiceData(parsed: ParsedInvoice): InvoiceData {
  return {
  supplierName: parsed.seller.name || "",
@@ -130,6 +135,7 @@ export async function POST(request: NextRequest) {
  const summary = parseUblSummary(ublXml);
 
  // Use credits only on the free plan. Paid plans do not consume starter credits.
+ let ublCreditDebited = false;
  if (plan === "free") {
  const { data: creditUsed, error: creditError } = await admin.rpc("use_credit", { p_user_id: user.id });
  if (creditError || creditUsed !== true) {
@@ -140,12 +146,13 @@ export async function POST(request: NextRequest) {
   .eq("user_id", user.id);
  return NextResponse.json({ error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." }, { status: 402 });
  }
+ ublCreditDebited = true;
  }
 
  // Update conversion record
- await supabase
- .from("conversions")
- .update({
+ const { error: updateError } = await supabase
+.from("conversions")
+.update({
  status: "success",
  ubl_xml: ublXml,
  customer_name: summary.customerName || parsed.buyer.name || null,
@@ -155,7 +162,17 @@ export async function POST(request: NextRequest) {
  })
  .eq("id", conversion.id);
 
- // Log
+  if (updateError) {
+  if (ublCreditDebited) await releaseUblCredit(admin, user.id);
+  await supabase
+   .from("conversions")
+   .update({ status: "failed" })
+   .eq("id", conversion.id)
+   .eq("user_id", user.id);
+  return NextResponse.json({ error: "Kon conversie niet afronden" }, { status: 500 });
+  }
+
+  // Log
  await supabase.from("scan_logs").insert({
  user_id: user.id,
  action: "convert_success",
