@@ -4,6 +4,11 @@ import { generateUBL, InvoiceData } from "@/lib/ubl-generator";
 import { validateInvoiceData } from "@/lib/ubl-validator";
 import { parseUblSummary, summarizeInvoiceData } from "@/lib/ubl-summary";
 
+async function releaseUblCredit(admin: ReturnType<typeof createAdminSupabase>, userId: string) {
+ const { data } = await admin.rpc("release_ubl_credit", { p_user_id: userId }).maybeSingle<{ credits: number }>();
+ return data || null;
+}
+
 export async function POST(req: NextRequest) {
  try {
  const supabase = await createServerSupabase();
@@ -35,8 +40,9 @@ export async function POST(req: NextRequest) {
  );
  }
 
- if (profile?.plan === "free") {
+ let ublCreditDebited = false;
  const admin = createAdminSupabase();
+ if (profile?.plan === "free") {
  const { data: creditUsed, error: creditError } = await admin.rpc("use_credit", { p_user_id: user.id });
  if (creditError || creditUsed !== true) {
  return NextResponse.json(
@@ -44,6 +50,7 @@ export async function POST(req: NextRequest) {
  { status: 402 }
  );
  }
+ ublCreditDebited = true;
  }
 
  const { data: conversion, error: conversionError } = await supabase.from("conversions").insert({
@@ -59,7 +66,8 @@ export async function POST(req: NextRequest) {
  }).select("id").single();
 
  if (conversionError || !conversion) {
-  return NextResponse.json({ error: "Factuur kon niet worden opgeslagen" }, { status: 500 });
+   if (ublCreditDebited) await releaseUblCredit(admin, user.id);
+    return NextResponse.json({ error: "Factuur kon niet worden opgeslagen" }, { status: 500 });
  }
 
  return NextResponse.json({ xml, conversionId: conversion.id, totalAmount: summary.totalAmount ?? fallbackSummary.totalAmount, currency: summary.currency || fallbackSummary.currency });
