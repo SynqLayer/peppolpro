@@ -1,5 +1,5 @@
 export function sanitizeDecimalInput(input: string, maxDecimals = 2): string {
- const normalized = normalizeDecimalSeparators(input);
+ const normalized = normalizeDecimalSeparators(input, maxDecimals);
  let result = "";
  let hasDecimalSeparator = false;
  let decimals = 0;
@@ -28,12 +28,7 @@ export function sanitizeDecimalCurrencyInput(input: string): string {
 }
 
 export function sanitizeDecimalDisplayInput(input: string, maxDecimals = 2): string {
- const hasComma = input.includes(",");
- const hasDot = input.includes(".");
- const lastComma = input.lastIndexOf(",");
- const lastDot = input.lastIndexOf(".");
- const decimalSeparator = hasComma && (!hasDot || lastComma > lastDot) ? "," : hasDot ? "." : "";
- const decimalIndex = decimalSeparator ? input.lastIndexOf(decimalSeparator) : -1;
+ const decimalIndex = findDecimalSeparatorIndex(input, maxDecimals);
  let result = "";
  let decimals = 0;
 
@@ -47,7 +42,7 @@ export function sanitizeDecimalDisplayInput(input: string, maxDecimals = 2): str
    result += char;
    continue;
   }
-  if (index === decimalIndex && decimalSeparator) result += decimalSeparator;
+  if (index === decimalIndex) result += char;
  }
 
  return result;
@@ -57,18 +52,36 @@ export function sanitizeDecimalCurrencyDisplayInput(input: string): string {
  return sanitizeDecimalDisplayInput(input, 2);
 }
 
-function normalizeDecimalSeparators(input: string): string {
- const lastCommaIndex = input.lastIndexOf(",");
- if (lastCommaIndex === -1) return input;
+function findDecimalSeparatorIndex(input: string, maxDecimals: number): number {
+ for (let index = input.length - 1; index >= 0; index -= 1) {
+  const char = input[index];
+  if (char !== "." && char !== ",") continue;
 
- const withoutThousandsDots = input.replace(/\./g, "");
- const decimalCommaIndex = withoutThousandsDots.lastIndexOf(",");
+  const tail = input.slice(index + 1);
+  const digitsAfter = tail.replace(/\D/g, "").length;
+  const followedByThreeDigitGroup = maxDecimals <= 2 && /^\d{3}(?:[.,]|$)/.test(tail);
 
- return (
-  withoutThousandsDots.slice(0, decimalCommaIndex).replace(/,/g, "") +
-  "." +
-  withoutThousandsDots.slice(decimalCommaIndex + 1)
- );
+  if (followedByThreeDigitGroup) continue;
+  if (digitsAfter <= maxDecimals) return index;
+ }
+
+ return -1;
+}
+
+function normalizeDecimalSeparators(input: string, maxDecimals = 2): string {
+ const decimalIndex = findDecimalSeparatorIndex(input, maxDecimals);
+ let result = "";
+
+ for (let index = 0; index < input.length; index += 1) {
+  const char = input[index];
+  if (/\d/.test(char)) {
+   result += char;
+   continue;
+  }
+  if (index === decimalIndex) result += ".";
+ }
+
+ return result;
 }
 
 export function parseDecimalInput(input: string, maxDecimals = 2): number {

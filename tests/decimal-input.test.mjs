@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseDecimalCurrencyInput, parseDecimalInput, sanitizeDecimalCurrencyDisplayInput, sanitizeDecimalCurrencyInput, sanitizeDecimalDisplayInput } from '../lib/decimal-input.ts';
+import { generateUBL } from '../lib/ubl-generator.ts';
 
 test('comma decimal currency input is stored as a number', () => {
  const sanitized = sanitizeDecimalCurrencyInput('150,50');
@@ -9,9 +10,9 @@ test('comma decimal currency input is stored as a number', () => {
 });
 
 test('currency input allows only digits and one decimal separator with max two decimals', () => {
- assert.equal(sanitizeDecimalCurrencyInput('12a3,456'), '123.45');
- assert.equal(sanitizeDecimalCurrencyInput('1,2.3'), '1.23');
- assert.equal(sanitizeDecimalCurrencyInput('9.876'), '9.87');
+ assert.equal(sanitizeDecimalCurrencyInput('12a3,456'), '123456');
+ assert.equal(sanitizeDecimalCurrencyInput('1,2.3'), '12.3');
+ assert.equal(sanitizeDecimalCurrencyInput('9.876'), '9876');
 });
 
 test('currency input handles Dutch and international thousands separators', () => {
@@ -21,6 +22,16 @@ test('currency input handles Dutch and international thousands separators', () =
   ['6991.09', 6991.09],
   ['150,50', 150.5],
   ['150.5', 150.5],
+  ['6.991', 6991],
+  ['1.500', 1500],
+  ['12.345', 12345],
+  ['1.234.567', 1234567],
+  ['1.234.567,89', 1234567.89],
+  ['1,234,567.89', 1234567.89],
+  ['0,05', 0.05],
+  ['0.05', 0.05],
+  ['1.5', 1.5],
+  ['', 0],
  ];
 
  for (const [input, expected] of cases) {
@@ -81,4 +92,37 @@ test('pasted Dutch thousands currency input is normalized for display and totals
  assert.equal(visible, '6991,09');
  assert.equal(stored, 6991.09);
  assert.equal(Math.round(stored * 1.21 * 100) / 100, 8459.22);
+});
+
+test('pasted thousands-only currency input remains a whole amount in UBL totals', () => {
+ const unitPrice = parseDecimalCurrencyInput('1.500');
+ const xml = generateUBL({
+  supplierName: 'Supplier BV',
+  supplierAddress: 'Straat 1',
+  supplierPostalCode: '1234AB',
+  supplierCity: 'Waddinxveen',
+  supplierCountry: 'NL',
+  supplierVatNr: 'NL005450830B62',
+  supplierKvkKbo: '42041391',
+  supplierIban: 'NL64RABO0118774336',
+  customerName: 'Klant BV',
+  customerAddress: 'Klantstraat 1',
+  customerPostalCode: '1000AA',
+  customerCity: 'Amsterdam',
+  customerCountry: 'NL',
+  customerVatNr: 'NL005450830B62',
+  customerKvkKbo: '',
+  customerEmail: 'customer@example.nl',
+  buyerReference: 'TEST',
+  invoiceNumber: 'TEST-1500',
+  invoiceDate: '2026-08-28',
+  dueDate: '2026-09-11',
+  currency: 'EUR',
+  lines: [{ id: '1', description: 'Duizendtal test', quantity: 1, unitPrice, vatPct: 21 }],
+ });
+
+ assert.equal(unitPrice, 1500);
+ assert.match(xml, /<cbc:TaxExclusiveAmount currencyID="EUR">1500\.00<\/cbc:TaxExclusiveAmount>/);
+ assert.match(xml, /<cbc:TaxAmount currencyID="EUR">315\.00<\/cbc:TaxAmount>/);
+ assert.match(xml, /<cbc:PayableAmount currencyID="EUR">1815\.00<\/cbc:PayableAmount>/);
 });
