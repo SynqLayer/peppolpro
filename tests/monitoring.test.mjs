@@ -512,7 +512,7 @@ test('Recommand send route refuses duplicate voided targets before provider call
  assert.match(recommandRoute, /function isVoidedDuplicate/);
  assert.match(recommandRoute, /recommand_status === "duplicate_voided"/);
  assert.match(recommandRoute, /if \(isVoidedDuplicate\(existing\)\) return jsonError\("Deze factuur is gemarkeerd als dubbel\/voided/);
- assert.match(recommandRoute, /recommand_status\.neq\.duplicate_voided/);
+ assert.match(recommandRoute, /rpc\("claim_recommand_send_target"/);
  assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
  assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('let recipient = normalizePeppolId'));
  assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const reserved = await reserveSendCredit'));
@@ -549,6 +549,8 @@ test('Recommand integration verifies recipients before send, gates plan limit, a
  assert.match(recommandRoute, /verifyRecipientSupportsInvoice\(recipient\)/);
  assert.match(recommandRoute, /recipient_not_found/);
  assert.match(recommandRoute, /recommand_raw_response: \{ verify: verify\.raw, verifyDocumentSupport: support\.raw, send: send\.raw, documents: status \}/);
+ assert.doesNotMatch(recommandRoute, /return jsonError\([^\n]+\{ verify: verify\.raw/);
+ assert.doesNotMatch(recommandRoute, /return NextResponse\.json\([^\n]+verifyDocumentSupport:/);
  assert.match(recommandInvoice, /validateRecommandInvoiceData/);
  assert.match(recommandInvoice, /Klant: postcode ontbreekt/);
  assert.doesNotMatch(recommandInvoice, /postalZone: .*\|\|/);

@@ -140,9 +140,9 @@ test('send route is idempotent for already-sent targets before validation, provi
 
 test('send route claims a target and reserves credits atomically before provider calls', () => {
  assert.match(recommandRoute, /function claimTargetForSending/);
- assert.match(recommandRoute, /recommand_status: "sending"/);
- assert.match(recommandRoute, /\.is\("recommand_document_id", null\)/);
- assert.match(recommandRoute, /\.is\("sent_via_recommand_at", null\)/);
+ assert.match(recommandRoute, /rpc\("claim_recommand_send_target"/);
+ assert.match(recommandRoute, /p_stale_after_minutes: RECOMMAND_SEND_STALE_AFTER_MINUTES/);
+ assert.match(recommandRoute, /recommand_claimed_at/);
  assert.match(recommandRoute, /rpc\("reserve_send_credit"/);
  const reserveBeforeProvider = recommandRoute.match(/const reserved = await reserveSendCredit[\s\S]*?const verify = await verifyRecipient/)?.[0] || '';
  assert.match(reserveBeforeProvider, /reserveSendCredit/);

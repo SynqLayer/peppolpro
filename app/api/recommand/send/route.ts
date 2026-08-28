@@ -5,6 +5,8 @@ import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
 import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
 import { validateStoredInvoiceConsistency } from "@/lib/invoice-preview";
 
+export const maxDuration = 60;
+
 type InvoicePayload = {
  conversionId?: string;
  invoiceId?: string;
@@ -27,7 +29,13 @@ type TargetRow = {
  total_amount?: number | string | null;
  recommand_document_id?: string | null;
  recommand_status?: string | null;
+ recommand_claimed_at?: string | null;
  sent_via_recommand_at?: string | null;
+};
+
+type ClaimRow = TargetRow & {
+ claimed?: boolean | null;
+ claim_action?: string | null;
 };
 
 type CreditRow = {
@@ -35,9 +43,11 @@ type CreditRow = {
  send_credits_expires_at?: string | null;
 };
 
-const TARGET_SELECT = "id, user_id, ubl_xml, total_amount, recommand_document_id, recommand_status, sent_via_recommand_at";
-const PROCESSING_WAIT_ATTEMPTS = 30;
+const CONVERSION_TARGET_SELECT = "id, user_id, ubl_xml, total_amount, recommand_document_id, recommand_status, recommand_claimed_at, sent_via_recommand_at";
+const INVOICE_TARGET_SELECT = "id, user_id, ubl_xml, total_incl, recommand_document_id, recommand_status, recommand_claimed_at, sent_via_recommand_at";
+const PROCESSING_WAIT_ATTEMPTS = 20;
 const PROCESSING_WAIT_MS = 1000;
+const RECOMMAND_SEND_STALE_AFTER_MINUTES = 10;
 
 function jsonError(message: string, status: number, extra: Record<string, unknown> = {}) {
  return NextResponse.json({ success: false, error: message, ...extra }, { status });
@@ -58,12 +68,22 @@ function sleep(ms: number) {
 function existingSendResponse(row: TargetRow, remainingCredits?: number | null) {
  return NextResponse.json({
   success: true,
-  idempotent: true,
-  documentId: row.recommand_document_id,
+  documentId: row.recommand_document_id || null,
   status: row.recommand_status || "sent",
-  sentAt: row.sent_via_recommand_at,
+  sentAt: row.sent_via_recommand_at || null,
   remainingCredits,
  });
+}
+
+function inProgressSendResponse(remainingCredits?: number | null) {
+ return NextResponse.json({
+  success: true,
+  documentId: null,
+  status: "sending",
+  sentAt: null,
+  remainingCredits,
+  message: "Verzending loopt nog. De status wordt zo ververst.",
+ }, { status: 202 });
 }
 
 function hasCompletedSend(row?: TargetRow | null) {
@@ -75,9 +95,20 @@ function isVoidedDuplicate(row?: TargetRow | null) {
 }
 
 async function fetchTarget(supabase: Awaited<ReturnType<typeof createServerSupabase>>, table: "conversions" | "invoices", targetId: string, userId: string) {
+ if (table === "invoices") {
+  const { data, error } = await supabase
+   .from("invoices")
+   .select(INVOICE_TARGET_SELECT)
+   .eq("id", targetId)
+   .eq("user_id", userId)
+   .single<TargetRow & { total_incl?: number | string | null }>();
+  if (error || !data) return null;
+  return { ...data, total_amount: data.total_incl ?? data.total_amount };
+ }
+
  const { data, error } = await supabase
-  .from(table)
-  .select(TARGET_SELECT)
+  .from("conversions")
+  .select(CONVERSION_TARGET_SELECT)
   .eq("id", targetId)
   .eq("user_id", userId)
   .single<TargetRow>();
@@ -96,23 +127,21 @@ async function waitForCompletedSend(supabase: Awaited<ReturnType<typeof createSe
 
 async function claimTargetForSending(supabase: ReturnType<typeof createAdminSupabase>, table: "conversions" | "invoices", targetId: string, userId: string) {
  const { data, error } = await supabase
-  .from(table)
-  .update({ recommand_status: "sending" })
-  .eq("id", targetId)
-  .eq("user_id", userId)
-  .is("recommand_document_id", null)
-  .is("sent_via_recommand_at", null)
-  .or("recommand_status.is.null,and(recommand_status.neq.sending,recommand_status.neq.duplicate_voided)")
-  .select(TARGET_SELECT)
-  .maybeSingle<TargetRow>();
- if (error || !data) return null;
+  .rpc("claim_recommand_send_target", {
+   p_target_table: table,
+   p_target_id: targetId,
+   p_user_id: userId,
+   p_stale_after_minutes: RECOMMAND_SEND_STALE_AFTER_MINUTES,
+  })
+  .maybeSingle<ClaimRow>();
+ if (error || !data || data.claimed !== true) return null;
  return data;
 }
 
 async function resetSendingClaim(supabase: ReturnType<typeof createAdminSupabase>, table: "conversions" | "invoices", targetId: string, userId: string) {
  await supabase
   .from(table)
-  .update({ recommand_status: null })
+  .update({ recommand_status: null, recommand_claimed_at: null })
   .eq("id", targetId)
   .eq("user_id", userId)
   .eq("recommand_status", "sending")
@@ -203,13 +232,13 @@ export async function POST(request: NextRequest) {
  if (!claim) {
   const completed = await waitForCompletedSend(supabase, targetTable, targetId, user.id);
   if (completed) return existingSendResponse(completed);
-  return jsonError("Deze factuur wordt al verzonden. Probeer het zo opnieuw.", 409);
+  return inProgressSendResponse();
  }
 
  const reserved = await reserveSendCredit(admin, user.id);
  if (!reserved) {
   await resetSendingClaim(admin, targetTable, targetId, user.id);
-  return jsonError("Je hebt geen geldig verzendtegoed. Koop een verzendbundel om via Peppol te verzenden.", 402, { upgradeUrl: "/upgrade", sendCredits: 0 });
+  return jsonError("Je hebt geen geldig verzendtegoed. Koop een verzendbundel om via Peppol te verzenden.", 402, { upgradeUrl: "/upgrade", remainingCredits: 0 });
  }
 
  const releaseAfterFailure = async () => releaseSendCredit(admin, user.id);
@@ -221,9 +250,10 @@ export async function POST(request: NextRequest) {
    await admin.from(targetTable).update({
     verified_recipient: false,
     recommand_status: "recipient_not_found",
+    recommand_claimed_at: null,
     recommand_raw_response: { verify: verify.raw },
    }).eq("id", targetId).eq("user_id", user.id);
-   return jsonError("Ontvanger is niet gevonden op het Peppol-netwerk. Verzenden is geblokkeerd.", 422, { verify: verify.raw, remainingCredits: released?.send_credits });
+   return jsonError("Ontvanger is niet gevonden op het Peppol-netwerk. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
 
   const support = await verifyRecipientSupportsInvoice(recipient);
@@ -232,34 +262,38 @@ export async function POST(request: NextRequest) {
    await admin.from(targetTable).update({
     verified_recipient: true,
     recommand_status: "invoice_not_supported",
+    recommand_claimed_at: null,
     recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw },
    }).eq("id", targetId).eq("user_id", user.id);
-   return jsonError("Ontvanger ondersteunt dit Peppol factuurdocumenttype niet. Verzenden is geblokkeerd.", 422, { verify: verify.raw, verifyDocumentSupport: support.raw, remainingCredits: released?.send_credits });
+   return jsonError("Ontvanger ondersteunt dit Peppol factuurdocumenttype niet. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
 
   const payload = { recipient, documentType: "invoice", document };
   const send = await sendDocument(profile.recommand_company_id, payload);
   const status = send.documentId ? await getDocumentStatus(send.documentId) : null;
   const recommandStatus = send.success ? (hasAs4Receipt(status?.body) ? "as4_received" : "sent") : "send_failed";
+  const sentAt = send.success ? new Date().toISOString() : null;
 
   await admin.from(targetTable).update({
    verified_recipient: true,
    recommand_document_id: send.documentId,
    recommand_status: recommandStatus,
+   recommand_claimed_at: null,
    recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status },
-   sent_via_recommand_at: send.success ? new Date().toISOString() : null,
+   sent_via_recommand_at: sentAt,
   }).eq("id", targetId).eq("user_id", user.id);
 
   if (!send.success) {
    const released = await releaseAfterFailure();
-   return jsonError("Recommand heeft het document niet geaccepteerd. Controleer de factuurgegevens en probeer opnieuw.", 502, { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status, remainingCredits: released?.send_credits });
+   return jsonError("Recommand heeft het document niet geaccepteerd. Controleer de factuurgegevens en probeer opnieuw.", 502, { remainingCredits: released?.send_credits });
   }
 
-  return NextResponse.json({ success: true, documentId: send.documentId, status: recommandStatus, remainingCredits: reserved.send_credits, verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status });
+  return NextResponse.json({ success: true, documentId: send.documentId, status: recommandStatus, sentAt, remainingCredits: reserved.send_credits });
  } catch (error) {
   const released = await releaseAfterFailure();
   await admin.from(targetTable).update({
    recommand_status: "send_failed",
+   recommand_claimed_at: null,
    recommand_raw_response: { error: error instanceof Error ? error.message : "Onbekende Recommand-fout" },
   }).eq("id", targetId).eq("user_id", user.id);
   return jsonError("Recommand verzenden is mislukt. Probeer het later opnieuw.", 502, { remainingCredits: released?.send_credits });
