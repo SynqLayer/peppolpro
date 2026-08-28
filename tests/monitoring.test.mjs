@@ -117,13 +117,19 @@ test('middleware invokes proxy session refresh and excludes static assets', () =
  assert.match(middlewareFile, /svg\|png\|jpg\|jpeg\|gif\|webp/);
 });
 
-test('invoice parser uses stable Gemini model and surfaces unavailable model errors', () => {
- assert.match(invoiceParser, /INVOICE_PARSER_MODEL = "gemini-2\.5-flash"/);
+test('invoice parser uses configurable stable Gemini model and structured JSON output', () => {
+ assert.match(invoiceParser, /DEFAULT_INVOICE_PARSER_MODEL = "gemini-2\.5-flash"/);
+ assert.match(invoiceParser, /process\.env\.GEMINI_MODEL \|\| DEFAULT_INVOICE_PARSER_MODEL/);
  assert.doesNotMatch(invoiceParser, /gemini-2\.5-flash-preview-04-17/);
- assert.match(invoiceParser, /isGeminiModelUnavailableError/);
- assert.match(invoiceParser, /Gemini factuurparser-model niet beschikbaar/);
- assert.match(convertRoute, /Gemini factuurparser-model niet beschikbaar/);
- assert.match(convertRoute, /status: 502/);
+ assert.match(invoiceParser, /responseMimeType:\s*"application\/json"/);
+ assert.match(invoiceParser, /responseSchema/);
+ assert.match(invoiceParser, /extractFirstJsonValue/);
+ assert.match(invoiceParser, /InvoiceParserError/);
+ assert.match(convertRoute, /Convert parser error/);
+ assert.match(convertRoute, /describeInvoiceParserError/);
+ assert.match(convertRoute, /De factuurherkenning gaf een onverwacht antwoord/);
+ assert.match(convertRoute, /Deze PDF kon niet goed worden gelezen/);
+ assert.match(convertRoute, /De factuurherkenning is tijdelijk niet beschikbaar/);
 });
 
 test('legacy duplicate Mollie webhook re-export and fix script are removed', () => {

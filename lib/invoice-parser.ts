@@ -1,11 +1,104 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
-export const INVOICE_PARSER_MODEL = "gemini-2.5-flash";
+export const DEFAULT_INVOICE_PARSER_MODEL = "gemini-2.5-flash";
+export const INVOICE_PARSER_MODEL = process.env.GEMINI_MODEL || DEFAULT_INVOICE_PARSER_MODEL;
+
+export type InvoiceParserErrorKind = "unreadable_pdf" | "unexpected_response" | "service_unavailable";
+
+export class InvoiceParserError extends Error {
+ kind: InvoiceParserErrorKind;
+ responsePreview?: string;
+ causeMessage?: string;
+
+ constructor(kind: InvoiceParserErrorKind, message: string, options: { responsePreview?: string; cause?: unknown } = {}) {
+  super(message);
+  this.name = "InvoiceParserError";
+  this.kind = kind;
+  this.responsePreview = options.responsePreview;
+  this.causeMessage = options.cause instanceof Error ? options.cause.message : options.cause ? String(options.cause) : undefined;
+ }
+}
 
 function isGeminiModelUnavailableError(error: unknown) {
  const message = error instanceof Error ? error.message : String(error);
  return /model|not found|not supported|not available|not recognized|unknown|404/i.test(message);
 }
+
+function isGeminiTemporaryError(error: unknown) {
+ const message = error instanceof Error ? error.message : String(error);
+ const status = typeof error === "object" && error && "status" in error ? Number((error as { status?: unknown }).status) : undefined;
+ return status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || /quota|rate limit|resource exhausted|temporar|timeout|unavailable|overloaded/i.test(message);
+}
+
+function responsePreview(text: string) {
+ return text.replace(/\s+/g, " ").trim().slice(0, 180);
+}
+
+const invoiceResponseSchema = {
+ type: SchemaType.OBJECT,
+ properties: {
+  seller: {
+   type: SchemaType.OBJECT,
+   properties: {
+    name: { type: SchemaType.STRING, nullable: true },
+    address: { type: SchemaType.STRING, nullable: true },
+    postal_code: { type: SchemaType.STRING, nullable: true },
+    city: { type: SchemaType.STRING, nullable: true },
+    country: { type: SchemaType.STRING, nullable: true },
+    kvk_number: { type: SchemaType.STRING, nullable: true },
+    btw_number: { type: SchemaType.STRING, nullable: true },
+    iban: { type: SchemaType.STRING, nullable: true },
+    email: { type: SchemaType.STRING, nullable: true },
+    phone: { type: SchemaType.STRING, nullable: true },
+   },
+  },
+  buyer: {
+   type: SchemaType.OBJECT,
+   properties: {
+    name: { type: SchemaType.STRING, nullable: true },
+    address: { type: SchemaType.STRING, nullable: true },
+    postal_code: { type: SchemaType.STRING, nullable: true },
+    city: { type: SchemaType.STRING, nullable: true },
+    country: { type: SchemaType.STRING, nullable: true },
+    btw_number: { type: SchemaType.STRING, nullable: true },
+   },
+  },
+  invoice: {
+   type: SchemaType.OBJECT,
+   properties: {
+    number: { type: SchemaType.STRING, nullable: true },
+    date: { type: SchemaType.STRING, nullable: true },
+    due_date: { type: SchemaType.STRING, nullable: true },
+    currency: { type: SchemaType.STRING },
+    payment_terms: { type: SchemaType.STRING, nullable: true },
+    reference: { type: SchemaType.STRING, nullable: true },
+   },
+  },
+  lines: {
+   type: SchemaType.ARRAY,
+   items: {
+    type: SchemaType.OBJECT,
+    properties: {
+     description: { type: SchemaType.STRING },
+     quantity: { type: SchemaType.NUMBER },
+     unit_price: { type: SchemaType.NUMBER },
+     vat_rate: { type: SchemaType.NUMBER },
+     vat_amount: { type: SchemaType.NUMBER },
+     line_total: { type: SchemaType.NUMBER },
+    },
+   },
+  },
+  totals: {
+   type: SchemaType.OBJECT,
+   properties: {
+    subtotal: { type: SchemaType.NUMBER },
+    total_vat: { type: SchemaType.NUMBER },
+    total: { type: SchemaType.NUMBER },
+   },
+  },
+},
+ required: ["seller", "buyer", "invoice", "lines", "totals"],
+};
 
 const PARSE_PROMPT = `Je bent een AI die PDF-facturen analyseert. Extraheer ALLE velden.
 Geef het resultaat als ALLEEN valid JSON, geen tekst ervoor of erna.
@@ -21,7 +114,7 @@ Geef het resultaat als ALLEEN valid JSON, geen tekst ervoor of erna.
  "btw_number": "NL123456789B01",
  "iban": "NL00BANK0123456789",
  "email": "email@bedrijf.nl",
- "phone": "+31612345678"
+ "phone": "+316****5678"
  },
  "buyer": {
  "name": "Bedrijfsnaam klant",
@@ -108,28 +201,96 @@ export interface ParsedInvoice {
  };
 }
 
+export function extractFirstJsonValue(text: string) {
+ const start = text.search(/[\[{]/);
+ if (start === -1) {
+  throw new InvoiceParserError("unexpected_response", "Gemini gaf geen JSON-object terug.", { responsePreview: responsePreview(text) });
+ }
+ const opener = text[start];
+ const closer = opener === "{" ? "}" : "]";
+ let depth = 0;
+ let inString = false;
+ let escaped = false;
+ for (let index = start; index < text.length; index += 1) {
+  const char = text[index];
+  if (inString) {
+   if (escaped) {
+    escaped = false;
+   } else if (char === "\\") {
+    escaped = true;
+   } else if (char === "\"") {
+    inString = false;
+   }
+   continue;
+  }
+  if (char === "\"") {
+   inString = true;
+  } else if (char === opener) {
+   depth += 1;
+  } else if (char === closer) {
+   depth -= 1;
+   if (depth === 0) return text.slice(start, index + 1);
+  }
+ }
+ throw new InvoiceParserError("unexpected_response", "Gemini gaf onvolledige JSON terug.", { responsePreview: responsePreview(text) });
+}
+
+export function parseGeminiInvoiceJson(text: string): ParsedInvoice {
+ const jsonText = extractFirstJsonValue(text);
+ try {
+  return JSON.parse(jsonText) as ParsedInvoice;
+ } catch (error) {
+  throw new InvoiceParserError("unexpected_response", "Gemini gaf ongeldige JSON terug.", { responsePreview: responsePreview(text), cause: error });
+ }
+}
+
+export function describeInvoiceParserError(error: unknown) {
+ if (error instanceof InvoiceParserError) {
+  return {
+   name: error.name,
+   kind: error.kind,
+   message: error.message,
+   cause: error.causeMessage,
+   responsePreview: error.responsePreview,
+  };
+ }
+ if (error instanceof Error) {
+  return { name: error.name, message: error.message };
+ }
+ return { name: "UnknownError", message: String(error) };
+}
+
 export async function parseInvoicePDF(pdfBase64: string): Promise<ParsedInvoice> {
  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
- const model = genAI.getGenerativeModel({ model: INVOICE_PARSER_MODEL });
+ const model = genAI.getGenerativeModel({
+  model: INVOICE_PARSER_MODEL,
+  generationConfig: {
+   responseMimeType: "application/json",
+   responseSchema: invoiceResponseSchema as never,
+  },
+ });
 
  try {
- const result = await model.generateContent([
- { text: PARSE_PROMPT },
- {
- inlineData: {
- mimeType: "application/pdf",
- data: pdfBase64,
- },
- },
- ]);
+  const result = await model.generateContent([
+  { text: PARSE_PROMPT },
+  {
+  inlineData: {
+  mimeType: "application/pdf",
+  data: pdfBase64,
+  },
+  },
+  ]);
 
- const text = result.response.text();
- const cleaned = text.replace(/`json\n?/g, "").replace(/```\n?/g, "").trim();
- return JSON.parse(cleaned) as ParsedInvoice;
+  const text = result.response.text();
+  return parseGeminiInvoiceJson(text);
  } catch (error) {
- if (isGeminiModelUnavailableError(error)) {
- throw new Error(`Gemini factuurparser-model niet beschikbaar: ${INVOICE_PARSER_MODEL}. Controleer GEMINI_API_KEY en configureer een ondersteund stabiel Gemini-model.`);
- }
- throw error;
+  if (error instanceof InvoiceParserError) throw error;
+  if (isGeminiModelUnavailableError(error)) {
+   throw new InvoiceParserError("service_unavailable", `Gemini factuurparser-model niet beschikbaar: ${INVOICE_PARSER_MODEL}. Controleer GEMINI_API_KEY en configureer een ondersteund stabiel Gemini-model.`, { cause: error });
+  }
+  if (isGeminiTemporaryError(error)) {
+   throw new InvoiceParserError("service_unavailable", "Gemini factuurparser tijdelijk niet beschikbaar.", { cause: error });
+  }
+  throw new InvoiceParserError("unreadable_pdf", "PDF kon niet door Gemini worden gelezen.", { cause: error });
  }
 }
