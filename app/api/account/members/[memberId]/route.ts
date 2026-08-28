@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
+
+const memberColumns = "id, account_owner_id, member_user_id";
 
 type Params = { params: Promise<{ memberId: string }> };
 
@@ -10,9 +12,10 @@ export async function DELETE(_req: Request, { params }: Params) {
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
  if (!memberId) return NextResponse.json({ error: "Teamlid-id ontbreekt" }, { status: 400 });
 
- const { data: member, error: lookupError } = await supabase
+ const admin = createAdminSupabase();
+ const { data: member, error: lookupError } = await admin
  .from("account_members")
- .select("id, account_owner_id, member_user_id")
+ .select(memberColumns)
  .eq("id", memberId)
  .single();
 
@@ -21,7 +24,7 @@ export async function DELETE(_req: Request, { params }: Params) {
  const isSelf = member.member_user_id === user.id;
  if (!isOwner && !isSelf) return NextResponse.json({ error: "Niet toegestaan" }, { status: 403 });
 
- const { error: deleteError } = await supabase
+ const { error: deleteError } = await admin
  .from("account_members")
  .delete()
  .eq("id", memberId);

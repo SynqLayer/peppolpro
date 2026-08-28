@@ -250,6 +250,8 @@ test('free plan users cannot access monitoring operations endpoints or tabs whil
  assert.match(membersGet, /status: 403/);
  assert.match(membersPost, /assertMonitoringAccess\(user\.id\)/);
  assert.match(membersPost, /status: 403/);
+ assert.match(membersPost, /createAdminSupabase\(\)/);
+ assert.match(membersPost, /access\.entitlement\.accountOwnerId !== user\.id/);
  assert.doesNotMatch(membersPatch, /assertMonitoringAccess\(user\.id\)/);
  assert.doesNotMatch(membersPatch, /status: 403/);
  assert.match(membersPatch, /status: "accepted"/);
@@ -309,6 +311,7 @@ test('webhook UI requires active disclaimer confirmation before saving', () => {
 
 test('team member delete route removes membership and RLS access depends on accepted row presence', () => {
  assert.match(memberDeleteRoute, /export async function DELETE/);
+ assert.match(memberDeleteRoute, /createAdminSupabase\(\)/);
  assert.match(memberDeleteRoute, /isOwner/);
  assert.match(memberDeleteRoute, /isSelf/);
  assert.match(memberDeleteRoute, /from\("account_members"\)[\s\S]*\.delete\(\)/);
