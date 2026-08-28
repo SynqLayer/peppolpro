@@ -135,8 +135,10 @@ test('send credit bundles replace Compleet while monitoring tiers stay configure
  assert.match(plans, /PlanId = "free" \| "monitoring" \| "monitoring_accountant"/);
  assert.match(plans, /CreditBundleId = "send_credits_10" \| "send_credits_25" \| "send_credits_50"/);
  assert.doesNotMatch(plans, /\bcompleet\b/i);
- assert.match(plans, /free:\s*{[\s\S]*3 gratis UBL-generaties bij registratie/);
+ assert.match(plans, /free:\s*{[\s\S]*Eenmalig 3 gratis UBL-generaties bij registratie/);
  assert.match(plans, /free:\s*{[\s\S]*Geen Peppol-verzending inbegrepen/);
+ assert.doesNotMatch(generateRoute, /Koop een verzendbundel om verder te gaan|Bekijk de prijzen om verder te gaan/);
+ assert.doesNotMatch(convertRoute, /Koop een verzendbundel om verder te gaan|Bekijk de prijzen om verder te gaan/);
  assert.match(plans, /send_credits_10:\s*{[\s\S]*amount:\s*"9\.00"/);
  assert.match(plans, /send_credits_25:\s*{[\s\S]*amount:\s*"19\.00"/);
  assert.match(plans, /send_credits_50:\s*{[\s\S]*amount:\s*"34\.00"/);

@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
  const plan = profile.plan || "free";
  if (plan === "free" && (profile.credits ?? 0) <= 0) {
- return NextResponse.json({ error: "Geen gratis UBL-generaties meer. Koop een verzendbundel om verder te gaan." }, { status: 403 });
+ return NextResponse.json({ error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." }, { status: 403 });
  }
 
  // Get PDF from form data
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
   .update({ status: "failed" })
   .eq("id", conversion.id)
   .eq("user_id", user.id);
- return NextResponse.json({ error: "Geen gratis UBL-generaties meer. Bekijk de prijzen om verder te gaan.", upgradeUrl: "/prijzen" }, { status: 402 });
+ return NextResponse.json({ error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." }, { status: 402 });
  }
  }
 

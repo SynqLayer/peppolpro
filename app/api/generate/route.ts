@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
  if (profile?.plan === "free" && (profile?.credits ?? 0) <= 0) {
  return NextResponse.json(
- { error: "Geen gratis UBL-generaties meer. Koop een verzendbundel om verder te gaan." },
+ { error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." },
  { status: 402 }
  );
  }
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
  const { data: creditUsed, error: creditError } = await admin.rpc("use_credit", { p_user_id: user.id });
  if (creditError || creditUsed !== true) {
  return NextResponse.json(
- { error: "Geen gratis UBL-generaties meer. Bekijk de prijzen om verder te gaan.", upgradeUrl: "/prijzen" },
+ { error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." },
  { status: 402 }
  );
  }

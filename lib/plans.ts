@@ -52,10 +52,10 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   price: "€0",
   amount: "0.00",
   period: "",
-  description: "Voor starten en incidenteel UBL-gebruik.",
+  description: "Voor starten en incidenteel UBL-gebruik met eenmalig starttegoed.",
   checkoutDescription: "PeppolPro Gratis",
   features: [
-   "3 gratis UBL-generaties bij registratie",
+   "Eenmalig 3 gratis UBL-generaties bij registratie",
    "UBL-facturen genereren en downloaden",
    "Geen Peppol-verzending inbegrepen",
    "Basis factuurhistorie",
