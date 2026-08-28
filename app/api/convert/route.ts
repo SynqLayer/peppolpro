@@ -92,9 +92,9 @@ export async function POST(request: NextRequest) {
  const filename = file.name;
 
  // Create conversion record
- const { data: conversion, error: convError } = await supabase
- .from("conversions")
- .insert({ user_id: user.id, filename, status: "processing" })
+ const { data: conversion, error: convError } = await admin
+.from("conversions")
+.insert({ user_id: user.id, filename, status: "processing" })
  .select("id")
  .single();
 
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
  try {
  parsed = await parseInvoicePDF(base64);
  } catch (parseError: unknown) {
- await supabase
+ await admin
   .from("conversions")
   .update({ status: "failed" })
   .eq("id", conversion.id);
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
  if (plan === "free") {
  const { data: creditUsed, error: creditError } = await admin.rpc("use_credit", { p_user_id: user.id });
  if (creditError || creditUsed !== true) {
- await supabase
+ await admin
   .from("conversions")
   .update({ status: "failed" })
   .eq("id", conversion.id)
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
  }
 
  // Update conversion record
- const { error: updateError } = await supabase
+ const { error: updateError } = await admin
 .from("conversions")
 .update({
  status: "success",
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
 
   if (updateError) {
   if (ublCreditDebited) await releaseUblCredit(admin, user.id);
-  await supabase
+  await admin
    .from("conversions")
    .update({ status: "failed" })
    .eq("id", conversion.id)
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Log
- await supabase.from("scan_logs").insert({
+ await admin.from("scan_logs").insert({
  user_id: user.id,
  action: "convert_success",
  meta: { conversion_id: conversion.id, filename, total: parsed.totals.total },

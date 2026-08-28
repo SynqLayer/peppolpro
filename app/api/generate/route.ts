@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
  ublCreditDebited = true;
  }
 
- const { data: conversion, error: conversionError } = await supabase.from("conversions").insert({
+ const { data: conversion, error: conversionError } = await admin.from("conversions").insert({
   user_id: user.id,
   filename: `peppolpro-${invoiceData.invoiceNumber}.xml`,
   status: "done",

@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
  if (rows.length === 0) return NextResponse.json({ error: "CSV bevat geen geldige targetregels" }, { status: 400 });
  if (rows.length > 1000) return NextResponse.json({ error: "Maximaal 1000 targets per import" }, { status: 400 });
 
- const inserts = rows.map((row) => ({ ...row, user_id: access.entitlement.accountOwnerId, status: "active" }));
+ const inserts = rows.map((row) => ({ ...row, user_id: access.entitlement.accountOwnerId }));
  const { data, error } = await supabase
  .from("monitoring_targets")
  .insert(inserts)

@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
  const { data, error } = await supabase
  .from("monitoring_targets")
- .insert({ user_id: access.entitlement.accountOwnerId, identifier_type, identifier_value, label, status: "active" })
+ .insert({ user_id: access.entitlement.accountOwnerId, identifier_type, identifier_value, label })
  .select("id, identifier_type, identifier_value, label, status, last_checked_at, created_at")
  .single();
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createCompany } from "@/lib/recommand";
 import { enterpriseNumberScheme, missingRequiredCompanyFields, shouldCreateRecommandCompany } from "@/lib/recommand-company-validation";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
 
 type ProfileRow = {
  id: string;
@@ -24,6 +24,7 @@ function jsonError(error: string, status: number, extra: Record<string, unknown>
 
 export async function POST() {
  const supabase = await createServerSupabase();
+ const admin = createAdminSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return jsonError("Niet ingelogd", 401);
 
@@ -65,7 +66,7 @@ export async function POST() {
 
  const rawResponse = { createCompany: result.raw };
  if (result.companyId) {
- await supabase.from("user_profiles").update({
+ await admin.from("user_profiles").update({
  recommand_company_id: result.companyId,
  recommand_verified: result.isVerified,
  recommand_verification_url: result.verificationUrl,

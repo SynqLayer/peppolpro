@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
 import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { normalizeWebhookUrl } from "@/lib/monitoring-webhooks";
 
@@ -24,6 +24,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
  const supabase = await createServerSupabase();
+ const admin = createAdminSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
  const access = await assertMonitoringAccess(user.id);
@@ -39,9 +40,9 @@ export async function POST(req: NextRequest) {
  } catch (err) {
  return NextResponse.json({ error: err instanceof Error ? err.message : "Ongeldige webhook-URL" }, { status: 400 });
  }
- const { data, error } = await supabase
- .from("monitoring_webhook_configs")
- .upsert({ user_id: user.id, webhook_url, updated_at: new Date().toISOString(), revoked_at: null, disclaimer_accepted_at: new Date().toISOString() }, { onConflict: "user_id" })
+ const { data, error } = await admin
+.from("monitoring_webhook_configs")
+.upsert({ user_id: user.id, webhook_url, updated_at: new Date().toISOString(), revoked_at: null, disclaimer_accepted_at: new Date().toISOString() }, { onConflict: "user_id" })
  .select("id, webhook_url, created_at, updated_at, revoked_at")
  .single();
  if (error) return NextResponse.json({ error: "Webhook-config opslaan mislukt" }, { status: 500 });
@@ -50,13 +51,14 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE() {
  const supabase = await createServerSupabase();
+ const admin = createAdminSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
  const access = await assertMonitoringAccess(user.id);
  if (!access.ok) return NextResponse.json({ error: "API & Webhooks zijn alleen beschikbaar met een actief Monitoring-abonnement.", upgradeCta: "Upgrade naar Monitoring", reason: access.entitlement.reason }, { status: 403 });
- const { error } = await supabase
- .from("monitoring_webhook_configs")
- .update({ revoked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+ const { error } = await admin
+.from("monitoring_webhook_configs")
+.update({ revoked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
  .eq("user_id", user.id);
  if (error) return NextResponse.json({ error: "Webhook-config intrekken mislukt" }, { status: 500 });
  return NextResponse.json({ ok: true });

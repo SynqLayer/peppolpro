@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCompany } from "@/lib/recommand";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
 
 type ProfileRow = {
  recommand_company_id?: string | null;
@@ -14,6 +14,7 @@ function jsonError(error: string, status: number, extra: Record<string, unknown>
 
 export async function GET() {
  const supabase = await createServerSupabase();
+ const admin = createAdminSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return jsonError("Niet ingelogd", 401);
 
@@ -32,7 +33,7 @@ export async function GET() {
  getCompany: result.raw,
  };
 
- await supabase.from("user_profiles").update({
+ await admin.from("user_profiles").update({
  recommand_verified: result.isVerified,
  recommand_raw_response: rawResponse,
  }).eq("id", user.id);
