@@ -130,6 +130,10 @@ test('invoice parser uses configurable stable Gemini model and structured JSON o
  assert.match(convertRoute, /De factuurherkenning gaf een onverwacht antwoord/);
  assert.match(convertRoute, /Deze PDF kon niet goed worden gelezen/);
  assert.match(convertRoute, /De factuurherkenning is tijdelijk niet beschikbaar/);
+ assert.match(convertRoute, /validateParsedInvoiceForConversion/);
+ assert.match(convertRoute, /De factuur kon niet betrouwbaar worden gelezen/);
+ assert.ok(convertRoute.indexOf('validateParsedInvoiceForConversion(parsed)') < convertRoute.indexOf('use_credit'));
+ assert.ok(convertRoute.indexOf('validateParsedInvoiceForConversion(parsed)') < convertRoute.indexOf('convert_success'));
 });
 
 test('legacy duplicate Mollie webhook re-export and fix script are removed', () => {

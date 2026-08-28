@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "../../../lib/supabase-server";
-import { ParsedInvoice, parseInvoicePDF, describeInvoiceParserError, InvoiceParserError } from "../../../lib/invoice-parser";
+import { ParsedInvoice, parseInvoicePDF, describeInvoiceParserError, InvoiceParserError, validateParsedInvoiceForConversion } from "../../../lib/invoice-parser";
 import { generateUBL, InvoiceData } from "../../../lib/ubl-generator";
 import { parseUblSummary } from "../../../lib/ubl-summary";
 
@@ -138,6 +138,26 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ error: "Deze PDF kon niet goed worden gelezen. Upload een tekst-PDF of probeer een duidelijkere factuur." }, { status: 422 });
  }
  return NextResponse.json({ error: "De factuurherkenning is tijdelijk niet beschikbaar. Probeer het later opnieuw." }, { status: 503 });
+ }
+
+ // Validate parsed invoice before generating UBL or debiting credit.
+ const parsedValidation = validateParsedInvoiceForConversion(parsed);
+ if (!parsedValidation.valid) {
+  await admin
+   .from("conversions")
+   .update({ status: "failed" })
+   .eq("id", conversion.id);
+  console.error("Convert parser returned insufficient invoice data", {
+   conversionId: conversion.id,
+   filename,
+   reasons: parsedValidation.reasons,
+   invoiceNumberPresent: Boolean(parsed.invoice?.number),
+   customerNamePresent: Boolean(parsed.buyer?.name),
+   lineCount: Array.isArray(parsed.lines) ? parsed.lines.length : null,
+   total: parsed.totals?.total ?? null,
+   currency: parsed.invoice?.currency ?? null,
+  });
+  return NextResponse.json({ error: "De factuur kon niet betrouwbaar worden gelezen. Vul de gegevens handmatig in via Nieuwe factuur, dan maken we daar een correcte UBL van." }, { status: 422 });
  }
 
  // Generate UBL
