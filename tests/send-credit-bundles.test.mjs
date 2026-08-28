@@ -19,6 +19,8 @@ const dashboard = readFileSync(new URL('../app/dashboard/DashboardClient.tsx', i
 const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
 const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.url), 'utf8');
 const upgradePage = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
+const peppolSendPage = readFileSync(new URL('../app/peppol-factuur-versturen/page.tsx', import.meta.url), 'utf8');
+const brevoSource = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
 
 test('send credit bundles replace old sending subscriptions in plan source', () => {
  assert.deepEqual(creditBundles.map((bundle) => [bundle.id, bundle.credits, bundle.amount]), [
@@ -161,6 +163,10 @@ test('UI surfaces bundles and remaining send credit wallet', () => {
  assert.match(dashboard, /send_credits_expires_at/);
  assert.match(nieuwPage, /Verzendtegoed:/);
  assert.match(nieuwPage, /Koop een verzendbundel om via Peppol te verzenden/);
+ assert.doesNotMatch(nieuwPage, /Verzenden 25|Verzenden 100/);
+ assert.doesNotMatch(peppolSendPage, /Verzenden 25|Verzenden 100|€0,45|€0,35/);
+ assert.match(peppolSendPage, /CREDIT_BUNDLES/);
+ assert.doesNotMatch(brevoSource, /Verzenden 25|Verzenden 100|€0,45|€0,35/);
 });
 
 test('dashboard renders a per-invoice send action and removes the old new-invoice instruction', () => {

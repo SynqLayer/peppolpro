@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 
  if (profile?.plan === "free" && (profile?.credits ?? 0) <= 0) {
  return NextResponse.json(
- { error: "Geen gratis UBL-generaties meer. Kies een passend plan zodra verzendbundels beschikbaar zijn." },
+ { error: "Geen gratis UBL-generaties meer. Koop een verzendbundel om verder te gaan." },
  { status: 402 }
  );
  }

@@ -64,8 +64,8 @@ export async function sendWelcomeEmail(to: string, name: string) {
  <div style="color:#94a3b8;font-size:13px;line-height:1.6">
  <strong style="color:#ffffff">Gratis plan</strong>
  — 3 UBL-generaties inbegrepen<br>
- <span style="color:#6366f1">Upgrade naar Verzenden 25 voor €12/mnd</span>
- voor 25 verzendingen inbegrepen en €0,45 per extra verzending
+ <span style="color:#6366f1">Koop verzendtegoed wanneer je via Peppol wilt verzenden</span><br>
+ Bundels zijn eenmalig te koop en 12 maanden geldig
  </div>
  </div>
  </td>

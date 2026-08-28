@@ -115,7 +115,7 @@ export function generateUBL(d: InvoiceData): string {
  <cbc:TaxAmount currencyID="${escapeXml(d.currency)}">${value.tax.toFixed(2)}</cbc:TaxAmount>
  <cac:TaxCategory>
  <cbc:ID>${Number(pct) === 0 ? "Z" : "S"}</cbc:ID>
- <cbc:Percent>${pct}</cbc:Percent>
+ <cbc:Percent>${Number(pct).toFixed(2)}</cbc:Percent>
  <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
  </cac:TaxCategory>
  </cac:TaxSubtotal>`)
@@ -132,7 +132,7 @@ export function generateUBL(d: InvoiceData): string {
  <cbc:Name>${escapeXml(line.description)}</cbc:Name>
  <cac:ClassifiedTaxCategory>
  <cbc:ID>${line.vatPct === 0 ? "Z" : "S"}</cbc:ID>
- <cbc:Percent>${line.vatPct}</cbc:Percent>
+ <cbc:Percent>${line.vatPct.toFixed(2)}</cbc:Percent>
  <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
  </cac:ClassifiedTaxCategory>
  </cac:Item>
