@@ -161,6 +161,11 @@ test('send credit bundles are available for checkout and no longer shown as comi
  assert.doesNotMatch(constants, /export const PRICING/);
  assert.match(homePage, /publicPricingPlans/);
  assert.match(pricingPage, /publicPricingPlans/);
+ assert.match(pricingPage, /Alle getoonde prijzen zijn incl\. btw/);
+ assert.match(pricingPage, /className="pricing-card-cta"/);
+ assert.match(pricingPage, /className="pricing-badge"/);
+ assert.match(pricingPage, /isLimitation \? "—" : "✓"/);
+ assert.doesNotMatch(pricingPage, /plan\.highlight\s*\?\s*\{ background: `linear-gradient/);
  assert.match(upgradePage, /creditBundles/);
  assert.doesNotMatch(`${constants}\n${pricingPage}\n${upgradePage}\n${homePage}\n${layout}\n${peppolSendPage}`, /verzend(?:en|ing|bundels)?[^\n.]{0,80}binnenkort|binnenkort[^\n.]{0,80}verzend/i);
  assert.doesNotMatch(`${pricingPage}\n${upgradePage}`, /Peppol-verzending wordt binnenkort geactiveerd\. UBL genereren en downloaden werkt nu al\./);
