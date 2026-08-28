@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminSupabase } from "../../../lib/supabase-server";
 import { ParsedInvoice, parseInvoicePDF } from "../../../lib/invoice-parser";
 import { generateUBL, InvoiceData } from "../../../lib/ubl-generator";
 import { parseUblSummary } from "../../../lib/ubl-summary";
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
 
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ const admin = createAdminSupabase();
 
  // Check credits
  const { data: profile } = await supabase
@@ -129,7 +131,15 @@ export async function POST(request: NextRequest) {
 
  // Use credits only on the free plan. Paid plans do not consume starter credits.
  if (plan === "free") {
- await supabase.rpc("use_credit", { p_user_id: user.id });
+ const { data: creditUsed, error: creditError } = await admin.rpc("use_credit", { p_user_id: user.id });
+ if (creditError || creditUsed !== true) {
+ await supabase
+  .from("conversions")
+  .update({ status: "failed" })
+  .eq("id", conversion.id)
+  .eq("user_id", user.id);
+ return NextResponse.json({ error: "Geen gratis UBL-generaties meer. Bekijk de prijzen om verder te gaan.", upgradeUrl: "/prijzen" }, { status: 402 });
+ }
  }
 
  // Update conversion record
