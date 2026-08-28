@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
 import { getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsInvoice } from "@/lib/recommand";
 import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
+import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
 
 type InvoicePayload = {
  conversionId?: string;
@@ -21,6 +22,7 @@ type ProfileRow = {
 type TargetRow = {
  id: string;
  user_id: string;
+ ubl_xml?: string | null;
  recommand_document_id?: string | null;
  recommand_status?: string | null;
  sent_via_recommand_at?: string | null;
@@ -31,7 +33,7 @@ type CreditRow = {
  send_credits_expires_at?: string | null;
 };
 
-const TARGET_SELECT = "id, user_id, recommand_document_id, recommand_status, sent_via_recommand_at";
+const TARGET_SELECT = "id, user_id, ubl_xml, recommand_document_id, recommand_status, sent_via_recommand_at";
 const PROCESSING_WAIT_ATTEMPTS = 30;
 const PROCESSING_WAIT_MS = 1000;
 
@@ -169,8 +171,13 @@ export async function POST(request: NextRequest) {
  if (isVoidedDuplicate(existing)) return jsonError("Deze factuur is gemarkeerd als dubbel/voided en kan niet via Peppol worden verzonden.", 409);
  if (hasCompletedSend(existing)) return existingSendResponse(existing);
 
- const recipient = normalizePeppolId(input.recipient || input.peppolId || input.peppolAddress);
- const document = input.document;
+ let recipient = normalizePeppolId(input.recipient || input.peppolId || input.peppolAddress);
+ let document = input.document;
+ if ((!recipient || !document) && existing.ubl_xml) {
+  const fromUbl = buildRecommandPayloadFromUbl(existing.ubl_xml);
+  recipient ||= fromUbl.recipient;
+  document ||= fromUbl.document;
+ }
  if (!recipient) return jsonError("Ontvanger-Peppol-ID ontbreekt", 400);
  const documentErrors = validateRecommandInvoiceDocument(document);
  if (documentErrors.length > 0) {
