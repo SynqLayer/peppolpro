@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const migration = readFileSync(new URL('../supabase/migrations/0023_harden_client_table_privileges.sql', import.meta.url), 'utf8');
+const migration0024 = readFileSync(new URL('../supabase/migrations/0024_account_members_service_role_writes.sql', import.meta.url), 'utf8');
 const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
 const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
 const recommandSendRoute = readFileSync(new URL('../app/api/recommand/send/route.ts', import.meta.url), 'utf8');
@@ -68,9 +69,11 @@ test('monitoring_targets protects system columns while target creation still use
  assert.doesNotMatch(bulkRoute, /status:\s*"active"/);
 });
 
-test('account_members invite acceptance cannot update ownership columns', () => {
- assert.deepEqual(insertGrantFor('account_members'), ['account_owner_id', 'invite_email', 'role', 'status']);
- assert.deepEqual(updateGrantFor('account_members'), ['member_user_id', 'accepted_at', 'status']);
+test('account_members invite creation and removal are service-role only while client accept is column-limited', () => {
+ assert.match(migration0024, /revoke insert, delete on table public\.account_members from anon, authenticated/);
+ assert.match(migration0024, /drop policy if exists "account owners insert members" on public\.account_members/);
+ assert.match(migration0024, /drop policy if exists "account owners delete members" on public\.account_members/);
+ assert.deepEqual(updateGrantFor('account_members').sort(), ['accepted_at', 'member_user_id', 'status']);
  assert.doesNotMatch(updateGrantFor('account_members').join(','), /account_owner_id|invite_email|role/);
  assert.match(migration, /create policy "invited user can accept membership"[\s\S]*member_user_id = auth\.uid\(\)[\s\S]*status = 'accepted'/);
 });
