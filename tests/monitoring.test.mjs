@@ -253,7 +253,9 @@ test('free plan users cannot access monitoring operations endpoints or tabs whil
  assert.match(membersPost, /createAdminSupabase\(\)/);
  assert.match(membersPost, /access\.entitlement\.accountOwnerId !== user\.id/);
  assert.doesNotMatch(membersPatch, /assertMonitoringAccess\(user\.id\)/);
- assert.doesNotMatch(membersPatch, /status: 403/);
+ assert.doesNotMatch(membersPatch, /status: 403\s*\}\);\s*const access/);
+ assert.match(membersPatch, /createAdminSupabase\(\)/);
+ assert.match(membersPatch, /inviteEmail !== user\.email\.toLowerCase\(\)/);
  assert.match(membersPatch, /status: "accepted"/);
  assert.match(dashboard, /Upgrade nodig/);
  assert.match(dashboard, /Bewaking van Peppol-registraties en signalen — vanaf €9\/mnd\./);

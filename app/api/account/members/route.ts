@@ -50,15 +50,25 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
- if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ if (!user?.email) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
  const body = await req.json().catch(() => ({}));
  const id = clean(body.id);
  if (!id) return NextResponse.json({ error: "Invite-id ontbreekt" }, { status: 400 });
- const { data, error } = await supabase
+ const admin = createAdminSupabase();
+ const { data: invite, error: lookupError } = await admin
+ .from("account_members")
+ .select("id, invite_email, status, accepted_at")
+ .eq("id", id)
+ .single();
+ if (lookupError || !invite) return NextResponse.json({ error: "Uitnodiging niet gevonden" }, { status: 404 });
+ const inviteEmail = clean(invite.invite_email).toLowerCase();
+ if (invite.status !== "pending" || invite.accepted_at || inviteEmail !== user.email.toLowerCase()) {
+ return NextResponse.json({ error: "Uitnodiging is niet geldig voor deze gebruiker" }, { status: 403 });
+ }
+ const { data, error } = await admin
  .from("account_members")
  .update({ member_user_id: user.id, accepted_at: new Date().toISOString(), status: "accepted" })
  .eq("id", id)
- .is("accepted_at", null)
  .select(memberColumns)
  .single();
  if (error) return NextResponse.json({ error: "Uitnodiging accepteren mislukt" }, { status: 500 });
