@@ -77,7 +77,13 @@ test('parsed invoice validation rejects missing invoice number or customer name'
  assert.ok(result.reasons.includes('missing_customer_name'));
 });
 
-test('parsed invoice validation allows a complete non-zero invoice', () => {
+test('parsed invoice validation rejects non-EUR currencies', () => {
+ const result = validateParsedInvoiceForConversion({ ...validParsedInvoice, invoice: { ...validParsedInvoice.invoice, currency: 'USD' } });
+ assert.equal(result.valid, false);
+ assert.ok(result.reasons.includes('unsupported_currency'));
+});
+
+test('parsed invoice validation allows a complete non-zero EUR invoice', () => {
  const result = validateParsedInvoiceForConversion(validParsedInvoice);
  assert.deepEqual(result, { valid: true, reasons: [] });
 });
