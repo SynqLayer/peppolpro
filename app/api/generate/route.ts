@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
 import { generateUBL, InvoiceData } from "@/lib/ubl-generator";
 import { validateInvoiceData } from "@/lib/ubl-validator";
 import { parseUblSummary, summarizeInvoiceData } from "@/lib/ubl-summary";
@@ -36,7 +36,14 @@ export async function POST(req: NextRequest) {
  }
 
  if (profile?.plan === "free") {
- await supabase.rpc("use_credit", { p_user_id: user.id });
+ const admin = createAdminSupabase();
+ const { data: creditUsed, error: creditError } = await admin.rpc("use_credit", { p_user_id: user.id });
+ if (creditError || creditUsed !== true) {
+ return NextResponse.json(
+ { error: "Geen gratis UBL-generaties meer. Bekijk de prijzen om verder te gaan.", upgradeUrl: "/prijzen" },
+ { status: 402 }
+ );
+ }
  }
 
  const { data: conversion, error: conversionError } = await supabase.from("conversions").insert({

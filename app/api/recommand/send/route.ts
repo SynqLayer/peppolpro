@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
 import { getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsInvoice } from "@/lib/recommand";
 import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
 
@@ -116,7 +116,7 @@ async function resetSendingClaim(supabase: Awaited<ReturnType<typeof createServe
   .is("sent_via_recommand_at", null);
 }
 
-async function reserveSendCredit(supabase: Awaited<ReturnType<typeof createServerSupabase>>, userId: string) {
+async function reserveSendCredit(supabase: ReturnType<typeof createAdminSupabase>, userId: string) {
  const { data, error } = await supabase
   .rpc("reserve_send_credit", { p_user_id: userId })
   .maybeSingle<CreditRow>();
@@ -124,7 +124,7 @@ async function reserveSendCredit(supabase: Awaited<ReturnType<typeof createServe
  return data;
 }
 
-async function releaseSendCredit(supabase: Awaited<ReturnType<typeof createServerSupabase>>, userId: string) {
+async function releaseSendCredit(supabase: ReturnType<typeof createAdminSupabase>, userId: string) {
  const { data } = await supabase
   .rpc("release_send_credit", { p_user_id: userId })
   .maybeSingle<CreditRow>();
@@ -146,6 +146,7 @@ function hasAs4Receipt(value: unknown): boolean {
 
 export async function POST(request: NextRequest) {
  const supabase = await createServerSupabase();
+ const admin = createAdminSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) return jsonError("Niet ingelogd", 401);
 
@@ -194,13 +195,13 @@ export async function POST(request: NextRequest) {
   return jsonError("Deze factuur wordt al verzonden. Probeer het zo opnieuw.", 409);
  }
 
- const reserved = await reserveSendCredit(supabase, user.id);
+ const reserved = await reserveSendCredit(admin, user.id);
  if (!reserved) {
   await resetSendingClaim(supabase, targetTable, targetId, user.id);
   return jsonError("Je hebt geen geldig verzendtegoed. Koop een verzendbundel om via Peppol te verzenden.", 402, { upgradeUrl: "/upgrade", sendCredits: 0 });
  }
 
- const releaseAfterFailure = async () => releaseSendCredit(supabase, user.id);
+ const releaseAfterFailure = async () => releaseSendCredit(admin, user.id);
 
  try {
   const verify = await verifyRecipient(recipient);

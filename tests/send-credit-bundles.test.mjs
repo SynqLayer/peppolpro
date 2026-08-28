@@ -10,6 +10,9 @@ const recommandRoute = readFileSync(new URL('../app/api/recommand/send/route.ts'
 const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
 const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_credit_bundles.sql', import.meta.url), 'utf8');
 const migration0019 = readFileSync(new URL('../supabase/migrations/0019_idempotent_send_credit_grants.sql', import.meta.url), 'utf8');
+const migration0021 = readFileSync(new URL('../supabase/migrations/0021_lock_down_security_definer_rpcs.sql', import.meta.url), 'utf8');
+const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
+const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
 const dashboard = readFileSync(new URL('../app/dashboard/DashboardClient.tsx', import.meta.url), 'utf8');
 const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
 const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.url), 'utf8');
@@ -75,6 +78,42 @@ test('send credit grant is idempotent when a Mollie webhook retries after partia
  assert.match(migration0019, /on conflict \(payment_id\) do nothing/);
  assert.match(migration0019, /if found then[\s\S]*send_credits = send_credits \+ p_credits/);
  assert.match(migration0019, /grant execute on function public\.grant_send_credit_bundle/);
+});
+
+test('security-definer credit RPCs are service-role only with defense-in-depth guards', () => {
+ for (const fn of [
+  'use_credit\\(uuid\\)',
+  'reserve_send_credit\\(uuid\\)',
+  'release_send_credit\\(uuid\\)',
+  'grant_send_credit_bundle\\(uuid, text, integer, numeric, text, timestamptz\\)',
+  'increment_credits\\(uuid, integer\\)',
+ ]) {
+  assert.match(migration0021, new RegExp(`revoke all on function public\\.${fn} from public, anon, authenticated, hermes_operator`));
+  assert.match(migration0021, new RegExp(`grant execute on function public\\.${fn} to service_role`));
+ }
+ for (const message of [
+  'service_role required to use credit',
+  'service_role required to reserve send credit',
+  'service_role required to release send credit',
+  'service_role required to grant send credits',
+  'service_role required to increment credits',
+ ]) {
+  assert.match(migration0021, new RegExp(message));
+ }
+ assert.doesNotMatch(migration0021, /grant execute on function public\.(use_credit|reserve_send_credit|release_send_credit|grant_send_credit_bundle|increment_credits)[^;]+authenticated/);
+ assert.doesNotMatch(migration0021, /grant execute on function public\.(use_credit|reserve_send_credit|release_send_credit|grant_send_credit_bundle|increment_credits)[^;]+anon/);
+});
+
+test('routes call credit RPCs with the service-role admin client after auth', () => {
+ assert.match(generateRoute, /createAdminSupabase/);
+ assert.match(generateRoute, /admin\.rpc\("use_credit"/);
+ assert.doesNotMatch(generateRoute, /supabase\.rpc\("use_credit"/);
+ assert.match(convertRoute, /createAdminSupabase/);
+ assert.match(convertRoute, /admin\.rpc\("use_credit"/);
+ assert.doesNotMatch(convertRoute, /supabase\.rpc\("use_credit"/);
+ assert.match(recommandRoute, /createAdminSupabase/);
+ assert.match(recommandRoute, /reserveSendCredit\(admin, user\.id\)/);
+ assert.match(recommandRoute, /releaseSendCredit\(admin, user\.id\)/);
 });
 
 test('send route is idempotent for already-sent targets before validation, provider calls or debit', () => {
