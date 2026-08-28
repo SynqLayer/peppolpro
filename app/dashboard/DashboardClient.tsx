@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowUpRight, BellRing, CheckCircle2, ExternalLink, FilePlus2, Filter, KeyRound, Search, UsersRound, XCircle } from "lucide-react";
 import { C } from "@/lib/constants";
@@ -138,16 +138,21 @@ const statusMap: Record<string, { label: string; bg: string; color: string; bord
  processing: { label: "UBL genereren", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "in_behandeling" },
  success: { label: "UBL gegenereerd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "ubl_gegenereerd" },
  done: { label: "UBL gegenereerd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "ubl_gegenereerd" },
- sent: { label: "Klaar om te verzenden", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
- delivered: { label: "Klaar om te verzenden", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
- failed: { label: "Mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
+ sent: { label: "Verzonden, wacht op bevestiging", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
+ delivered: { label: "Verzonden, wacht op bevestiging", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
+ sending: { label: "Verzenden...", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "in_behandeling" },
+ as4_received: { label: "Afgeleverd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "afgeleverd" },
+ send_failed: { label: "Verzenden mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
+ recipient_not_found: { label: "Verzenden mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
+ invoice_not_supported: { label: "Verzenden mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
+ failed: { label: "Verzenden mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
  error: { label: "Mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
- duplicate_voided: { label: "Dubbel/voided", bg: "rgba(148,163,184,0.10)", color: "#94a3b8", border: "rgba(148,163,184,0.18)", group: "gearchiveerd" },
+ duplicate_voided: { label: "Vervallen (dubbel)", bg: "rgba(148,163,184,0.10)", color: "#94a3b8", border: "rgba(148,163,184,0.18)", group: "gearchiveerd" },
 };
 
 const generatedStatuses = ["success", "done"];
 const openStatuses = ["draft", "concept", "processing", "sent", "delivered"];
-const failedStatuses = ["failed", "error", "mislukt"];
+const failedStatuses = ["failed", "error", "mislukt", "send_failed", "recipient_not_found", "invoice_not_supported", "verzendfout"];
 const archivedStatuses = ["duplicate_voided"];
 
 const numberValue = (value?: number | string | null) => {
@@ -170,12 +175,22 @@ const normalizeStatus = (status?: string | null) => {
  return statusMap[key] ? key : "draft";
 };
 
+const effectiveStatus = (conversion: Conversion) => conversion.recommand_status || (conversion.ubl_xml ? "success" : conversion.status);
 const statusGroup = (status?: string | null) => statusMap[normalizeStatus(status)].group;
 const isGenerated = (status?: string | null) => generatedStatuses.includes((status || "").toLowerCase());
 const isFailed = (status?: string | null) => failedStatuses.includes((status || "").toLowerCase());
 const isDraft = (status?: string | null) => ["draft", "concept"].includes((status || "").toLowerCase());
 const isOpen = (status?: string | null) => openStatuses.includes((status || "").toLowerCase());
 const isArchived = (status?: string | null) => archivedStatuses.includes((status || "").toLowerCase());
+const canSendConversion = (conversion: Conversion) => Boolean(conversion.id && conversion.ubl_xml && !conversion.recommand_document_id && !["as4_received", "sending", "duplicate_voided"].includes((conversion.recommand_status || "").toLowerCase()));
+
+const failureReason = (status?: string | null) => {
+ const key = (status || "").toLowerCase();
+ if (key === "recipient_not_found") return "Ontvanger niet gevonden op het Peppol-netwerk.";
+ if (key === "invoice_not_supported") return "Ontvanger ondersteunt dit factuurtype niet.";
+ if (["send_failed", "failed", "error", "verzendfout"].includes(key)) return "Controleer de factuurgegevens en probeer opnieuw.";
+ return null;
+};
 
 const profileComplete = (profile: Profile | null) => {
  if (!profile) return false;
@@ -197,11 +212,19 @@ const relativeTime = (value?: string | null) => {
  return `${months} maand${months === 1 ? "" : "en"} geleden`;
 };
 
-function StatusBadge({ status }: { status?: string | null }) {
+function StatusBadge({ conversion }: { conversion: Conversion }) {
+ const status = effectiveStatus(conversion);
  const item = statusMap[normalizeStatus(status)];
+ const reason = isFailed(status) ? failureReason(status) : null;
+ const detail = status === "as4_received" && conversion.sent_via_recommand_at
+  ? `Ontvangstbevestiging op ${formatDate(conversion.sent_via_recommand_at)}`
+  : reason;
  return (
- <span style={{ display: "inline-flex", alignItems: "center", minWidth: 84, justifyContent: "center", padding: "5px 9px", borderRadius: 999, background: item.bg, border: `1px solid ${item.border}`, color: item.color, fontSize: 12, fontWeight: 800 }}>
- {item.label}
+ <span style={{ display: "inline-flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+  <span style={{ display: "inline-flex", alignItems: "center", minWidth: 84, justifyContent: "center", padding: "5px 9px", borderRadius: 999, background: item.bg, border: `1px solid ${item.border}`, color: item.color, fontSize: 12, fontWeight: 800 }}>
+  {item.label}
+  </span>
+  {detail && <span style={{ color: "#64748b", fontSize: 11, maxWidth: 180 }}>{detail}</span>}
  </span>
  );
 }
@@ -274,30 +297,37 @@ export default function DashboardClient({
  const [webhookUrl, setWebhookUrl] = useState(webhookConfig?.webhook_url || "");
  const [webhookDisclaimerAccepted, setWebhookDisclaimerAccepted] = useState(false);
  const [opsStatus, setOpsStatus] = useState<string | null>(null);
+ const [localConversions, setLocalConversions] = useState<Conversion[]>(conversions);
+ const [localSendCredits, setLocalSendCredits] = useState(profile?.send_credits || 0);
+ const [sendingConversionId, setSendingConversionId] = useState<string | null>(null);
+ const [sendActionStatus, setSendActionStatus] = useState<Record<string, string>>({});
  const [recommandCompanyId, setRecommandCompanyId] = useState(profile?.recommand_company_id || null);
  const [recommandVerified, setRecommandVerified] = useState(profile?.recommand_verified === true);
  const [recommandVerificationUrl, setRecommandVerificationUrl] = useState(profile?.recommand_verification_url || null);
  const [recommandStatus, setRecommandStatus] = useState<string | null>(null);
  const [recommandLoading, setRecommandLoading] = useState(false);
 
+ useEffect(() => setLocalConversions(conversions), [conversions]);
+ useEffect(() => setLocalSendCredits(profile?.send_credits || 0), [profile?.send_credits]);
+
  const now = useMemo(() => new Date(), []);
  const isFree = !profile?.plan || profile.plan === "free";
- const sendCredits = profile?.send_credits || 0;
+ const sendCredits = localSendCredits;
  const sendCreditsExpiresAt = profile?.send_credits_expires_at || null;
  const sendCreditsExpired = !sendCreditsExpiresAt || new Date(sendCreditsExpiresAt).getTime() <= now.getTime();
  const hasActiveSendCredits = sendCredits > 0 && !sendCreditsExpired;
  const isMonitoring = profile?.plan === "monitoring" || profile?.plan === "monitoring_accountant";
  const isMonitoringAccountant = profile?.plan === "monitoring_accountant";
- const activeConversions = useMemo(() => conversions.filter((conversion) => !isArchived(conversion.status)), [conversions]);
+ const activeConversions = useMemo(() => localConversions.filter((conversion) => !isArchived(effectiveStatus(conversion))), [localConversions]);
  const hasInvoices = activeConversions.length > 0;
  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
  const completeProfile = profileComplete(profile);
  const currency = activeConversions.find((conversion) => conversion.currency)?.currency || "EUR";
 
  const invoicesThisMonth = activeConversions.filter((conversion) => conversion.created_at && new Date(conversion.created_at) >= monthStart).length;
- const openAmount = activeConversions.reduce((sum, conversion) => sum + (isOpen(conversion.status) ? numberValue(conversion.total_amount) : 0), 0);
- const generatedCount = activeConversions.filter((conversion) => isGenerated(conversion.status)).length;
- const failedCount = activeConversions.filter((conversion) => isFailed(conversion.status)).length;
+ const openAmount = activeConversions.reduce((sum, conversion) => sum + (isOpen(effectiveStatus(conversion)) ? numberValue(conversion.total_amount) : 0), 0);
+ const generatedCount = activeConversions.filter((conversion) => isGenerated(effectiveStatus(conversion))).length;
+ const failedCount = activeConversions.filter((conversion) => isFailed(effectiveStatus(conversion))).length;
 
  const chartData = useMemo(() => {
  const formatter = new Intl.DateTimeFormat("nl-NL", { month: "short" });
@@ -309,7 +339,7 @@ export default function DashboardClient({
  });
 
  activeConversions.forEach((conversion) => {
- if (!conversion.created_at || !isGenerated(conversion.status)) return;
+ if (!conversion.created_at || !isGenerated(effectiveStatus(conversion))) return;
  const date = new Date(conversion.created_at);
  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
  const month = months.find((item) => item.key === key);
@@ -326,7 +356,7 @@ export default function DashboardClient({
  || (conversion.customer_name || "").toLowerCase().includes(term)
  || (conversion.invoice_number || "").toLowerCase().includes(term)
  || (conversion.filename || "").toLowerCase().includes(term);
- const matchesStatus = filter === "all" || statusGroup(conversion.status) === filter;
+ const matchesStatus = filter === "all" || statusGroup(effectiveStatus(conversion)) === filter;
  return matchesQuery && matchesStatus;
  });
  }, [activeConversions, filter, query]);
@@ -383,6 +413,45 @@ export default function DashboardClient({
  setOpsStatus(res.ok ? "Webhook opgeslagen." : data.error || "Webhook opslaan mislukt");
  }
 
+ async function handleDashboardSend(conversion: Conversion) {
+ if (!conversion.id || !conversion.ubl_xml) return;
+ if (!hasActiveSendCredits) {
+  setSendActionStatus((current) => ({ ...current, [conversion.id as string]: "Geen actief verzendtegoed. Koop een verzendbundel via /prijzen." }));
+  return;
+ }
+ if (!recommandVerified || !recommandCompanyId) {
+  setSendActionStatus((current) => ({ ...current, [conversion.id as string]: "Verifieer eerst je Recommand-company via de verificatielink." }));
+  return;
+ }
+ setSendingConversionId(conversion.id);
+ setSendActionStatus((current) => ({ ...current, [conversion.id as string]: "Verzenden..." }));
+ try {
+  const res = await fetch("/api/recommand/send", {
+   method: "POST",
+   headers: { "Content-Type": "application/json" },
+   body: JSON.stringify({ conversionId: conversion.id }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+   setSendActionStatus((current) => ({ ...current, [conversion.id as string]: body.error || "Verzenden via Peppol mislukt" }));
+   return;
+  }
+  if (typeof body.remainingCredits === "number") setLocalSendCredits(body.remainingCredits);
+  setLocalConversions((current) => current.map((item) => item.id === conversion.id ? {
+   ...item,
+   recommand_document_id: body.documentId || item.recommand_document_id,
+   recommand_status: body.status || item.recommand_status,
+   sent_via_recommand_at: body.sentAt || item.sent_via_recommand_at || new Date().toISOString(),
+   verified_recipient: true,
+  } : item));
+  setSendActionStatus((current) => ({ ...current, [conversion.id as string]: body.status === "as4_received" ? "Afgeleverd via Peppol." : "Verzonden; wacht op AS4-ontvangstbevestiging." }));
+ } catch (error) {
+  setSendActionStatus((current) => ({ ...current, [conversion.id as string]: error instanceof Error ? error.message : "Verzenden via Peppol mislukt" }));
+ } finally {
+  setSendingConversionId(null);
+ }
+ }
+
  async function handleRecommandCompanyCreate() {
  setRecommandLoading(true);
  setRecommandStatus("Recommand company aanmaken...");
@@ -428,7 +497,7 @@ export default function DashboardClient({
 
  const tasks: Task[] = [];
  const threeDaysAgo = now.getTime() - 3 * 24 * 60 * 60 * 1000;
- const oldDrafts = activeConversions.filter((conversion) => isDraft(conversion.status) && conversion.created_at && new Date(conversion.created_at).getTime() < threeDaysAgo).length;
+ const oldDrafts = activeConversions.filter((conversion) => isDraft(effectiveStatus(conversion)) && conversion.created_at && new Date(conversion.created_at).getTime() < threeDaysAgo).length;
  if (oldDrafts > 0) tasks.push({ title: `${oldDrafts} concept${oldDrafts === 1 ? "" : "en"} ouder dan 3 dagen`, detail: "Rond deze facturen af of verwijder ze uit je workflow.", href: "/nieuw", tone: "amber" });
  if (failedCount > 0) tasks.push({ title: `${failedCount} factuur${failedCount === 1 ? "" : "en"} mislukt`, detail: "Controleer de gegevens en genereer de UBL opnieuw.", href: "/convert", tone: "red" });
  if (!completeProfile) tasks.push({ title: "Profiel onvolledig", detail: "KvK/KBO, BTW-nummer of adres ontbreekt nog.", href: "/onboarding", tone: "blue" });
@@ -709,12 +778,17 @@ export default function DashboardClient({
  <td style={{ color: "#cbd5e1" }}>{conversion.customer_name || "Onbekende klant"}</td>
  <td style={{ color: "#f8fafc", fontWeight: 800 }}>{formatCurrency(amount, conversion.currency || currency)}</td>
  <td style={{ color: "#94a3b8" }}>{formatDate(conversion.created_at)}</td>
- <td><StatusBadge status={conversion.status} /></td>
+ <td><StatusBadge conversion={conversion} /></td>
  <td>
  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
 {conversion.ubl_xml ? <button type="button" onClick={() => downloadConversionXml(conversion, invoiceNumber)} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}>Download XML</button> : <span className="action-muted">Geen XML</span>}
  <Link href="/convert" className="action-link">Nieuwe PDF</Link>
- <span className="action-muted">Verzenden via Nieuwe factuur</span>
+ {canSendConversion(conversion) ? (
+ <button type="button" onClick={() => handleDashboardSend(conversion)} disabled={sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified ? "not-allowed" : "pointer", opacity: sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified ? 0.55 : 1 }}>{sendingConversionId === conversion.id ? "Verzenden..." : "Verzenden"}</button>
+ ) : null}
+ {canSendConversion(conversion) && !hasActiveSendCredits ? <Link href="/prijzen" className="action-link">Koop verzendtegoed</Link> : null}
+ {canSendConversion(conversion) && !recommandVerified && recommandVerificationUrl ? <a className="action-link" href={recommandVerificationUrl} target="_blank" rel="noreferrer">Verifieer eerst</a> : null}
+ {conversion.id && sendActionStatus[conversion.id] ? <span style={{ color: sendActionStatus[conversion.id].includes("mislukt") || sendActionStatus[conversion.id].includes("Geen") ? "#fca5a5" : "#93c5fd", fontSize: 12, flexBasis: "100%" }}>{sendActionStatus[conversion.id]}</span> : null}
  </div>
  </td>
  </tr>
@@ -762,7 +836,7 @@ export default function DashboardClient({
  ) : (
  <div style={{ display: "grid", gap: 13 }}>
  {activityItems.map((conversion, index) => {
- const item = activityFor(conversion);
+ const item = activityFor({ ...conversion, status: effectiveStatus(conversion) });
  const Icon = item.icon;
  return (
  <div key={conversion.id || index} style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 10, alignItems: "start" }}>

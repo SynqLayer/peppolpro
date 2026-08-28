@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { creditBundles } from '../lib/plans.ts';
+import { generateUBL } from '../lib/ubl-generator.ts';
+import { buildRecommandPayloadFromUbl } from '../lib/ubl-to-recommand.ts';
 
 const plans = readFileSync(new URL('../lib/plans.ts', import.meta.url), 'utf8');
 const checkoutRoute = readFileSync(new URL('../app/api/checkout/route.ts', import.meta.url), 'utf8');
@@ -120,7 +122,7 @@ test('send route is idempotent for already-sent targets before validation, provi
  assert.match(recommandRoute, /function existingSendResponse/);
  assert.match(recommandRoute, /function hasCompletedSend/);
  assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
- const beforeRecipientValidation = recommandRoute.match(/const existing = await fetchTarget[\s\S]*?const recipient = normalizePeppolId/)?.[0] || '';
+ const beforeRecipientValidation = recommandRoute.match(/const existing = await fetchTarget[\s\S]*?let recipient = normalizePeppolId/)?.[0] || '';
  assert.match(beforeRecipientValidation, /hasCompletedSend\(existing\)/);
  assert.doesNotMatch(beforeRecipientValidation, /sendDocument\(|reserve_send_credit|verifyRecipient\(/);
 });
@@ -159,4 +161,79 @@ test('UI surfaces bundles and remaining send credit wallet', () => {
  assert.match(dashboard, /send_credits_expires_at/);
  assert.match(nieuwPage, /Verzendtegoed:/);
  assert.match(nieuwPage, /Koop een verzendbundel om via Peppol te verzenden/);
+});
+
+test('dashboard renders a per-invoice send action and removes the old new-invoice instruction', () => {
+ assert.match(dashboard, /function handleDashboardSend/);
+ assert.match(dashboard, /fetch\("\/api\/recommand\/send"/);
+ assert.match(dashboard, /JSON\.stringify\(\{ conversionId: conversion\.id \}\)/);
+ assert.match(dashboard, /Download XML/);
+ assert.match(dashboard, /"Verzenden"/);
+ assert.match(dashboard, /Koop verzendtegoed/);
+ assert.match(dashboard, /href="\/prijzen"/);
+ assert.match(dashboard, /Verifieer eerst/);
+ assert.doesNotMatch(dashboard, /Verzenden via Nieuwe factuur/);
+});
+
+test('dashboard status prefers Recommand delivery state and only labels AS4 receipt as delivered', () => {
+ assert.match(dashboard, /const effectiveStatus = \(conversion: Conversion\) => conversion\.recommand_status \|\| \(conversion\.ubl_xml \? "success" : conversion\.status\)/);
+ assert.match(dashboard, /as4_received: \{ label: "Afgeleverd"/);
+ assert.match(dashboard, /Ontvangstbevestiging op/);
+ assert.match(dashboard, /send_failed: \{ label: "Verzenden mislukt"/);
+ assert.match(dashboard, /const failureReason/);
+ assert.doesNotMatch(dashboard, /recommand_raw_response\?:/);
+ assert.doesNotMatch(dashboard, /responseReason/);
+ assert.match(dashboard, /duplicate_voided: \{ label: "Vervallen \(dubbel\)"/);
+ assert.doesNotMatch(dashboard, /delivered: \{ label: "Afgeleverd"/);
+ assert.match(dashboard, /<StatusBadge conversion=\{conversion\} \/>/);
+ assert.doesNotMatch(dashboard, /<StatusBadge status=\{conversion\.status\} \/>/);
+});
+
+test('dashboard send action updates row state and the send-credit KPI without refresh', () => {
+ assert.match(dashboard, /const \[localConversions, setLocalConversions\]/);
+ assert.match(dashboard, /const \[localSendCredits, setLocalSendCredits\]/);
+ assert.match(dashboard, /if \(typeof body\.remainingCredits === "number"\) setLocalSendCredits\(body\.remainingCredits\)/);
+ assert.match(dashboard, /setLocalConversions\(\(current\) => current\.map/);
+ assert.match(dashboard, /recommand_status: body\.status/);
+ assert.match(dashboard, /recommand_document_id: body\.documentId/);
+});
+
+test('send route can reuse a stored conversion UBL when dashboard sends only the conversion id', () => {
+ assert.match(recommandRoute, /buildRecommandPayloadFromUbl/);
+ assert.match(recommandRoute, /existing\.ubl_xml/);
+ assert.match(recommandRoute, /document \|\|= fromUbl\.document/);
+ assert.match(recommandRoute, /recipient \|\|= fromUbl\.recipient/);
+
+ const xml = generateUBL({
+  supplierName: 'SynqLayer BV',
+  supplierAddress: 'Straat 1',
+  supplierPostalCode: '1000AA',
+  supplierCity: 'Amsterdam',
+  supplierCountry: 'NL',
+  supplierVatNr: 'NL123456789B01',
+  supplierKvkKbo: '12345678',
+  supplierIban: 'NL91ABNA0417164300',
+  customerName: 'Klant BV',
+  customerAddress: 'Klantstraat 2',
+  customerPostalCode: '2000BB',
+  customerCity: 'Rotterdam',
+  customerCountry: 'NL',
+  customerVatNr: 'NL987654321B01',
+  customerKvkKbo: '87654321',
+  customerPeppolId: '0106:87654321',
+  customerEmail: 'klant@example.nl',
+  buyerReference: 'PO-1',
+  invoiceNumber: 'F-TEST-1',
+  invoiceDate: '2026-08-28',
+  dueDate: '2026-09-27',
+  currency: 'EUR',
+  lines: [{ id: '1', description: 'Dienst', quantity: 2, unitPrice: 50, vatPct: 21 }],
+ });
+ const payload = buildRecommandPayloadFromUbl(xml);
+ assert.equal(payload.recipient, '0106:87654321');
+ assert.equal(payload.document.invoiceNumber, 'F-TEST-1');
+ assert.equal(payload.document.buyer.name, 'Klant BV');
+ assert.equal(payload.document.seller?.vatNumber, 'NL123456789B01');
+ assert.equal(payload.document.paymentMeans[0].iban, 'NL91ABNA0417164300');
+ assert.deepEqual(payload.document.lines.map((line) => [line.name, line.quantity, line.netPriceAmount, line.vat.percentage]), [['Dienst', '2', '50.00', '21.00']]);
 });

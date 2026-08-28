@@ -463,21 +463,24 @@ test('dashboard uses honest UBL statuses and shows generated UBL count instead o
  assert.match(dashboard, /value=\{String\(generatedCount\)\}/);
  assert.doesNotMatch(dashboard, /value=\{formatCurrency\(generatedAmount/);
 assert.match(dashboard, /Download XML/);
- assert.match(dashboard, /Verzenden via Nieuwe factuur/);
+ assert.match(dashboard, /function handleDashboardSend/);
+ assert.match(dashboard, /fetch\("\/api\/recommand\/send"/);
+ assert.doesNotMatch(dashboard, /Verzenden via Nieuwe factuur/);
  assert.doesNotMatch(dashboard, /Direct verzenden niet beschikbaar/);
  assert.doesNotMatch(dashboard, /href="\/dashboard" className="action-link">Bekijken/);
- assert.doesNotMatch(dashboard, /Afgeleverd/);
+ assert.match(dashboard, /as4_received: \{ label: "Afgeleverd"/);
+ assert.doesNotMatch(dashboard, /delivered: \{ label: "Afgeleverd"/);
  assert.doesNotMatch(dashboard, /Opnieuw verzenden/);
 });
 
 test('duplicate voided conversions are archived out of active dashboard metrics and lists', () => {
- assert.match(dashboard, /duplicate_voided: \{ label: "Dubbel\/voided"/);
+ assert.match(dashboard, /duplicate_voided: \{ label: "Vervallen \(dubbel\)"/);
  assert.match(dashboard, /const archivedStatuses = \["duplicate_voided"\]/);
  assert.match(dashboard, /const isArchived = \(status\?: string \| null\) => archivedStatuses\.includes/);
- assert.match(dashboard, /const activeConversions = useMemo\(\(\) => conversions\.filter\(\(conversion\) => !isArchived\(conversion\.status\)\)/);
- assert.match(dashboard, /activeConversions\.reduce\(\(sum, conversion\) => sum \+ \(isOpen\(conversion\.status\)/);
- assert.match(dashboard, /activeConversions\.filter\(\(conversion\) => isGenerated\(conversion\.status\)\)/);
- assert.match(dashboard, /activeConversions\.filter\(\(conversion\) => isDraft\(conversion\.status\)/);
+ assert.match(dashboard, /const activeConversions = useMemo\(\(\) => localConversions\.filter\(\(conversion\) => !isArchived\(effectiveStatus\(conversion\)\)\)/);
+ assert.match(dashboard, /activeConversions\.reduce\(\(sum, conversion\) => sum \+ \(isOpen\(effectiveStatus\(conversion\)\)/);
+ assert.match(dashboard, /activeConversions\.filter\(\(conversion\) => isGenerated\(effectiveStatus\(conversion\)\)\)/);
+ assert.match(dashboard, /activeConversions\.filter\(\(conversion\) => isDraft\(effectiveStatus\(conversion\)\)/);
  assert.match(dashboard, /activeConversions\.slice\(0, 8\)/);
  assert.match(dashboard, /activeConversions\.length\} actief in archief/);
  assert.doesNotMatch(dashboard, /openStatuses = \[[^\]]*duplicate_voided/);
@@ -489,7 +492,7 @@ test('Recommand send route refuses duplicate voided targets before provider call
  assert.match(recommandRoute, /if \(isVoidedDuplicate\(existing\)\) return jsonError\("Deze factuur is gemarkeerd als dubbel\/voided/);
  assert.match(recommandRoute, /recommand_status\.neq\.duplicate_voided/);
  assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
- assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const recipient = normalizePeppolId'));
+ assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('let recipient = normalizePeppolId'));
  assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const reserved = await reserveSendCredit'));
 });
 
