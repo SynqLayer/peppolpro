@@ -52,3 +52,9 @@ test('UBL generation strips existing Peppol scheme prefix from endpoint value', 
  assert.match(xml, /<cbc:EndpointID schemeID="0106">42041391<\/cbc:EndpointID>/);
  assert.doesNotMatch(xml, /<cbc:EndpointID schemeID="0106">0106:42041391<\/cbc:EndpointID>/);
 });
+
+test('UBL generation formats VAT percentages with two decimals', () => {
+ const xml = generateUBL(baseInvoice);
+ assert.match(xml, /<cbc:Percent>21\.00<\/cbc:Percent>/);
+ assert.doesNotMatch(xml, /<cbc:Percent>21<\/cbc:Percent>/);
+});

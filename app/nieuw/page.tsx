@@ -443,13 +443,13 @@ export default function NieuwPage() {
  )}
  {recommandVerified && !hasSendBundle && (
  <p style={{ color: "#fbbf24", fontSize: 13, lineHeight: 1.6, margin: "0 0 14px" }}>
- Je bedrijf is geverifieerd, maar je hebt nog geen verzendbundel. Activeer <a href="/upgrade" style={{ color: "#fde68a", fontWeight: 800 }}>Verzenden 25 of Verzenden 100</a> om via Peppol te verzenden.
+ Je bedrijf is geverifieerd, maar je hebt nog geen verzendtegoed. Koop een <a href="/prijzen" style={{ color: "#fde68a", fontWeight: 800 }}>verzendbundel</a> om via Peppol te verzenden.
  </p>
  )}
  {sendStatus && <p style={{ color: "#86efac", fontSize: 13, fontWeight: 800, margin: "0 0 14px" }}>{sendStatus}</p>}
  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
  <button onClick={prepareDownloadXml} style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700 }}>Download UBL/XML</button>
- <button onClick={hasSendBundle ? prepareSendViaPeppol : () => router.push("/upgrade")} disabled={submitting || !recommandVerified} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : !recommandVerified ? "Verifieer eerst je bedrijf" : hasSendBundle ? "Verzenden via Peppol" : "Activeer verzendbundel"}</button>
+ <button onClick={hasSendBundle ? prepareSendViaPeppol : () => router.push("/prijzen")} disabled={submitting || !recommandVerified} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : !recommandVerified ? "Verifieer eerst je bedrijf" : hasSendBundle ? "Verzenden via Peppol" : "Koop verzendbundel"}</button>
  <button onClick={() => router.push("/dashboard")} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 700 }}>Opslaan in dashboard</button>
  </div>
  <pre style={{ overflow: "auto", maxHeight: 420, background: "rgba(0,0,0,0.32)", borderRadius: 10, padding: 16, color: C.gray, fontSize: 12 }}>{xml}</pre>

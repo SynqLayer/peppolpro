@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import { CREDIT_BUNDLES, PLANS } from "@/lib/plans";
 
 export const metadata: Metadata = {
  title: "Peppol-factuur voorbereiden — UBL downloaden zonder boekhoudpakket",
@@ -40,9 +41,8 @@ export default function PeppolFactuurVersturenPage() {
  <h2 style={h2Style}>Wat kost het?</h2>
  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", margin: "1rem 0 2rem" }}>
  {[
- { plan: "Gratis", prijs: "€0", detail: "3 gratis UBL-generaties bij registratie" },
- { plan: "Verzenden 25", prijs: "€12/mnd", detail: "25 verzendingen incl., €0,45 extra" },
- { plan: "Verzenden 100", prijs: "€39/mnd", detail: "100 verzendingen incl., €0,35 extra" },
+ { plan: PLANS.free.name, prijs: PLANS.free.price, detail: PLANS.free.features[0] },
+ ...Object.values(CREDIT_BUNDLES).map((bundle) => ({ plan: bundle.name, prijs: `${bundle.price} ${bundle.period}`, detail: `${bundle.credits} Peppol-verzendingen, ${bundle.validMonths} maanden geldig` })),
   ].map((p) => (
  <div key={p.plan} style={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 8, padding: "1.25rem" }}>
  <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>{p.plan}</div>

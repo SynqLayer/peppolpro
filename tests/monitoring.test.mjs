@@ -673,8 +673,9 @@ test('new invoice flow requires and stores customer email and can send only afte
  assert.match(nieuwPage, /recommandVerified/);
  assert.match(nieuwPage, /dashboard#peppol-verzending/);
  assert.match(nieuwPage, /Verifieer eerst je bedrijf/);
- assert.match(nieuwPage, /Activeer verzendbundel/);
- assert.match(nieuwPage, /Je bedrijf is geverifieerd, maar je hebt nog geen verzendbundel/);
+ assert.match(nieuwPage, /Koop verzendbundel/);
+ assert.match(nieuwPage, /Je bedrijf is geverifieerd, maar je hebt nog geen verzendtegoed/);
+ assert.doesNotMatch(nieuwPage, /Verzenden 25|Verzenden 100/);
  assert.match(nieuwPage, /quantityField\(\"Aantal\", line\)/);
  assert.doesNotMatch(nieuwPage, /Number\(value\).*quantity/);
  assert.match(nieuwPage, /fetch\("\/api\/recommand\/send"/);
