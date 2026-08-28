@@ -26,7 +26,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
  </h1>
  <p style="color:#94a3b8;font-size:15px;line-height:1.7;margin:0 0 24px">
  Je account is aangemaakt. Je hebt direct
- <strong style="color:#ffffff">3 gratis UBL-generaties</strong>
+ <strong style="color:#ffffff">eenmalig 3 gratis UBL-generaties</strong>
  klaarstaan — geen creditcard, geen verplichtingen.
  </p>
  <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 32px">
@@ -63,7 +63,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
  <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:20px;margin-top:32px;text-align:center">
  <div style="color:#94a3b8;font-size:13px;line-height:1.6">
  <strong style="color:#ffffff">Gratis plan</strong>
- — 3 UBL-generaties inbegrepen<br>
+ — eenmalig 3 UBL-generaties bij registratie<br>
  <span style="color:#6366f1">Koop verzendtegoed wanneer je via Peppol wilt verzenden</span><br>
  Bundels zijn eenmalig te koop en 12 maanden geldig
  </div>

@@ -80,7 +80,7 @@ export default function PrijzenPage() {
     <div style={{ maxWidth: 760, marginBottom: 38 }}>
      <h1 style={{ fontSize: 44, fontWeight: 800, marginBottom: 12, letterSpacing: 0 }}>Prijzen</h1>
      <p style={{ color: C.gray, fontSize: 17, lineHeight: 1.7 }}>
-      Start gratis met UBL-generatie. Rechtstreeks via Peppol verzenden werkt met een eenmalig gekochte verzendbundel; monitoring blijft een maandabonnement.
+      Start gratis met eenmalig UBL-starttegoed. Rechtstreeks via Peppol verzenden werkt met een eenmalig gekochte verzendbundel; monitoring blijft een maandabonnement.
      </p>
     </div>
 
@@ -139,7 +139,7 @@ export default function PrijzenPage() {
      </GlassCard>
      <GlassCard style={{ padding: 22 }}>
       <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>UBL-generatie gratis testen</h2>
-      <p style={{ color: C.gray, lineHeight: 1.7, margin: 0 }}>Nieuwe accounts krijgen 3 UBL-generaties. Direct verzenden vereist bedrijfsverificatie en actief verzendtegoed.</p>
+      <p style={{ color: C.gray, lineHeight: 1.7, margin: 0 }}>Nieuwe accounts krijgen eenmalig 3 UBL-generaties bij registratie. Direct verzenden vereist bedrijfsverificatie en actief verzendtegoed.</p>
      </GlassCard>
     </div>
     <p style={{ fontSize: 13, color: C.dim, textAlign: "center", margin: "28px 0 0" }}>Alle getoonde prijzen zijn incl. btw. Monitoringprijzen zijn maandelijkse abonnementen. Verzendtegoed is 12 maanden geldig.</p>
