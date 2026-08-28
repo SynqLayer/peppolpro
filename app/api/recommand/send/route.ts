@@ -3,6 +3,7 @@ import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server
 import { getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsInvoice } from "@/lib/recommand";
 import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
 import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
+import { validateStoredInvoiceConsistency } from "@/lib/invoice-preview";
 
 type InvoicePayload = {
  conversionId?: string;
@@ -23,6 +24,7 @@ type TargetRow = {
  id: string;
  user_id: string;
  ubl_xml?: string | null;
+ total_amount?: number | string | null;
  recommand_document_id?: string | null;
  recommand_status?: string | null;
  sent_via_recommand_at?: string | null;
@@ -33,7 +35,7 @@ type CreditRow = {
  send_credits_expires_at?: string | null;
 };
 
-const TARGET_SELECT = "id, user_id, ubl_xml, recommand_document_id, recommand_status, sent_via_recommand_at";
+const TARGET_SELECT = "id, user_id, ubl_xml, total_amount, recommand_document_id, recommand_status, sent_via_recommand_at";
 const PROCESSING_WAIT_ATTEMPTS = 30;
 const PROCESSING_WAIT_MS = 1000;
 
@@ -170,6 +172,8 @@ export async function POST(request: NextRequest) {
  if (!existing) return jsonError("Factuur niet gevonden", 404);
  if (isVoidedDuplicate(existing)) return jsonError("Deze factuur is gemarkeerd als dubbel/voided en kan niet via Peppol worden verzonden.", 409);
  if (hasCompletedSend(existing)) return existingSendResponse(existing);
+ const consistency = validateStoredInvoiceConsistency(existing.total_amount, existing.ubl_xml);
+ if (!consistency.ok) return jsonError(consistency.error, 409);
 
  let recipient = normalizePeppolId(input.recipient || input.peppolId || input.peppolAddress);
  let document = input.document;

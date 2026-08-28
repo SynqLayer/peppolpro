@@ -1,4 +1,5 @@
 import { InvoiceData } from "./ubl-generator";
+import { payableAmountFromUbl, payableCurrencyFromUbl } from "./ubl-amounts.ts";
 
 export type UblSummary = {
  customerName: string | null;
@@ -26,13 +27,13 @@ export function parseUblSummary(ublXml: string): UblSummary {
  const invoiceNumber = ublXml.match(/<cbc:ID>([^<]+)<\/cbc:ID>/)?.[1] ?? null;
  const customerBlock = ublXml.match(/<cac:AccountingCustomerParty>[\s\S]*?<\/cac:AccountingCustomerParty>/)?.[0] ?? "";
  const customerName = customerBlock.match(/<cac:PartyName>\s*<cbc:Name>([^<]*)<\/cbc:Name>/)?.[1] ?? null;
- const payable = ublXml.match(/<cbc:PayableAmount currencyID="([^"]+)">([0-9]+(?:\.[0-9]+)?)<\/cbc:PayableAmount>/);
+ const totalAmount = payableAmountFromUbl(ublXml);
 
  return {
  customerName: customerName ? decodeXml(customerName) : null,
  invoiceNumber: invoiceNumber ? decodeXml(invoiceNumber) : null,
- totalAmount: payable ? Number(payable[2]) : null,
- currency: payable?.[1] || "EUR",
+ totalAmount,
+ currency: payableCurrencyFromUbl(ublXml),
  };
 }
 

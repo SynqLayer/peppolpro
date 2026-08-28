@@ -1,8 +1,11 @@
 import type { RecommandInvoiceDocument } from "./recommand-invoice";
+import { payableAmountFromUbl } from "./ubl-amounts.ts";
 
 export type RecommandPayloadFromUbl = {
  recipient: string;
  document: RecommandInvoiceDocument;
+ currency: string;
+ payableAmount: number | null;
 };
 
 function decodeXml(value: string) {
@@ -80,5 +83,5 @@ export function buildRecommandPayloadFromUbl(ublXml: string): RecommandPayloadFr
    };
   }),
  };
- return { recipient, document };
+ return { recipient, document, currency: firstTag(ublXml, "DocumentCurrencyCode") || "EUR", payableAmount: payableAmountFromUbl(ublXml) };
 }

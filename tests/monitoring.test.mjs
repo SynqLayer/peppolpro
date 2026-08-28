@@ -678,9 +678,11 @@ test('new invoice flow requires and stores customer email and can send only afte
  assert.match(nieuwPage, /quantityField\(\"Aantal\", line\)/);
  assert.doesNotMatch(nieuwPage, /Number\(value\).*quantity/);
  assert.match(nieuwPage, /fetch\("\/api\/recommand\/send"/);
- assert.match(nieuwPage, /validateRecommandInvoiceData\(data\)/);
- assert.match(nieuwPage, /buildRecommandInvoiceDocument\(data\)/);
- assert.match(nieuwPage, /deriveRecommandRecipient\(data\)/);
+ assert.match(nieuwPage, /buildRecommandPayloadFromUbl\(xml\)/);
+ assert.match(nieuwPage, /buildInvoicePreviewFromPayload\(payload\.recipient, payload\.document/);
+ assert.match(nieuwPage, /body: JSON\.stringify\(\{ conversionId \}\)/);
+ assert.doesNotMatch(nieuwPage, /buildRecommandInvoiceDocument\(data\)/);
+ assert.doesNotMatch(nieuwPage, /deriveRecommandRecipient\(data\)/);
  assert.match(nieuwPage, /conversionId/);
  assert.match(nieuwPage, /customerEmail/);
  assert.match(generateRoute, /customer_email: invoiceData\.customerEmail\.trim\(\)/);

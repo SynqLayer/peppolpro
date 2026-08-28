@@ -5,6 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowUpRight, BellRing, CheckCircle2, ExternalLink, FilePlus2, Filter, KeyRound, Search, UsersRound, XCircle } from "lucide-react";
 import { C } from "@/lib/constants";
+import { buildInvoicePreviewFromPayload, validateStoredInvoiceConsistency, type InvoicePreview } from "@/lib/invoice-preview";
+import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
+import { InvoiceConfirmation } from "@/app/components/InvoiceConfirmation";
 
 export type Profile = {
  email?: string | null;
@@ -300,6 +303,7 @@ export default function DashboardClient({
  const [localConversions, setLocalConversions] = useState<Conversion[]>(conversions);
  const [localSendCredits, setLocalSendCredits] = useState(profile?.send_credits || 0);
  const [sendingConversionId, setSendingConversionId] = useState<string | null>(null);
+ const [confirmation, setConfirmation] = useState<{ action: "send" | "download"; conversion: Conversion; preview: InvoicePreview; filename: string } | null>(null);
  const [sendActionStatus, setSendActionStatus] = useState<Record<string, string>>({});
  const [recommandCompanyId, setRecommandCompanyId] = useState(profile?.recommand_company_id || null);
  const [recommandVerified, setRecommandVerified] = useState(profile?.recommand_verified === true);
@@ -363,7 +367,7 @@ export default function DashboardClient({
 
  const visibleConversions = showAll ? filteredConversions : filteredConversions.slice(0, 10);
 
- const downloadConversionXml = (conversion: Conversion, fallbackName: string) => {
+ const downloadConversionXmlNow = (conversion: Conversion, fallbackName: string) => {
   if (!conversion.ubl_xml) return;
   const blob = new Blob([conversion.ubl_xml], { type: "application/xml" });
   const url = URL.createObjectURL(blob);
@@ -372,6 +376,18 @@ export default function DashboardClient({
   anchor.download = `${fallbackName.replace(/[^a-z0-9-_]/gi, "-") || "factuur"}.xml`;
   anchor.click();
   URL.revokeObjectURL(url);
+ };
+
+ const prepareConversionAction = (action: "send" | "download", conversion: Conversion, fallbackName: string) => {
+  if (!conversion.id || !conversion.ubl_xml) return;
+  const consistency = validateStoredInvoiceConsistency(conversion.total_amount, conversion.ubl_xml);
+  if (!consistency.ok) {
+   setSendActionStatus((current) => ({ ...current, [conversion.id as string]: consistency.error }));
+   return;
+  }
+  setSendActionStatus((current) => ({ ...current, [conversion.id as string]: "" }));
+  const payload = buildRecommandPayloadFromUbl(conversion.ubl_xml);
+  setConfirmation({ action, conversion, filename: fallbackName, preview: buildInvoicePreviewFromPayload(payload.recipient, payload.document, payload.currency || conversion.currency || currency) });
  };
 
  async function handleBulkImport(event: React.ChangeEvent<HTMLInputElement>) {
@@ -444,6 +460,7 @@ export default function DashboardClient({
    sent_via_recommand_at: body.sentAt || item.sent_via_recommand_at || new Date().toISOString(),
    verified_recipient: true,
   } : item));
+  setConfirmation(null);
   setSendActionStatus((current) => ({ ...current, [conversion.id as string]: body.status === "as4_received" ? "Afgeleverd via Peppol." : "Verzonden; wacht op AS4-ontvangstbevestiging." }));
  } catch (error) {
   setSendActionStatus((current) => ({ ...current, [conversion.id as string]: error instanceof Error ? error.message : "Verzenden via Peppol mislukt" }));
@@ -781,14 +798,14 @@ export default function DashboardClient({
  <td><StatusBadge conversion={conversion} /></td>
  <td>
  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-{conversion.ubl_xml ? <button type="button" onClick={() => downloadConversionXml(conversion, invoiceNumber)} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}>Download XML</button> : <span className="action-muted">Geen XML</span>}
+{conversion.ubl_xml ? <button type="button" onClick={() => prepareConversionAction("download", conversion, invoiceNumber)} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}>Download XML</button> : <span className="action-muted">Geen XML</span>}
  <Link href="/convert" className="action-link">Nieuwe PDF</Link>
  {canSendConversion(conversion) ? (
- <button type="button" onClick={() => handleDashboardSend(conversion)} disabled={sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified ? "not-allowed" : "pointer", opacity: sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified ? 0.55 : 1 }}>{sendingConversionId === conversion.id ? "Verzenden..." : "Verzenden"}</button>
+ <button type="button" onClick={() => prepareConversionAction("send", conversion, invoiceNumber)} disabled={sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified ? "not-allowed" : "pointer", opacity: sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified ? 0.55 : 1 }}>{sendingConversionId === conversion.id ? "Verzenden..." : "Verzenden"}</button>
  ) : null}
  {canSendConversion(conversion) && !hasActiveSendCredits ? <Link href="/prijzen" className="action-link">Koop verzendtegoed</Link> : null}
  {canSendConversion(conversion) && !recommandVerified && recommandVerificationUrl ? <a className="action-link" href={recommandVerificationUrl} target="_blank" rel="noreferrer">Verifieer eerst</a> : null}
- {conversion.id && sendActionStatus[conversion.id] ? <span style={{ color: sendActionStatus[conversion.id].includes("mislukt") || sendActionStatus[conversion.id].includes("Geen") ? "#fca5a5" : "#93c5fd", fontSize: 12, flexBasis: "100%" }}>{sendActionStatus[conversion.id]}</span> : null}
+ {conversion.id && sendActionStatus[conversion.id] ? <span style={{ color: sendActionStatus[conversion.id].includes("mislukt") || sendActionStatus[conversion.id].includes("Geen") || sendActionStatus[conversion.id].includes("geblokkeerd") ? "#fca5a5" : "#93c5fd", fontSize: 12, flexBasis: "100%" }}>{sendActionStatus[conversion.id]}</span> : null}
  </div>
  </td>
  </tr>
@@ -976,6 +993,24 @@ export default function DashboardClient({
  </aside>
  </div>
  </div>
- </main>
+ {confirmation && (
+<InvoiceConfirmation
+ title={confirmation.action === "send" ? "Bevestig Peppol-verzending" : "Bevestig UBL-download"}
+ preview={confirmation.preview}
+ remainingCreditsAfterSend={confirmation.action === "send" ? Math.max(0, sendCredits - 1) : null}
+ confirmLabel={confirmation.action === "send" ? "Bevestigen en verzenden" : "Downloaden"}
+ busy={sendingConversionId === confirmation.conversion.id}
+ onCancel={() => setConfirmation(null)}
+ onConfirm={() => {
+  if (confirmation.action === "download") {
+   downloadConversionXmlNow(confirmation.conversion, confirmation.filename);
+   setConfirmation(null);
+   return;
+  }
+  handleDashboardSend(confirmation.conversion);
+ }}
+/>
+)}
+</main>
  );
 }

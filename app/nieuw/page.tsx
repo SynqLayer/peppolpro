@@ -6,7 +6,9 @@ import { createClient } from "../../lib/supabase-client";
 import { C } from "../../lib/constants";
 import { InvoiceData, InvoiceLine } from "../../lib/ubl-generator";
 import { validateInvoiceData } from "../../lib/ubl-validator";
-import { buildRecommandInvoiceDocument, deriveRecommandRecipient, validateRecommandInvoiceData } from "../../lib/recommand-invoice";
+import { buildInvoicePreviewFromPayload, validateStoredInvoiceConsistency, type InvoicePreview } from "../../lib/invoice-preview";
+import { buildRecommandPayloadFromUbl } from "../../lib/ubl-to-recommand";
+import { InvoiceConfirmation } from "../components/InvoiceConfirmation";
 import { parseDecimalCurrencyInput, parseDecimalInput, sanitizeDecimalCurrencyDisplayInput, sanitizeDecimalDisplayInput } from "../../lib/decimal-input";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -43,6 +45,8 @@ export default function NieuwPage() {
  const [sendStatus, setSendStatus] = useState<string | null>(null);
  const [xml, setXml] = useState("");
  const [conversionId, setConversionId] = useState<string | null>(null);
+ const [generatedTotalAmount, setGeneratedTotalAmount] = useState<number | string | null>(null);
+ const [confirmation, setConfirmation] = useState<{ action: "send" | "download"; preview: InvoicePreview } | null>(null);
  const [recommandVerified, setRecommandVerified] = useState(false);
  const [recommandCompanyId, setRecommandCompanyId] = useState<string | null>(null);
  const [sendCredits, setSendCredits] = useState(0);
@@ -172,6 +176,8 @@ export default function NieuwPage() {
  setErrors(result.errors);
  setXml("");
  setConversionId(null);
+ setGeneratedTotalAmount(null);
+ setConfirmation(null);
  setSendStatus(null);
  if (!result.valid) return;
 
@@ -189,6 +195,7 @@ export default function NieuwPage() {
  }
  setXml(body.xml);
  setConversionId(body.conversionId || null);
+ setGeneratedTotalAmount(body.totalAmount ?? null);
  } catch {
  setErrors(["Netwerkfout. Probeer opnieuw."]);
  } finally {
@@ -196,7 +203,17 @@ export default function NieuwPage() {
  }
  };
 
- const downloadXml = () => {
+ const ensureConsistentGeneratedXml = () => {
+ const consistency = validateStoredInvoiceConsistency(generatedTotalAmount, xml);
+ if (!consistency.ok) {
+  setErrors([consistency.error]);
+  setSendStatus(null);
+  return false;
+ }
+ return true;
+ };
+
+ const downloadXmlNow = () => {
  const blob = new Blob([xml], { type: "application/xml" });
  const url = URL.createObjectURL(blob);
  const a = document.createElement("a");
@@ -206,34 +223,42 @@ export default function NieuwPage() {
  URL.revokeObjectURL(url);
  };
 
- const sendViaPeppol = async () => {
+ const prepareDownloadXml = () => {
+ if (!xml || !ensureConsistentGeneratedXml()) return;
+ setErrors([]);
+ const payload = buildRecommandPayloadFromUbl(xml);
+ setConfirmation({ action: "download", preview: buildInvoicePreviewFromPayload(payload.recipient, payload.document, payload.currency || currency) });
+ };
+
+ const prepareSendViaPeppol = () => {
  if (!hasSendBundle) {
  setErrors(["Je bedrijf is geverifieerd, maar je hebt geen actief verzendtegoed. Koop een verzendbundel om via Peppol te verzenden."]);
  setSendStatus(null);
  return;
  }
- const data = invoiceData();
- const sendErrors = validateRecommandInvoiceData(data);
- setErrors(sendErrors);
- setSendStatus(null);
- if (sendErrors.length > 0) return;
  if (!recommandVerified || !recommandCompanyId) {
  setErrors(["Verifieer eerst je bedrijf voordat je via Peppol verzendt."]);
  return;
  }
- if (!conversionId) {
+ if (!conversionId || !xml) {
  setErrors(["Genereer de UBL opnieuw voordat je verzendt."]);
  return;
  }
+ if (!ensureConsistentGeneratedXml()) return;
+ setErrors([]);
+ setSendStatus(null);
+ const payload = buildRecommandPayloadFromUbl(xml);
+ setConfirmation({ action: "send", preview: buildInvoicePreviewFromPayload(payload.recipient, payload.document, payload.currency || currency) });
+ };
 
+ const confirmSendViaPeppol = async () => {
+ if (!conversionId) return;
  setSubmitting(true);
  try {
- const recipient = deriveRecommandRecipient(data);
- const document = buildRecommandInvoiceDocument(data);
  const res = await fetch("/api/recommand/send", {
  method: "POST",
  headers: { "Content-Type": "application/json" },
- body: JSON.stringify({ conversionId, recipient, document }),
+ body: JSON.stringify({ conversionId }),
  });
  const body = await res.json().catch(() => ({}));
  if (!res.ok) {
@@ -242,6 +267,7 @@ export default function NieuwPage() {
  }
  if (typeof body.remainingCredits === "number") setSendCredits(body.remainingCredits);
  setSendStatus(`Verzonden via Peppol. Document-ID: ${body.documentId}`);
+ setConfirmation(null);
  } catch (error) {
  setErrors([error instanceof Error ? error.message : "Verzenden via Peppol mislukt"]);
  } finally {
@@ -422,12 +448,30 @@ export default function NieuwPage() {
  )}
  {sendStatus && <p style={{ color: "#86efac", fontSize: 13, fontWeight: 800, margin: "0 0 14px" }}>{sendStatus}</p>}
  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
- <button onClick={downloadXml} style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700 }}>Download UBL/XML</button>
- <button onClick={hasSendBundle ? sendViaPeppol : () => router.push("/upgrade")} disabled={submitting || !recommandVerified} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : !recommandVerified ? "Verifieer eerst je bedrijf" : hasSendBundle ? "Verzenden via Peppol" : "Activeer verzendbundel"}</button>
+ <button onClick={prepareDownloadXml} style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700 }}>Download UBL/XML</button>
+ <button onClick={hasSendBundle ? prepareSendViaPeppol : () => router.push("/upgrade")} disabled={submitting || !recommandVerified} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : !recommandVerified ? "Verifieer eerst je bedrijf" : hasSendBundle ? "Verzenden via Peppol" : "Activeer verzendbundel"}</button>
  <button onClick={() => router.push("/dashboard")} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 700 }}>Opslaan in dashboard</button>
  </div>
  <pre style={{ overflow: "auto", maxHeight: 420, background: "rgba(0,0,0,0.32)", borderRadius: 10, padding: 16, color: C.gray, fontSize: 12 }}>{xml}</pre>
  </Section>
+ )}
+ {confirmation && (
+ <InvoiceConfirmation
+  title={confirmation.action === "send" ? "Bevestig Peppol-verzending" : "Bevestig UBL-download"}
+  preview={confirmation.preview}
+  remainingCreditsAfterSend={confirmation.action === "send" ? Math.max(0, sendCredits - 1) : null}
+  confirmLabel={confirmation.action === "send" ? "Bevestigen en verzenden" : "Downloaden"}
+  busy={submitting}
+  onCancel={() => setConfirmation(null)}
+  onConfirm={() => {
+   if (confirmation.action === "download") {
+    downloadXmlNow();
+    setConfirmation(null);
+    return;
+   }
+   confirmSendViaPeppol();
+  }}
+ />
  )}
  </div>
  </div>
