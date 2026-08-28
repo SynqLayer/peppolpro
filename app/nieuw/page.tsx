@@ -266,7 +266,7 @@ export default function NieuwPage() {
  return;
  }
  if (typeof body.remainingCredits === "number") setSendCredits(body.remainingCredits);
- setSendStatus(`Verzonden via Peppol. Document-ID: ${body.documentId}`);
+ setSendStatus(body.status === "sending" ? body.message || "Verzending loopt nog. De status wordt zo ververst." : `Verzonden via Peppol. Document-ID: ${body.documentId}`);
  setConfirmation(null);
  } catch (error) {
  setErrors([error instanceof Error ? error.message : "Verzenden via Peppol mislukt"]);

@@ -453,15 +453,16 @@ export default function DashboardClient({
    return;
   }
   if (typeof body.remainingCredits === "number") setLocalSendCredits(body.remainingCredits);
+  const stillSending = body.status === "sending";
   setLocalConversions((current) => current.map((item) => item.id === conversion.id ? {
    ...item,
    recommand_document_id: body.documentId || item.recommand_document_id,
    recommand_status: body.status || item.recommand_status,
-   sent_via_recommand_at: body.sentAt || item.sent_via_recommand_at || new Date().toISOString(),
-   verified_recipient: true,
+   sent_via_recommand_at: stillSending ? item.sent_via_recommand_at : body.sentAt || item.sent_via_recommand_at || new Date().toISOString(),
+   verified_recipient: stillSending ? item.verified_recipient : true,
   } : item));
   setConfirmation(null);
-  setSendActionStatus((current) => ({ ...current, [conversion.id as string]: body.status === "as4_received" ? "Afgeleverd via Peppol." : "Verzonden; wacht op AS4-ontvangstbevestiging." }));
+  setSendActionStatus((current) => ({ ...current, [conversion.id as string]: stillSending ? body.message || "Verzending loopt nog. De status wordt zo ververst." : body.status === "as4_received" ? "Afgeleverd via Peppol." : "Verzonden; wacht op AS4-ontvangstbevestiging." }));
  } catch (error) {
   setSendActionStatus((current) => ({ ...current, [conversion.id as string]: error instanceof Error ? error.message : "Verzenden via Peppol mislukt" }));
  } finally {
