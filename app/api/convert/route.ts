@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "../../../lib/supabase-server";
-import { ParsedInvoice, parseInvoicePDF } from "../../../lib/invoice-parser";
+import { ParsedInvoice, parseInvoicePDF, describeInvoiceParserError, InvoiceParserError } from "../../../lib/invoice-parser";
 import { generateUBL, InvoiceData } from "../../../lib/ubl-generator";
 import { parseUblSummary } from "../../../lib/ubl-summary";
 
@@ -122,11 +122,22 @@ export async function POST(request: NextRequest) {
   .from("conversions")
   .update({ status: "failed" })
   .eq("id", conversion.id);
- const message = parseError instanceof Error ? parseError.message : "Kon de factuur niet lezen. Probeer een ander bestand.";
- if (message.includes("Gemini factuurparser-model niet beschikbaar")) {
- return NextResponse.json({ error: message }, { status: 502 });
+ const parserDetails = describeInvoiceParserError(parseError);
+ console.error("Convert parser error", {
+  ...parserDetails,
+  conversionId: conversion.id,
+  filename,
+ });
+ if (parseError instanceof InvoiceParserError) {
+  if (parseError.kind === "service_unavailable") {
+   return NextResponse.json({ error: "De factuurherkenning is tijdelijk niet beschikbaar. Probeer het later opnieuw." }, { status: 503 });
+  }
+  if (parseError.kind === "unexpected_response") {
+   return NextResponse.json({ error: "De factuurherkenning gaf een onverwacht antwoord. Probeer een andere PDF of neem contact op zodat we kunnen meekijken." }, { status: 422 });
+  }
+  return NextResponse.json({ error: "Deze PDF kon niet goed worden gelezen. Upload een tekst-PDF of probeer een duidelijkere factuur." }, { status: 422 });
  }
- return NextResponse.json({ error: "Kon de factuur niet lezen. Probeer een ander bestand." }, { status: 422 });
+ return NextResponse.json({ error: "De factuurherkenning is tijdelijk niet beschikbaar. Probeer het later opnieuw." }, { status: 503 });
  }
 
  // Generate UBL
