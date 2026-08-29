@@ -1,232 +1,140 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "../../../lib/supabase-server";
-import { ParsedInvoice, parseInvoicePDF, describeInvoiceParserError, InvoiceParserError, validateParsedInvoiceForConversion, parsedInvoiceAssumptions } from "../../../lib/invoice-parser";
-import { generateUBL, InvoiceData } from "../../../lib/ubl-generator";
-import { parseUblSummary } from "../../../lib/ubl-summary";
+import { createAdminSupabase, createServerSupabase } from "../../../lib/supabase-server";
+import { parseInvoicePDF, describeInvoiceParserError, InvoiceParserError, validateParsedInvoiceForConversion } from "../../../lib/invoice-parser";
+import { conversionDraftExpiresAt, parsedInvoiceToDraft, publicDraftPayload } from "../../../lib/conversion-drafts";
 
 export const maxDuration = 60;
 
-async function releaseUblCredit(admin: ReturnType<typeof createAdminSupabase>, userId: string) {
- const { data } = await admin.rpc("release_ubl_credit", { p_user_id: userId }).maybeSingle<{ credits: number }>();
- return data || null;
-}
+export async function GET() {
+ try {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
 
-function parsedToInvoiceData(parsed: ParsedInvoice): InvoiceData {
- return {
- supplierName: parsed.seller.name || "",
- supplierAddress: parsed.seller.address || "",
- supplierCity: parsed.seller.city || "",
- supplierCountry: parsed.seller.country || "NL",
- supplierVatNr: parsed.seller.btw_number || "",
- supplierKvkKbo: parsed.seller.kvk_number || "",
- supplierIban: parsed.seller.iban || "",
- customerName: parsed.buyer.name || "",
- customerAddress: parsed.buyer.address || "",
- customerCity: parsed.buyer.city || "",
- customerCountry: parsed.buyer.country || "NL",
- customerVatNr: parsed.buyer.btw_number || "",
- buyerReference: parsed.invoice.reference || undefined,
- customerEmail: "",
- invoiceNumber: parsed.invoice.number || "",
- invoiceDate: parsed.invoice.date || new Date().toISOString().slice(0, 10),
- dueDate: parsed.invoice.due_date || parsed.invoice.date || new Date().toISOString().slice(0, 10),
- currency: parsed.invoice.currency || "EUR",
- lines: parsed.lines.map((line, index) => ({
- id: String(index + 1),
- description: line.description,
- quantity: line.quantity,
- unitPrice: line.unit_price,
- vatPct: line.vat_rate,
- })),
- };
+  const admin = createAdminSupabase();
+  const { data, error } = await admin
+   .from("conversion_drafts")
+   .select("id, filename, invoice_data, assumptions, expires_at, updated_at")
+   .eq("user_id", user.id)
+   .eq("status", "draft")
+   .gt("expires_at", new Date().toISOString())
+   .order("updated_at", { ascending: false })
+   .limit(20);
+
+  if (error) return NextResponse.json({ error: "Concepten ophalen mislukt" }, { status: 500 });
+  return NextResponse.json({ drafts: (data || []).map(publicDraftPayload) });
+ } catch (err) {
+  const msg = err instanceof Error ? err.message : "Onbekende fout";
+  return NextResponse.json({ error: msg }, { status: 500 });
+ }
 }
 
 export async function POST(request: NextRequest) {
  try {
- const cookieStore = await cookies();
- const supabase = createServerClient(
- process.env.NEXT_PUBLIC_SUPABASE_URL!,
- process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
- {
- cookies: {
- getAll() { return cookieStore.getAll(); },
- setAll(cookiesToSet) {
- try { cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)); } catch {}
- },
- },
- }
- );
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+  const admin = createAdminSupabase();
 
- const { data: { user } } = await supabase.auth.getUser();
- if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
- const admin = createAdminSupabase();
+  const formData = await request.formData();
+  const file = formData.get("pdf") as File;
+  if (!file || file.type !== "application/pdf") {
+   return NextResponse.json({ error: "Upload een geldig PDF-bestand" }, { status: 400 });
+  }
+  if (file.size > 10 * 1024 * 1024) {
+   return NextResponse.json({ error: "Bestand mag maximaal 10MB zijn" }, { status: 400 });
+  }
 
- // Check credits
- const { data: profile } = await supabase
- .from("user_profiles")
- .select("credits, plan")
- .eq("id", user.id)
- .single();
+  const filename = file.name;
+  const arrayBuffer = await file.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const failedParseMeta = (extra: Record<string, unknown>) => ({
+   filename,
+   fileSize: file.size,
+   mimeType: file.type,
+   ...extra,
+  });
 
- if (!profile) {
- return NextResponse.json({ error: "Profiel niet gevonden" }, { status: 403 });
- }
-
- const plan = profile.plan || "free";
- if (plan === "free" && (profile.credits ?? 0) <= 0) {
- return NextResponse.json({ error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." }, { status: 403 });
- }
-
- // Get PDF from form data
- const formData = await request.formData();
- const file = formData.get("pdf") as File;
- if (!file || file.type !== "application/pdf") {
- return NextResponse.json({ error: "Upload een geldig PDF-bestand" }, { status: 400 });
- }
- if (file.size > 10 * 1024 * 1024) {
- return NextResponse.json({ error: "Bestand mag maximaal 10MB zijn" }, { status: 400 });
- }
-
- const filename = file.name;
- const arrayBuffer = await file.arrayBuffer();
- const base64 = Buffer.from(arrayBuffer).toString("base64");
- const failedParseMeta = (extra: Record<string, unknown>) => ({
-  filename,
-  fileSize: file.size,
-  mimeType: file.type,
-  ...extra,
- });
-
- // Parse with Gemini before creating a conversion row. Failed parse attempts are logged
- // with bounded metadata only, never the uploaded PDF or raw parser response.
- let parsed;
- try {
- parsed = await parseInvoicePDF(base64);
- } catch (parseError: unknown) {
- const parserDetails = describeInvoiceParserError(parseError);
- console.error("Convert parser error", { ...parserDetails, filename });
- await admin.from("scan_logs").insert({
-  user_id: user.id,
-  action: "convert_parse_failed",
-  meta: failedParseMeta({
-   stage: "parse",
-   kind: parserDetails.kind || parserDetails.name,
-   message: parserDetails.message,
-  }),
- });
- if (parseError instanceof InvoiceParserError) {
-  if (parseError.kind === "service_unavailable") {
+  // Parse with Gemini before creating a conversion row or debiting credit.
+  // Failed parse attempts are logged with bounded metadata only, never the PDF or raw parser response.
+  let parsed;
+  try {
+   parsed = await parseInvoicePDF(base64);
+  } catch (parseError: unknown) {
+   const parserDetails = describeInvoiceParserError(parseError);
+   console.error("Convert parser error", { ...parserDetails, filename });
+   await admin.from("scan_logs").insert({
+    user_id: user.id,
+    action: "convert_parse_failed",
+    meta: failedParseMeta({
+     stage: "parse",
+     kind: parserDetails.kind || parserDetails.name,
+     message: parserDetails.message,
+    }),
+   });
+   if (parseError instanceof InvoiceParserError) {
+    if (parseError.kind === "service_unavailable") {
+     return NextResponse.json({ error: "De factuurherkenning is tijdelijk niet beschikbaar. Probeer het later opnieuw." }, { status: 503 });
+    }
+    if (parseError.kind === "unexpected_response") {
+     return NextResponse.json({ error: "De factuurherkenning gaf een onverwacht antwoord. Probeer een andere PDF of neem contact op zodat we kunnen meekijken." }, { status: 422 });
+    }
+    return NextResponse.json({ error: "Deze PDF kon niet goed worden gelezen. Upload een tekst-PDF of probeer een duidelijkere factuur." }, { status: 422 });
+   }
    return NextResponse.json({ error: "De factuurherkenning is tijdelijk niet beschikbaar. Probeer het later opnieuw." }, { status: 503 });
   }
-  if (parseError.kind === "unexpected_response") {
-   return NextResponse.json({ error: "De factuurherkenning gaf een onverwacht antwoord. Probeer een andere PDF of neem contact op zodat we kunnen meekijken." }, { status: 422 });
-  }
-  return NextResponse.json({ error: "Deze PDF kon niet goed worden gelezen. Upload een tekst-PDF of probeer een duidelijkere factuur." }, { status: 422 });
- }
- return NextResponse.json({ error: "De factuurherkenning is tijdelijk niet beschikbaar. Probeer het later opnieuw." }, { status: 503 });
- }
 
- // Validate parsed invoice before generating UBL, creating a conversion row or debiting credit.
- const parsedValidation = validateParsedInvoiceForConversion(parsed);
- if (!parsedValidation.valid) {
-  console.error("Convert parser returned insufficient invoice data", {
-   filename,
-   reasons: parsedValidation.reasons,
-   invoiceNumberPresent: Boolean(parsed.invoice?.number),
-   customerNamePresent: Boolean(parsed.buyer?.name),
-   lineCount: Array.isArray(parsed.lines) ? parsed.lines.length : null,
-   total: parsed.totals?.total ?? null,
-   currency: parsed.invoice?.currency ?? null,
-  });
-  await admin.from("scan_logs").insert({
-   user_id: user.id,
-   action: "convert_parse_failed",
-   meta: failedParseMeta({
-    stage: "validation",
+  const parsedValidation = validateParsedInvoiceForConversion(parsed);
+  if (!parsedValidation.valid && parsedValidation.reasons.includes("unsupported_currency")) {
+   console.error("Convert parser returned unsupported currency", {
+    filename,
     reasons: parsedValidation.reasons,
-    invoiceNumberPresent: Boolean(parsed.invoice?.number),
-    customerNamePresent: Boolean(parsed.buyer?.name),
-    lineCount: Array.isArray(parsed.lines) ? parsed.lines.length : null,
-    totalPresent: parsed.totals?.total != null,
     currency: parsed.invoice?.currency ?? null,
-   }),
-  });
-  if (parsedValidation.reasons.includes("unsupported_currency")) {
+   });
+   await admin.from("scan_logs").insert({
+    user_id: user.id,
+    action: "convert_parse_failed",
+    meta: failedParseMeta({
+     stage: "validation",
+     reasons: parsedValidation.reasons,
+     currency: parsed.invoice?.currency ?? null,
+    }),
+   });
    return NextResponse.json({ error: "We kunnen op dit moment alleen EUR-facturen omzetten. Pas de factuur aan of vul de gegevens handmatig in via Nieuwe factuur." }, { status: 422 });
   }
-  return NextResponse.json({ error: "De factuur kon niet betrouwbaar worden gelezen. Vul de gegevens handmatig in via Nieuwe factuur, dan maken we daar een correcte UBL van." }, { status: 422 });
- }
 
- const assumptions = parsedInvoiceAssumptions(parsed);
+  const draft = parsedInvoiceToDraft(parsed);
+  const { data: created, error } = await admin
+   .from("conversion_drafts")
+   .insert({
+    user_id: user.id,
+    filename,
+    invoice_data: draft.invoiceData,
+    assumptions: draft.assumptions,
+    status: "draft",
+    expires_at: conversionDraftExpiresAt(),
+   })
+   .select("id, filename, invoice_data, assumptions, expires_at")
+   .single();
 
- // Generate UBL before creating a conversion row.
- const invoiceData = parsedToInvoiceData(parsed);
- const ublXml = generateUBL(invoiceData);
- const summary = parseUblSummary(ublXml);
+  if (error || !created) {
+   await admin.from("scan_logs").insert({
+    user_id: user.id,
+    action: "convert_draft_storage_failed",
+    meta: failedParseMeta({ stage: "draft_storage", reason: error?.message || "unknown" }),
+   });
+   return NextResponse.json({ error: "Concept kon niet worden opgeslagen" }, { status: 500 });
+  }
 
- // Use credits only on the free plan. Paid plans do not consume starter credits.
- let ublCreditDebited = false;
- if (plan === "free") {
- const { data: creditUsed, error: creditError } = await admin.rpc("use_credit", { p_user_id: user.id });
- if (creditError || creditUsed !== true) {
- return NextResponse.json({ error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." }, { status: 402 });
- }
- ublCreditDebited = true;
- }
-
- const { data: conversion, error: convError } = await admin
- .from("conversions")
- .insert({
-  user_id: user.id,
-  filename,
-  status: "done",
-  ubl_xml: ublXml,
-  customer_name: summary.customerName || parsed.buyer.name || null,
-  total_amount: summary.totalAmount ?? parsed.totals.total ?? null,
-  invoice_number: summary.invoiceNumber || parsed.invoice.number || null,
-  currency: summary.currency || parsed.invoice.currency || "EUR",
- })
- .select("id")
- .single();
-
- if (convError || !conversion) {
-  if (ublCreditDebited) await releaseUblCredit(admin, user.id);
-  return NextResponse.json({ error: "Kan conversie niet aanmaken" }, { status: 500 });
- }
-
- const { error: uploadError } = await supabase.storage
- .from("invoices")
- .upload(`${user.id}/${conversion.id}.pdf`, Buffer.from(arrayBuffer), {
- contentType: "application/pdf",
- upsert: true,
- });
-
- if (uploadError) {
   await admin.from("scan_logs").insert({
    user_id: user.id,
-   action: "convert_pdf_storage_failed",
-   meta: { conversion_id: conversion.id, filename, reason: uploadError.message },
+   action: "convert_draft_created",
+   meta: { draft_id: created.id, filename, assumptions: draft.assumptions, validationReasons: parsedValidation.reasons },
   });
- }
 
- // Log
- await admin.from("scan_logs").insert({
- user_id: user.id,
- action: "convert_success",
- meta: { conversion_id: conversion.id, filename, total: parsed.totals.total, assumptions },
- });
-
- return NextResponse.json({
- success: true,
- conversion_id: conversion.id,
- parsed,
- assumptions,
- ubl_xml: ublXml,
- });
+  return NextResponse.json({ success: true, draft: publicDraftPayload(created), assumptions: draft.assumptions });
  } catch (err: unknown) {
- const msg = err instanceof Error ? err.message : "Onbekende fout";
- return NextResponse.json({ error: msg }, { status: 500 });
+  const msg = err instanceof Error ? err.message : "Onbekende fout";
+  return NextResponse.json({ error: msg }, { status: 500 });
  }
 }

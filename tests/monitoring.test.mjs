@@ -57,6 +57,8 @@ const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', impor
 const middlewareFile = readFileSync(new URL('../middleware.ts', import.meta.url), 'utf8');
 const invoiceParser = readFileSync(new URL('../lib/invoice-parser.ts', import.meta.url), 'utf8');
 const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
+const confirmConvertRoute = readFileSync(new URL('../app/api/convert/confirm/route.ts', import.meta.url), 'utf8');
+const conversionDrafts = readFileSync(new URL('../lib/conversion-drafts.ts', import.meta.url), 'utf8');
 const homePage = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
 const loginPage = readFileSync(new URL('../app/login/page.tsx', import.meta.url), 'utf8');
 const constants = readFileSync(new URL('../lib/constants.ts', import.meta.url), 'utf8');
@@ -131,14 +133,14 @@ test('invoice parser uses configurable stable Gemini model and structured JSON o
  assert.match(convertRoute, /Deze PDF kon niet goed worden gelezen/);
  assert.match(convertRoute, /De factuurherkenning is tijdelijk niet beschikbaar/);
  assert.match(convertRoute, /validateParsedInvoiceForConversion/);
- assert.match(convertRoute, /De factuur kon niet betrouwbaar worden gelezen/);
+ assert.match(confirmConvertRoute, /validateParsedInvoiceForConversion\(invoiceData\)/);
  assert.match(convertRoute, /We kunnen op dit moment alleen EUR-facturen omzetten/);
- assert.match(convertRoute, /customerEmail: ""/);
- assert.doesNotMatch(convertRoute, /unknown@example\.invalid|invoiceNumber: parsed\.invoice\.number \|\| "factuur"/);
- assert.match(convertRoute, /parsedInvoiceAssumptions/);
+ assert.match(conversionDrafts, /const invoiceNumber = cleanText\(parsed\.invoice\?\.number\);/);
+ assert.doesNotMatch(`${convertRoute}\n${confirmConvertRoute}\n${conversionDrafts}`, /unknown@example\.invalid|invoiceNumber: parsed\.invoice\.number \|\| "factuur"|customerEmail: ""|seller\?\.email/);
  assert.match(convertRoute, /assumptions/);
- assert.ok(convertRoute.indexOf('validateParsedInvoiceForConversion(parsed)') < convertRoute.indexOf('use_credit'));
- assert.ok(convertRoute.indexOf('validateParsedInvoiceForConversion(parsed)') < convertRoute.indexOf('convert_success'));
+ assert.match(convertRoute, /convert_draft_created/);
+ assert.match(confirmConvertRoute, /convert_success/);
+ assert.ok(confirmConvertRoute.indexOf('validateParsedInvoiceForConversion(invoiceData)') < confirmConvertRoute.indexOf('confirm_conversion_draft'));
 });
 
 test('legacy duplicate Mollie webhook re-export and fix script are removed', () => {

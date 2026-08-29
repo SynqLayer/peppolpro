@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 
 const migration = readFileSync(new URL('../supabase/migrations/0023_harden_client_table_privileges.sql', import.meta.url), 'utf8');
 const migration0024 = readFileSync(new URL('../supabase/migrations/0024_account_members_service_role_writes.sql', import.meta.url), 'utf8');
+const migration0029 = readFileSync(new URL('../supabase/migrations/0029_conversion_drafts_confirm_flow.sql', import.meta.url), 'utf8');
 const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
 const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
+const confirmConvertRoute = readFileSync(new URL('../app/api/convert/confirm/route.ts', import.meta.url), 'utf8');
 const recommandSendRoute = readFileSync(new URL('../app/api/recommand/send/route.ts', import.meta.url), 'utf8');
 const apiKeysRoute = readFileSync(new URL('../app/api/monitoring/api-keys/route.ts', import.meta.url), 'utf8');
 const targetsRoute = readFileSync(new URL('../app/api/monitoring/targets/route.ts', import.meta.url), 'utf8');
@@ -54,8 +56,10 @@ test('clients, invoice lines, conversions and invoices are authenticated SELECT-
  assert.match(generateRoute, /const admin = createAdminSupabase\(\)/);
  assert.match(generateRoute, /admin\.from\("conversions"\)\.insert/);
  assert.match(convertRoute, /const admin = createAdminSupabase\(\)/);
- assert.match(convertRoute, /await admin\s*\n\s*\.from\("conversions"\)\s*\n\s*\.insert/);
- assert.doesNotMatch(convertRoute, /await supabase\s*\n\s*\.from\("conversions"\)\s*\n\s*\.(insert|update|delete)/);
+ assert.match(convertRoute, /await admin\s*\n\s*\.from\("conversion_drafts"\)\s*\n\s*\.insert/);
+ assert.match(confirmConvertRoute, /const admin = createAdminSupabase\(\)/);
+ assert.match(confirmConvertRoute, /admin\.rpc\("confirm_conversion_draft"/);
+ assert.doesNotMatch(`${convertRoute}\n${confirmConvertRoute}`, /await supabase\s*\n\s*\.from\("conversions"\)\s*\n\s*\.(insert|update|delete)/);
  assert.match(recommandSendRoute, /const admin = createAdminSupabase\(\)/);
  assert.match(recommandSendRoute, /claimTargetForSending\(admin, targetTable, targetId, user\.id\)/);
  assert.doesNotMatch(recommandSendRoute, /await supabase\.from\(targetTable\)\.update/);
@@ -92,6 +96,18 @@ test('api_keys and webhook configs have no authenticated write grants and API ro
  assert.match(webhookConfigRoute, /createAdminSupabase/);
  assert.match(webhookConfigRoute, /await admin\s*\n\s*\.from\("monitoring_webhook_configs"\)\s*\n\s*\.upsert/);
  assert.match(webhookConfigRoute, /await admin\s*\n\s*\.from\("monitoring_webhook_configs"\)\s*\n\s*\.update/);
+});
+
+
+test('conversion_drafts cannot be written with anon or authenticated client grants', () => {
+ assert.match(migration0029, /alter table public\.conversion_drafts enable row level security/);
+ assert.match(migration0029, /revoke all on table public\.conversion_drafts from anon, authenticated/);
+ assert.match(migration0029, /grant select on table public\.conversion_drafts to authenticated/);
+ assert.match(migration0029, /grant all on table public\.conversion_drafts to service_role/);
+ assert.doesNotMatch(migration0029, /grant (insert|update|delete)[^;]+public\.conversion_drafts to (anon|authenticated)/i);
+ assert.match(migration0029, /create policy "read own conversion drafts"[\s\S]*for select using \(auth\.uid\(\) = user_id\)/);
+ assert.match(convertRoute, /await admin\s*\n\s*\.from\("conversion_drafts"\)\s*\n\s*\.insert/);
+ assert.doesNotMatch(`${convertRoute}\n${confirmConvertRoute}`, /await supabase\s*\n\s*\.from\("conversion_drafts"\)\s*\n\s*\.(insert|update|delete)/);
 });
 
 

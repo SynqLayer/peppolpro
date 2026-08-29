@@ -6,6 +6,7 @@ import { validateInvoiceData } from '../lib/ubl-validator.ts';
 const root = new URL('../', import.meta.url);
 const convertRoute = readFileSync(new URL('app/api/convert/route.ts', root), 'utf8');
 const generateRoute = readFileSync(new URL('app/api/generate/route.ts', root), 'utf8');
+const confirmConvertRoute = readFileSync(new URL('app/api/convert/confirm/route.ts', root), 'utf8');
 const middleware = readFileSync(new URL('middleware.ts', root), 'utf8');
 const sendRoute = readFileSync(new URL('app/api/recommand/send/route.ts', root), 'utf8');
 const dashboard = readFileSync(new URL('app/dashboard/DashboardClient.tsx', root), 'utf8');
@@ -59,15 +60,19 @@ test('validateInvoiceData rejects control characters in invoice number and free 
   }
 });
 
-test('/api/convert creates conversion rows only after successful parse and UBL generation', () => {
+test('/api/convert parses into a draft and confirm generates UBL before atomic conversion finalization', () => {
   const parseIndex = convertRoute.indexOf('parsed = await parseInvoicePDF(base64)');
-  const ublIndex = convertRoute.indexOf('const ublXml = generateUBL(invoiceData)');
-  const insertMatch = /\.from\("conversions"\)\s*\.insert\(\{/.exec(convertRoute);
-  const insertIndex = insertMatch?.index ?? -1;
+  const draftInsertIndex = convertRoute.indexOf('.insert({', parseIndex);
+  const validationIndex = confirmConvertRoute.indexOf('validateParsedInvoiceForConversion(invoiceData)');
+  const ublIndex = confirmConvertRoute.indexOf('const xml = generateUBL(invoiceData)');
+  const rpcIndex = confirmConvertRoute.indexOf('admin.rpc("confirm_conversion_draft"');
   assert.ok(parseIndex > 0, 'parse call exists');
-  assert.ok(ublIndex > parseIndex, 'UBL generation happens after parse');
-  assert.ok(insertIndex > ublIndex, 'conversion insert happens after successful UBL generation');
-  assert.doesNotMatch(convertRoute.slice(0, parseIndex), /\.from\("conversions"\)[\s\S]*\.insert/);
+  assert.ok(draftInsertIndex > parseIndex, 'draft insert happens after parse');
+  assert.ok(validationIndex > 0, 'confirm validation exists');
+  assert.ok(ublIndex > validationIndex, 'UBL generation happens after confirm validation');
+  assert.ok(rpcIndex > ublIndex, 'atomic conversion finalization happens after UBL generation');
+  assert.doesNotMatch(convertRoute.slice(0, parseIndex), /\.from\("conversion_drafts"\)[\s\S]*\.insert/);
+  assert.doesNotMatch(convertRoute, /\.from\("conversions"\)[\s\S]*\.insert|generateUBL\(|rpc\("use_credit"/);
   assert.match(convertRoute, /action: "convert_parse_failed"/);
   assert.doesNotMatch(convertRoute, /base64[\s\S]{0,120}scan_logs|scan_logs[\s\S]{0,120}base64/);
 });

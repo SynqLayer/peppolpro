@@ -177,6 +177,9 @@ export interface ParsedInvoice {
  city: string | null;
  country: string | null;
  btw_number: string | null;
+ kvk_number?: string | null;
+ peppol_id?: string | null;
+ email?: string | null;
  };
  invoice: {
  number: string | null;
@@ -199,6 +202,12 @@ export interface ParsedInvoice {
  total_vat: number;
  total: number;
  };
+ assumptions?: Array<{
+ field?: string | null;
+ label?: string | null;
+ reason?: string | null;
+ value?: string | null;
+ }>;
 }
 
 export function extractFirstJsonValue(text: string) {

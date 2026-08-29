@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
  const eventCutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
  const inviteCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
  const conversionPdfCutoff = conversionPdfRetentionCutoff();
+ const draftCutoff = new Date().toISOString();
 
  const { count: deletedMonitoringEvents, error: eventsError } = await supabase
  .from("monitoring_events")
@@ -59,6 +60,22 @@ export async function POST(req: NextRequest) {
  if (conversionUpdateError) return NextResponse.json({ error: "PDF-retentie markering mislukt" }, { status: 500 });
  }
 
+ const { data: expiredDrafts, error: draftSelectError } = await supabase
+ .from("conversion_drafts")
+ .select("id")
+ .eq("status", "draft")
+ .lt("expires_at", draftCutoff)
+ .limit(1000);
+ if (draftSelectError) return NextResponse.json({ error: "Concept-retentie selectie mislukt" }, { status: 500 });
+ const expiredDraftIds = (expiredDrafts || []).map((draft) => draft.id).filter(Boolean);
+ if (expiredDraftIds.length > 0) {
+ const { error: draftDeleteError } = await supabase
+  .from("conversion_drafts")
+  .delete()
+  .in("id", expiredDraftIds);
+ if (draftDeleteError) return NextResponse.json({ error: "Concept-retentie cleanup mislukt" }, { status: 500 });
+ }
+
  const { data: endedSubscriptions, error: subscriptionError } = await supabase
  .from("subscriptions")
  .select("user_id")
@@ -78,12 +95,14 @@ export async function POST(req: NextRequest) {
  deletedMonitoringEvents: deletedMonitoringEvents || 0,
  expiredInvites: expiredInvites || 0,
  deletedConversionPdfs,
+ expiredDrafts: expiredDraftIds.length,
  checkedConversionPdfs: conversionPdfPaths.length,
  endedSubscriptions: endedUserIds.length,
  retention: {
  monitoringEvents: "12 maanden",
  pendingInvites: "30 dagen",
  conversionPdfs: "14 dagen na conversie",
+ conversionDrafts: "14 dagen na parsing zonder bevestiging",
  },
  });
  } catch (err) {
