@@ -139,8 +139,7 @@ const statusMap: Record<string, { label: string; bg: string; color: string; bord
  draft: { label: "Concept", bg: "rgba(148,163,184,0.12)", color: "#cbd5e1", border: "rgba(148,163,184,0.22)", group: "concept" },
  concept: { label: "Concept", bg: "rgba(148,163,184,0.12)", color: "#cbd5e1", border: "rgba(148,163,184,0.22)", group: "concept" },
  processing: { label: "UBL genereren", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "in_behandeling" },
- success: { label: "UBL gegenereerd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "ubl_gegenereerd" },
- done: { label: "UBL gegenereerd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "ubl_gegenereerd" },
+  done: { label: "UBL gegenereerd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "ubl_gegenereerd" },
  sent: { label: "Verzonden, wacht op bevestiging", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
  delivered: { label: "Verzonden, wacht op bevestiging", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
  sending: { label: "Verzenden...", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "in_behandeling" },
@@ -153,7 +152,7 @@ const statusMap: Record<string, { label: string; bg: string; color: string; bord
  duplicate_voided: { label: "Vervallen (dubbel)", bg: "rgba(148,163,184,0.10)", color: "#94a3b8", border: "rgba(148,163,184,0.18)", group: "gearchiveerd" },
 };
 
-const generatedStatuses = ["success", "done"];
+const generatedStatuses = ["done"];
 const openStatuses = ["draft", "concept", "processing", "sent", "delivered"];
 const failedStatuses = ["failed", "error", "mislukt", "send_failed", "recipient_not_found", "invoice_not_supported", "verzendfout"];
 const archivedStatuses = ["duplicate_voided"];
@@ -178,7 +177,7 @@ const normalizeStatus = (status?: string | null) => {
  return statusMap[key] ? key : "draft";
 };
 
-const effectiveStatus = (conversion: Conversion) => conversion.recommand_status || (conversion.ubl_xml ? "success" : conversion.status);
+const effectiveStatus = (conversion: Conversion) => conversion.recommand_status || (conversion.ubl_xml ? "done" : conversion.status);
 const statusGroup = (status?: string | null) => statusMap[normalizeStatus(status)].group;
 const isGenerated = (status?: string | null) => generatedStatuses.includes((status || "").toLowerCase());
 const isFailed = (status?: string | null) => failedStatuses.includes((status || "").toLowerCase());

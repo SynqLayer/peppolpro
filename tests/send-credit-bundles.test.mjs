@@ -164,7 +164,7 @@ test('send route releases reserved credits on provider-side failure paths', () =
 
 
 
-test('UBL credit debit is atomic and released when storage after debit fails', () => {
+test('UBL credit debit is atomic and retained when only source PDF storage fails', () => {
  assert.match(migration0021, /update public\.user_profiles\s+set credits = credits - 1\s+where id = p_user_id and credits > 0/);
  assert.match(migration0022, /update public\.user_profiles up\s+set credits = up\.credits \+ 1\s+where up\.id = p_user_id\s+returning up\.credits/);
 
@@ -174,12 +174,12 @@ test('UBL credit debit is atomic and released when storage after debit fails', (
  assert.match(generateDebitToInsertFailure, /Factuur kon niet worden opgeslagen/);
 
  const convertDebitToInsertFailure = convertRoute.match(/if \(convError \|\| !conversion\) \{[\s\S]*?Kan conversie niet aanmaken[\s\S]*?\}/)?.[0] || '';
- const convertUploadFailure = convertRoute.match(/if \(uploadError\) \{[\s\S]*?PDF kon niet worden opgeslagen[\s\S]*?\}/)?.[0] || '';
+ const convertUploadFailure = convertRoute.match(/if \(uploadError\) \{[\s\S]*?convert_pdf_storage_failed[\s\S]*?\}/)?.[0] || '';
  assert.match(convertRoute, /admin\.rpc\("use_credit"/);
  assert.match(convertDebitToInsertFailure, /releaseUblCredit\(admin, user\.id\)/);
  assert.match(convertDebitToInsertFailure, /Kan conversie niet aanmaken/);
- assert.match(convertUploadFailure, /releaseUblCredit\(admin, user\.id\)/);
- assert.match(convertUploadFailure, /PDF kon niet worden opgeslagen/);
+ assert.match(convertUploadFailure, /convert_pdf_storage_failed/);
+ assert.doesNotMatch(convertUploadFailure, /releaseUblCredit\(admin, user\.id\)|status: "failed"|PDF kon niet worden opgeslagen/);
 
  assert.doesNotMatch(`${generateRoute}\n${convertRoute}`, /credits\s*=\s*credits\s*-\s*1/);
 });
@@ -213,7 +213,7 @@ test('dashboard renders a per-invoice send action and removes the old new-invoic
 });
 
 test('dashboard status prefers Recommand delivery state and only labels AS4 receipt as delivered', () => {
- assert.match(dashboard, /const effectiveStatus = \(conversion: Conversion\) => conversion\.recommand_status \|\| \(conversion\.ubl_xml \? "success" : conversion\.status\)/);
+ assert.match(dashboard, /const effectiveStatus = \(conversion: Conversion\) => conversion\.recommand_status \|\| \(conversion\.ubl_xml \? "done" : conversion\.status\)/);
  assert.match(dashboard, /as4_received: \{ label: "Afgeleverd"/);
  assert.match(dashboard, /Ontvangstbevestiging op/);
  assert.match(dashboard, /send_failed: \{ label: "Verzenden mislukt"/);

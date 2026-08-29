@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
  .insert({
   user_id: user.id,
   filename,
-  status: "success",
+  status: "done",
   ubl_xml: ublXml,
   customer_name: summary.customerName || parsed.buyer.name || null,
   total_amount: summary.totalAmount ?? parsed.totals.total ?? null,
@@ -204,13 +204,11 @@ export async function POST(request: NextRequest) {
  });
 
  if (uploadError) {
-  if (ublCreditDebited) await releaseUblCredit(admin, user.id);
-  await admin
-   .from("conversions")
-   .update({ status: "failed" })
-   .eq("id", conversion.id)
-   .eq("user_id", user.id);
-  return NextResponse.json({ error: "PDF kon niet worden opgeslagen" }, { status: 500 });
+  await admin.from("scan_logs").insert({
+   user_id: user.id,
+   action: "convert_pdf_storage_failed",
+   meta: { conversion_id: conversion.id, filename, reason: uploadError.message },
+  });
  }
 
  // Log
