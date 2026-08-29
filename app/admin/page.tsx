@@ -1,76 +1,91 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import AdminClient from "./AdminClient";
+import { createAdminSupabase, createServerSupabase } from "../../lib/supabase-server";
 
-type AdminPageProps = {
- searchParams?: Promise<{ secret?: string | string[] }>;
-};
+function maskEmail(email: string | null | undefined) {
+ if (!email) return "—";
+ const [localPart, domain] = email.split("@");
+ if (!domain) return "••••";
+ const visibleLocal = localPart.slice(0, 2);
+ const [domainName, ...tldParts] = domain.split(".");
+ const tld = tldParts.join(".");
+ const visibleDomain = domainName.slice(0, 1);
+ return `${visibleLocal}${"•".repeat(Math.max(3, localPart.length - 2))}@${visibleDomain}${"•".repeat(Math.max(3, domainName.length - 1))}${tld ? `.${tld}` : ""}`;
+}
 
-export default async function AdminPage({ searchParams }: AdminPageProps) {
- const resolvedSearchParams = (await searchParams) || {};
- const secret = Array.isArray(resolvedSearchParams.secret)
- ? resolvedSearchParams.secret[0]
- : resolvedSearchParams.secret;
+export default async function AdminPage() {
+ const sessionSupabase = await createServerSupabase();
+ const { data: { user } } = await sessionSupabase.auth.getUser();
 
- if (!process.env.ADMIN_SECRET || secret !== process.env.ADMIN_SECRET) {
- redirect("/dashboard");
+ if (!user) {
+  redirect("/dashboard");
  }
 
- const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.supabase_service_role;
- if (!serviceKey) {
- throw new Error("SUPABASE_SERVICE_ROLE_KEY ontbreekt");
+ const { data: profile } = await sessionSupabase
+  .from("user_profiles")
+  .select("is_admin")
+  .eq("id", user.id)
+  .single();
+
+ if (!profile?.is_admin) {
+  redirect("/dashboard");
  }
 
- const supabase = createClient(
- process.env.NEXT_PUBLIC_SUPABASE_URL!,
- serviceKey,
- { auth: { persistSession: false } }
- );
+ const supabase = createAdminSupabase();
 
  const { data: users } = await supabase
- .from("user_profiles")
- .select("id, email, full_name, company_name, plan, credits, is_admin, onboarding_complete, created_at")
- .order("created_at", { ascending: false })
- .limit(50);
+  .from("user_profiles")
+  .select("id, email, full_name, company_name, plan, credits, is_admin, onboarding_complete, created_at")
+  .order("created_at", { ascending: false })
+  .limit(50);
 
  const { data: conversions } = await supabase
- .from("conversions")
- .select("id, user_id, filename, status, invoice_number, total_amount, currency, created_at")
- .order("created_at", { ascending: false })
- .limit(50);
+  .from("conversions")
+  .select("id, user_id, filename, status, invoice_number, total_amount, currency, created_at")
+  .order("created_at", { ascending: false })
+  .limit(50);
 
  const { data: messages } = await supabase
- .from("contact_messages")
- .select("*")
- .order("created_at", { ascending: false })
- .limit(20);
+  .from("contact_messages")
+  .select("id, name, email, message, status, created_at")
+  .order("created_at", { ascending: false })
+  .limit(20);
 
  const { data: payments } = await supabase
- .from("payments")
- .select("*")
- .order("created_at", { ascending: false })
- .limit(20);
+  .from("payments")
+  .select("id, user_id, type, amount, credits, status, created_at")
+  .order("created_at", { ascending: false })
+  .limit(20);
 
  const { data: monitoringTargets } = await supabase
- .from("monitoring_targets")
- .select("id, user_id, identifier_type, identifier_value, label, status, last_checked_at, created_at")
- .order("created_at", { ascending: false })
- .limit(50);
+  .from("monitoring_targets")
+  .select("id, user_id, identifier_type, identifier_value, label, status, last_checked_at, created_at")
+  .order("created_at", { ascending: false })
+  .limit(50);
 
  const { data: monitoringEvents } = await supabase
- .from("monitoring_events")
- .select("id, target_id, user_id, event_type, severity, created_at")
- .order("created_at", { ascending: false })
- .limit(50);
+  .from("monitoring_events")
+  .select("id, target_id, user_id, event_type, severity, created_at")
+  .order("created_at", { ascending: false })
+  .limit(50);
+
+ const maskedUsers = (users || []).map(({ email, ...rest }) => ({
+  ...rest,
+  masked_email: maskEmail(email),
+ }));
+ const maskedMessages = (messages || []).map(({ email, ...rest }) => ({
+  ...rest,
+  masked_email: maskEmail(email),
+ }));
 
  return (
- <AdminClient
- users={users || []}
- conversions={conversions || []}
- messages={messages || []}
- payments={payments || []}
- monitoringTargets={monitoringTargets || []}
- monitoringEvents={monitoringEvents || []}
- />
+  <AdminClient
+   users={maskedUsers}
+   conversions={conversions || []}
+   messages={maskedMessages}
+   payments={payments || []}
+   monitoringTargets={monitoringTargets || []}
+   monitoringEvents={monitoringEvents || []}
+  />
  );
 }

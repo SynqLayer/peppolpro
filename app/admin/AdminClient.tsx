@@ -24,6 +24,9 @@ export default function AdminClient({ users, conversions, messages, payments, mo
  </div>
  );
 
+ const [revealedEmails, setRevealedEmails] = useState<Record<string, string>>({});
+ const [revealErrors, setRevealErrors] = useState<Record<string, string>>({});
+
  const tabBtn = (t: typeof tab, label: string) => (
  <button onClick={() => setTab(t)} style={{
  background: tab === t ? `${C.blue}22` : "transparent",
@@ -32,6 +35,38 @@ export default function AdminClient({ users, conversions, messages, payments, mo
  padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
  }}>{label}</button>
  );
+
+ const revealEmail = async (target: "user_profile" | "contact_message", id: string) => {
+ const key = `${target}:${id}`;
+ if (revealedEmails[key]) return;
+ setRevealErrors((current) => ({ ...current, [key]: "" }));
+ const response = await fetch("/api/admin/reveal-email", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify({ target, id }),
+ });
+ if (!response.ok) {
+ setRevealErrors((current) => ({ ...current, [key]: "Niet beschikbaar" }));
+ return;
+ }
+ const data = (await response.json()) as { email?: string };
+ setRevealedEmails((current) => ({ ...current, [key]: data.email || "—" }));
+ };
+
+ const emailValue = (target: "user_profile" | "contact_message", row: any) => {
+ const key = `${target}:${row.id}`;
+ return revealedEmails[key] || row.masked_email || "—";
+ };
+
+ const revealButton = (target: "user_profile" | "contact_message", row: any) => {
+ const key = `${target}:${row.id}`;
+ if (!row.id || revealedEmails[key]) return null;
+ return (
+ <button type="button" onClick={() => revealEmail(target, row.id)} style={{ marginLeft: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.dim, borderRadius: 6, padding: "2px 6px", fontSize: 11, cursor: "pointer" }}>
+ toon e-mail
+ </button>
+ );
+ };
 
  const successCount = conversions.filter(c => c.status === "success").length;
  const failedCount = conversions.filter(c => c.status === "failed").length;
@@ -93,7 +128,8 @@ export default function AdminClient({ users, conversions, messages, payments, mo
  return (
  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
  <div>
- <div style={{ fontWeight: 600 }}>{user.email || "—"}</div>
+ <div style={{ fontWeight: 600 }}>{emailValue("user_profile", user)}{revealButton("user_profile", user)}</div>
+ {revealErrors[`user_profile:${user.id}`] && <div style={{ color: "#ef4444", fontSize: 11 }}>{revealErrors[`user_profile:${user.id}`]}</div>}
  <div style={{ color: C.dim, fontSize: 12 }}>{user.company_name || "Geen bedrijf"} · {user.plan}</div>
  </div>
  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -129,9 +165,10 @@ export default function AdminClient({ users, conversions, messages, payments, mo
  return (
  <div key={i} style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
- <span style={{ fontWeight: 600 }}>{msg.name || ""} ({msg.email || ""})</span>
+ <span style={{ fontWeight: 600 }}>{msg.name || ""} ({emailValue("contact_message", msg)}{revealButton("contact_message", msg)})</span>
  <span style={{ fontSize: 11, color: C.dim }}>{new Date(msg.created_at as string).toLocaleDateString("nl-NL")}</span>
  </div>
+ {revealErrors[`contact_message:${msg.id}`] && <div style={{ color: "#ef4444", fontSize: 11, marginBottom: 6 }}>{revealErrors[`contact_message:${msg.id}`]}</div>}
  <div style={{ color: C.dim, lineHeight: 1.6 }}>{msg.message || ""}</div>
  </div>
  );
@@ -143,7 +180,7 @@ export default function AdminClient({ users, conversions, messages, payments, mo
  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
  <div>
  <div style={{ fontWeight: 600 }}>€{payment.amount || 0} · {payment.type || "—"}</div>
- <div style={{ color: C.dim, fontSize: 12 }}>{payment.description || "—"} · {new Date(payment.created_at as string).toLocaleDateString("nl-NL")}</div>
+ <div style={{ color: C.dim, fontSize: 12 }}>{payment.credits || 0} credits · {new Date(payment.created_at as string).toLocaleDateString("nl-NL")}</div>
  </div>
  <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: payment.status === "paid" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", color: payment.status === "paid" ? "#10b981" : "#ef4444" }}>
  {payment.status || "unknown"}

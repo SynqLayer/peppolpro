@@ -41,7 +41,7 @@ test('user_profiles grants only authenticated self-select and onboarding column 
  ]);
  assert.doesNotMatch(migration, /grant insert[^;]+user_profiles to authenticated/i);
  assert.doesNotMatch(migration, /grant delete[^;]+user_profiles to authenticated/i);
- assert.doesNotMatch(updateGrantFor('user_profiles').join(','), /plan|credits|send_credits|send_credits_expires_at|recommand_verified|recommand_company_id/);
+ assert.doesNotMatch(updateGrantFor('user_profiles').join(','), /plan|credits|send_credits|send_credits_expires_at|recommand_verified|recommand_company_id|is_admin/);
 });
 
 test('clients, invoice lines, conversions and invoices are authenticated SELECT-only where readable and all route writes use service role', () => {
