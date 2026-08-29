@@ -41,7 +41,7 @@ export default async function AdminPage() {
 
  const { data: conversions } = await supabase
   .from("conversions")
-  .select("id, user_id, filename, status, invoice_number, total_amount, currency, created_at")
+  .select("id, user_id, filename, source_pdf_filename, status, invoice_number, total_amount, currency, created_at")
   .order("created_at", { ascending: false })
   .limit(50);
 

@@ -35,6 +35,7 @@ export type Profile = {
 export type Conversion = {
  id?: string | null;
  filename?: string | null;
+ source_pdf_filename?: string | null;
  status?: string | null;
  invoice_number?: string | null;
  total_amount?: number | string | null;
@@ -362,7 +363,8 @@ export default function DashboardClient({
  const matchesQuery = !term
  || (conversion.customer_name || "").toLowerCase().includes(term)
  || (conversion.invoice_number || "").toLowerCase().includes(term)
- || (conversion.filename || "").toLowerCase().includes(term);
+ || (conversion.filename || "").toLowerCase().includes(term)
+ || (conversion.source_pdf_filename || "").toLowerCase().includes(term);
  const matchesStatus = filter === "all" || statusGroup(effectiveStatus(conversion)) === filter;
  return matchesQuery && matchesStatus;
  });
@@ -796,7 +798,7 @@ export default function DashboardClient({
  return (
  <tr key={conversion.id || `${invoiceNumber}-${index}`}>
  <td style={{ color: "#f8fafc", fontWeight: 900 }}>{invoiceNumber}</td>
- <td style={{ color: "#cbd5e1" }}>{conversion.customer_name || "Onbekende klant"}</td>
+ <td style={{ color: "#cbd5e1" }}>{conversion.customer_name || "Onbekende klant"}{conversion.source_pdf_filename ? <><br /><span style={{ color: "#64748b", fontSize: 12 }}>Bron: {conversion.source_pdf_filename}</span></> : null}</td>
  <td style={{ color: "#f8fafc", fontWeight: 800 }}>{formatCurrency(amount, conversion.currency || currency)}</td>
  <td style={{ color: "#94a3b8" }}>{formatDate(conversion.created_at)}</td>
  <td><StatusBadge conversion={conversion} /></td>

@@ -78,8 +78,8 @@ test('draft storage is private to the owner and not writable with anon/authentic
  assert.match(policyBlock, /create policy "read own conversion drafts"[\s\S]*for select using \(auth\.uid\(\) = user_id\)/);
  assert.match(policyBlock, /No anon\/authenticated insert\/update\/delete policies/);
  assert.doesNotMatch(policyBlock.replace(/for select/g, ''), /for insert|for update|for delete/);
- assert.match(migration, /revoke all on function public\.confirm_conversion_draft[\s\S]*from public, anon, authenticated, hermes_operator/);
- assert.match(migration, /grant execute on function public\.confirm_conversion_draft[\s\S]*to service_role/);
+ assert.match(migration, /revoke all on function public\.confirm_conversion_draft\(uuid, uuid, text, text, text, text, text, numeric, text, text\)[\s\S]*from public, anon, authenticated, hermes_operator/);
+ assert.match(migration, /grant execute on function public\.confirm_conversion_draft\(uuid, uuid, text, text, text, text, text, numeric, text, text\)[\s\S]*to service_role/);
 });
 
 test('drafts are separate from dashboard conversions and expire through retention cleanup', () => {

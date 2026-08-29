@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
  .from("conversions")
  .select("id, user_id, created_at")
  .lt("created_at", conversionPdfCutoff)
+ .eq("source_pdf_stored", true)
  .is("pdf_deleted_at", null)
  .order("created_at", { ascending: true })
  .limit(1000);

@@ -29,7 +29,7 @@ test('admin data is minimized and full emails are revealed only by explicit admi
  assert.doesNotMatch(adminPage, /\.select\("\*"\)/);
  assert.match(adminPage, /\.from\("contact_messages"\)[\s\S]*\.select\("id, name, email, message, status, created_at"\)/);
  assert.match(adminPage, /\.from\("payments"\)[\s\S]*\.select\("id, user_id, type, amount, credits, status, created_at"\)/);
- assert.match(adminPage, /\.from\("conversions"\)[\s\S]*\.select\("id, user_id, filename, status, invoice_number, total_amount, currency, created_at"\)/);
+ assert.match(adminPage, /\.from\("conversions"\)[\s\S]*\.select\("id, user_id, filename, source_pdf_filename, status, invoice_number, total_amount, currency, created_at"\)/);
  assert.doesNotMatch(adminPage, /ubl_xml|customer_email|customer_name|btw|vat|raw/i);
  assert.match(adminPage, /masked_email: maskEmail\(email\)/);
  assert.doesNotMatch(adminClient, /user\.email|msg\.email/);

@@ -11,6 +11,13 @@ create table if not exists public.conversion_drafts (
  updated_at timestamptz not null default now()
 );
 
+alter table public.conversions
+ add column if not exists source_pdf_filename text,
+ add column if not exists source_pdf_stored boolean not null default true;
+
+comment on column public.conversions.source_pdf_filename is 'Original uploaded PDF filename for support context. The source PDF itself is not stored by the confirmable /convert flow.';
+comment on column public.conversions.source_pdf_stored is 'True only when a source PDF exists in private storage and should be handled by PDF retention cleanup.';
+
 create index if not exists conversion_drafts_user_status_idx
  on public.conversion_drafts(user_id, status, updated_at desc);
 
@@ -33,6 +40,7 @@ create or replace function public.confirm_conversion_draft(
  p_user_id uuid,
  p_draft_id uuid,
  p_filename text,
+ p_source_pdf_filename text,
  p_ubl_xml text,
  p_customer_name text,
  p_customer_email text,
@@ -101,7 +109,9 @@ begin
   customer_email,
   total_amount,
   invoice_number,
-  currency
+  currency,
+  source_pdf_filename,
+  source_pdf_stored
  ) values (
   p_user_id,
   p_filename,
@@ -111,7 +121,9 @@ begin
   p_customer_email,
   p_total_amount,
   p_invoice_number,
-  p_currency
+  p_currency,
+  p_source_pdf_filename,
+  false
  ) returning id into v_conversion_id;
 
  update public.conversion_drafts
@@ -126,8 +138,8 @@ begin
 end;
 $$;
 
-revoke all on function public.confirm_conversion_draft(uuid, uuid, text, text, text, text, numeric, text, text) from public, anon, authenticated, hermes_operator;
-grant execute on function public.confirm_conversion_draft(uuid, uuid, text, text, text, text, numeric, text, text) to service_role;
+revoke all on function public.confirm_conversion_draft(uuid, uuid, text, text, text, text, text, numeric, text, text) from public, anon, authenticated, hermes_operator;
+grant execute on function public.confirm_conversion_draft(uuid, uuid, text, text, text, text, text, numeric, text, text) to service_role;
 
 comment on table public.conversion_drafts is 'Short-lived parsed PDF conversion drafts. Contains normalized invoice fields and parser assumptions only, never raw model responses. Drafts expire after 14 days and are finalized server-side.';
-comment on function public.confirm_conversion_draft(uuid, uuid, text, text, text, text, numeric, text, text) is 'Atomically finalizes one conversion draft, debits one starter credit for free users, inserts exactly one conversion, and returns the existing conversion on duplicate confirm.';
+comment on function public.confirm_conversion_draft(uuid, uuid, text, text, text, text, text, numeric, text, text) is 'Atomically finalizes one conversion draft, debits one starter credit for free users, inserts exactly one conversion, and returns the existing conversion on duplicate confirm.';

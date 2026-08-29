@@ -29,16 +29,17 @@ export async function POST(req: NextRequest) {
 
   const { data: draftForLog } = await admin
    .from("conversion_drafts")
-   .select("assumptions")
+   .select("filename, assumptions")
    .eq("id", draftId)
    .eq("user_id", user.id)
-   .maybeSingle<{ assumptions: unknown }>();
+   .maybeSingle<{ filename: string | null; assumptions: unknown }>();
   const draftAssumptions = Array.isArray(draftForLog?.assumptions) ? draftForLog.assumptions : [];
 
   const { data: result, error } = await admin.rpc("confirm_conversion_draft", {
    p_user_id: user.id,
    p_draft_id: draftId,
    p_filename: `peppolpro-${invoiceData.invoiceNumber}.xml`,
+   p_source_pdf_filename: draftForLog?.filename || null,
    p_ubl_xml: xml,
    p_customer_name: summary.customerName || fallbackSummary.customerName,
    p_customer_email: invoiceData.customerEmail.trim(),
