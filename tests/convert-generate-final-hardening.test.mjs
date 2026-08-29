@@ -72,8 +72,8 @@ test('/api/convert creates conversion rows only after successful parse and UBL g
   assert.doesNotMatch(convertRoute, /base64[\s\S]{0,120}scan_logs|scan_logs[\s\S]{0,120}base64/);
 });
 
-test('/convert is middleware protected', () => {
-  assert.match(middleware, /\["\/dashboard", "\/nieuw", "\/convert"\]/);
+test('/convert and /admin are middleware protected', () => {
+  assert.match(middleware, /\["\/dashboard", "\/nieuw", "\/convert", "\/admin"\]/);
 });
 
 test('failed Recommand sends with provider documentId remain retryable', () => {
