@@ -173,10 +173,13 @@ test('UBL credit debit is atomic and released when storage after debit fails', (
  assert.match(generateDebitToInsertFailure, /releaseUblCredit\(admin, user\.id\)/);
  assert.match(generateDebitToInsertFailure, /Factuur kon niet worden opgeslagen/);
 
- const convertDebitToUpdateFailure = convertRoute.match(/if \(updateError\) \{[\s\S]*?Kon conversie niet afronden[\s\S]*?\}/)?.[0] || '';
+ const convertDebitToInsertFailure = convertRoute.match(/if \(convError \|\| !conversion\) \{[\s\S]*?Kan conversie niet aanmaken[\s\S]*?\}/)?.[0] || '';
+ const convertUploadFailure = convertRoute.match(/if \(uploadError\) \{[\s\S]*?PDF kon niet worden opgeslagen[\s\S]*?\}/)?.[0] || '';
  assert.match(convertRoute, /admin\.rpc\("use_credit"/);
- assert.match(convertDebitToUpdateFailure, /releaseUblCredit\(admin, user\.id\)/);
- assert.match(convertDebitToUpdateFailure, /Kon conversie niet afronden/);
+ assert.match(convertDebitToInsertFailure, /releaseUblCredit\(admin, user\.id\)/);
+ assert.match(convertDebitToInsertFailure, /Kan conversie niet aanmaken/);
+ assert.match(convertUploadFailure, /releaseUblCredit\(admin, user\.id\)/);
+ assert.match(convertUploadFailure, /PDF kon niet worden opgeslagen/);
 
  assert.doesNotMatch(`${generateRoute}\n${convertRoute}`, /credits\s*=\s*credits\s*-\s*1/);
 });
