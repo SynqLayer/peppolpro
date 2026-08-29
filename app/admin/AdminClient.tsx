@@ -149,6 +149,7 @@ export default function AdminClient({ users, conversions, messages, payments, mo
  <div>
  <div style={{ fontWeight: 600 }}>{conv.filename || "—"}</div>
  <div style={{ color: C.dim, fontSize: 12 }}>{conv.invoice_number || "—"} · {new Date(conv.created_at as string).toLocaleDateString("nl-NL")}</div>
+ {conv.source_pdf_filename && <div style={{ color: C.dim, fontSize: 12 }}>Bron: {conv.source_pdf_filename}</div>}
  </div>
  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
  {conv.total_amount && <span>{new Intl.NumberFormat("nl-NL", { style: "currency", currency: conv.currency || "EUR" }).format(Number(conv.total_amount))}</span>}

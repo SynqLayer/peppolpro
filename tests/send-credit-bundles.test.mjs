@@ -14,8 +14,10 @@ const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_cre
 const migration0019 = readFileSync(new URL('../supabase/migrations/0019_idempotent_send_credit_grants.sql', import.meta.url), 'utf8');
 const migration0021 = readFileSync(new URL('../supabase/migrations/0021_lock_down_security_definer_rpcs.sql', import.meta.url), 'utf8');
 const migration0022 = readFileSync(new URL('../supabase/migrations/0022_release_ubl_credit.sql', import.meta.url), 'utf8');
+const migration0029 = readFileSync(new URL('../supabase/migrations/0029_conversion_drafts_confirm_flow.sql', import.meta.url), 'utf8');
 const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
 const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
+const confirmConvertRoute = readFileSync(new URL('../app/api/convert/confirm/route.ts', import.meta.url), 'utf8');
 const dashboard = readFileSync(new URL('../app/dashboard/DashboardClient.tsx', import.meta.url), 'utf8');
 const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url), 'utf8');
 const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.url), 'utf8');
@@ -121,9 +123,11 @@ test('routes call credit RPCs with the service-role admin client after auth', ()
  assert.match(generateRoute, /admin\.rpc\("release_ubl_credit"/);
  assert.doesNotMatch(generateRoute, /supabase\.rpc\("use_credit"/);
  assert.match(convertRoute, /createAdminSupabase/);
- assert.match(convertRoute, /admin\.rpc\("use_credit"/);
- assert.match(convertRoute, /admin\.rpc\("release_ubl_credit"/);
- assert.doesNotMatch(convertRoute, /supabase\.rpc\("use_credit"/);
+ assert.doesNotMatch(convertRoute, /rpc\("use_credit"/);
+ assert.doesNotMatch(convertRoute, /rpc\("release_ubl_credit"/);
+ assert.match(confirmConvertRoute, /createAdminSupabase/);
+ assert.match(confirmConvertRoute, /admin\.rpc\("confirm_conversion_draft"/);
+ assert.doesNotMatch(confirmConvertRoute, /supabase\.rpc\("use_credit"/);
  assert.match(recommandRoute, /createAdminSupabase/);
  assert.match(recommandRoute, /reserveSendCredit\(admin, user\.id\)/);
  assert.match(recommandRoute, /releaseSendCredit\(admin, user\.id\)/);
@@ -173,15 +177,15 @@ test('UBL credit debit is atomic and retained when only source PDF storage fails
  assert.match(generateDebitToInsertFailure, /releaseUblCredit\(admin, user\.id\)/);
  assert.match(generateDebitToInsertFailure, /Factuur kon niet worden opgeslagen/);
 
- const convertDebitToInsertFailure = convertRoute.match(/if \(convError \|\| !conversion\) \{[\s\S]*?Kan conversie niet aanmaken[\s\S]*?\}/)?.[0] || '';
- const convertUploadFailure = convertRoute.match(/if \(uploadError\) \{[\s\S]*?convert_pdf_storage_failed[\s\S]*?\}/)?.[0] || '';
- assert.match(convertRoute, /admin\.rpc\("use_credit"/);
- assert.match(convertDebitToInsertFailure, /releaseUblCredit\(admin, user\.id\)/);
- assert.match(convertDebitToInsertFailure, /Kan conversie niet aanmaken/);
- assert.match(convertUploadFailure, /convert_pdf_storage_failed/);
- assert.doesNotMatch(convertUploadFailure, /releaseUblCredit\(admin, user\.id\)|status: "failed"|PDF kon niet worden opgeslagen/);
-
- assert.doesNotMatch(`${generateRoute}\n${convertRoute}`, /credits\s*=\s*credits\s*-\s*1/);
+ assert.doesNotMatch(convertRoute, /admin\.rpc\("use_credit"|releaseUblCredit\(admin, user\.id\)|from\("conversions"\)\.insert/);
+ assert.match(confirmConvertRoute, /validateParsedInvoiceForConversion\(invoiceData\)/);
+ assert.match(confirmConvertRoute, /admin\.rpc\("confirm_conversion_draft"/);
+ assert.match(migration0029, /set credits = credits - 1/);
+ assert.match(migration0029, /insert into public\.conversions/);
+ assert.match(migration0029, /'done'/);
+ assert.match(migration0029, /for update/);
+ assert.match(migration0029, /return query select v_draft\.conversion_id, true, false/);
+ assert.doesNotMatch(`${generateRoute}\n${convertRoute}\n${confirmConvertRoute}`, /credits\s*=\s*credits\s*-\s*1/);
 });
 
 test('UI surfaces bundles and remaining send credit wallet', () => {

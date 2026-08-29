@@ -63,7 +63,8 @@ export async function POST(req: NextRequest) {
   total_amount: summary.totalAmount ?? fallbackSummary.totalAmount,
   invoice_number: summary.invoiceNumber || fallbackSummary.invoiceNumber,
   currency: summary.currency || fallbackSummary.currency,
- }).select("id").single();
+  source_pdf_stored: false,
+  }).select("id").single();
 
  if (conversionError || !conversion) {
    if (ublCreditDebited) await releaseUblCredit(admin, user.id);
