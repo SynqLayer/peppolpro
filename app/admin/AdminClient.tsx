@@ -68,7 +68,7 @@ export default function AdminClient({ users, conversions, messages, payments, mo
  );
  };
 
- const successCount = conversions.filter(c => c.status === "success").length;
+ const doneCount = conversions.filter(c => c.status === "done").length;
  const failedCount = conversions.filter(c => c.status === "failed").length;
  const paidUsers = users.filter(u => u.plan !== "free").length;
  const newMessages = messages.filter(m => m.status === "new").length;
@@ -104,7 +104,7 @@ export default function AdminClient({ users, conversions, messages, payments, mo
  {card("Gebruikers", users.length, C.blue)}
  {card("Betaald", paidUsers, "#10b981")}
  {card("Conversies", conversions.length, C.cyan)}
- {card("Geslaagd", successCount, "#10b981")}
+ {card("Geslaagd", doneCount, "#10b981")}
  {card("Mislukt", failedCount, "#ef4444")}
  {card("Nieuwe berichten", newMessages, "#f59e0b")}
  {card("Monitoring targets", monitoringTargets.length, C.blue)}
@@ -152,7 +152,7 @@ export default function AdminClient({ users, conversions, messages, payments, mo
  </div>
  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
  {conv.total_amount && <span>{new Intl.NumberFormat("nl-NL", { style: "currency", currency: conv.currency || "EUR" }).format(Number(conv.total_amount))}</span>}
- <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: conv.status === "success" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", color: conv.status === "success" ? "#10b981" : "#ef4444" }}>
+ <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, background: conv.status === "done" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", color: conv.status === "done" ? "#10b981" : "#ef4444" }}>
  {conv.status}
  </span>
  </div>

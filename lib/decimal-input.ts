@@ -59,13 +59,19 @@ function findDecimalSeparatorIndex(input: string, maxDecimals: number): number {
 
   const tail = input.slice(index + 1);
   const digitsAfter = tail.replace(/\D/g, "").length;
-  const followedByThreeDigitGroup = maxDecimals <= 2 && /^\d{3}(?:[.,]|$)/.test(tail);
+  const leadingZeroDecimal = isLeadingZeroDecimal(input, index);
+  const followedByThreeDigitGroup = maxDecimals <= 2 && /^\d{3}(?:[.,]|$)/.test(tail) && !leadingZeroDecimal;
 
   if (followedByThreeDigitGroup) continue;
-  if (digitsAfter <= maxDecimals) return index;
+  if (leadingZeroDecimal || digitsAfter <= maxDecimals) return index;
  }
 
  return -1;
+}
+
+function isLeadingZeroDecimal(input: string, separatorIndex: number): boolean {
+ const integerDigits = input.slice(0, separatorIndex).replace(/\D/g, "");
+ return /^0+$/.test(integerDigits);
 }
 
 function normalizeDecimalSeparators(input: string, maxDecimals = 2): string {
