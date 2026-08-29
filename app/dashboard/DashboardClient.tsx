@@ -185,7 +185,11 @@ const isFailed = (status?: string | null) => failedStatuses.includes((status || 
 const isDraft = (status?: string | null) => ["draft", "concept"].includes((status || "").toLowerCase());
 const isOpen = (status?: string | null) => openStatuses.includes((status || "").toLowerCase());
 const isArchived = (status?: string | null) => archivedStatuses.includes((status || "").toLowerCase());
-const canSendConversion = (conversion: Conversion) => Boolean(conversion.id && conversion.ubl_xml && !conversion.recommand_document_id && !["as4_received", "sending", "duplicate_voided"].includes((conversion.recommand_status || "").toLowerCase()));
+const canSendConversion = (conversion: Conversion) => {
+ const status = (conversion.recommand_status || "").toLowerCase();
+ const failed = failedStatuses.includes(status);
+ return Boolean(conversion.id && conversion.ubl_xml && (failed || !conversion.recommand_document_id) && !["sent", "delivered", "as4_received", "sending", "duplicate_voided"].includes(status));
+};
 
 const failureReason = (status?: string | null) => {
  const key = (status || "").toLowerCase();

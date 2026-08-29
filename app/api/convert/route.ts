@@ -90,43 +90,31 @@ export async function POST(request: NextRequest) {
  }
 
  const filename = file.name;
-
- // Create conversion record
- const { data: conversion, error: convError } = await admin
-.from("conversions")
-.insert({ user_id: user.id, filename, status: "processing" })
- .select("id")
- .single();
-
- if (convError || !conversion) {
- return NextResponse.json({ error: "Kan conversie niet aanmaken" }, { status: 500 });
- }
-
- // Upload PDF to storage
  const arrayBuffer = await file.arrayBuffer();
  const base64 = Buffer.from(arrayBuffer).toString("base64");
-
- await supabase.storage
- .from("invoices")
- .upload(`${user.id}/${conversion.id}.pdf`, Buffer.from(arrayBuffer), {
- contentType: "application/pdf",
- upsert: true,
+ const failedParseMeta = (extra: Record<string, unknown>) => ({
+  filename,
+  fileSize: file.size,
+  mimeType: file.type,
+  ...extra,
  });
 
- // Parse with Gemini
+ // Parse with Gemini before creating a conversion row. Failed parse attempts are logged
+ // with bounded metadata only, never the uploaded PDF or raw parser response.
  let parsed;
  try {
  parsed = await parseInvoicePDF(base64);
  } catch (parseError: unknown) {
- await admin
-  .from("conversions")
-  .update({ status: "failed" })
-  .eq("id", conversion.id);
  const parserDetails = describeInvoiceParserError(parseError);
- console.error("Convert parser error", {
-  ...parserDetails,
-  conversionId: conversion.id,
-  filename,
+ console.error("Convert parser error", { ...parserDetails, filename });
+ await admin.from("scan_logs").insert({
+  user_id: user.id,
+  action: "convert_parse_failed",
+  meta: failedParseMeta({
+   stage: "parse",
+   kind: parserDetails.kind || parserDetails.name,
+   message: parserDetails.message,
+  }),
  });
  if (parseError instanceof InvoiceParserError) {
   if (parseError.kind === "service_unavailable") {
@@ -140,15 +128,10 @@ export async function POST(request: NextRequest) {
  return NextResponse.json({ error: "De factuurherkenning is tijdelijk niet beschikbaar. Probeer het later opnieuw." }, { status: 503 });
  }
 
- // Validate parsed invoice before generating UBL or debiting credit.
+ // Validate parsed invoice before generating UBL, creating a conversion row or debiting credit.
  const parsedValidation = validateParsedInvoiceForConversion(parsed);
  if (!parsedValidation.valid) {
-  await admin
-   .from("conversions")
-   .update({ status: "failed" })
-   .eq("id", conversion.id);
   console.error("Convert parser returned insufficient invoice data", {
-   conversionId: conversion.id,
    filename,
    reasons: parsedValidation.reasons,
    invoiceNumberPresent: Boolean(parsed.invoice?.number),
@@ -156,6 +139,19 @@ export async function POST(request: NextRequest) {
    lineCount: Array.isArray(parsed.lines) ? parsed.lines.length : null,
    total: parsed.totals?.total ?? null,
    currency: parsed.invoice?.currency ?? null,
+  });
+  await admin.from("scan_logs").insert({
+   user_id: user.id,
+   action: "convert_parse_failed",
+   meta: failedParseMeta({
+    stage: "validation",
+    reasons: parsedValidation.reasons,
+    invoiceNumberPresent: Boolean(parsed.invoice?.number),
+    customerNamePresent: Boolean(parsed.buyer?.name),
+    lineCount: Array.isArray(parsed.lines) ? parsed.lines.length : null,
+    totalPresent: parsed.totals?.total != null,
+    currency: parsed.invoice?.currency ?? null,
+   }),
   });
   if (parsedValidation.reasons.includes("unsupported_currency")) {
    return NextResponse.json({ error: "We kunnen op dit moment alleen EUR-facturen omzetten. Pas de factuur aan of vul de gegevens handmatig in via Nieuwe factuur." }, { status: 422 });
@@ -165,7 +161,7 @@ export async function POST(request: NextRequest) {
 
  const assumptions = parsedInvoiceAssumptions(parsed);
 
- // Generate UBL
+ // Generate UBL before creating a conversion row.
  const invoiceData = parsedToInvoiceData(parsed);
  const ublXml = generateUBL(invoiceData);
  const summary = parseUblSummary(ublXml);
@@ -175,40 +171,49 @@ export async function POST(request: NextRequest) {
  if (plan === "free") {
  const { data: creditUsed, error: creditError } = await admin.rpc("use_credit", { p_user_id: user.id });
  if (creditError || creditUsed !== true) {
- await admin
-  .from("conversions")
-  .update({ status: "failed" })
-  .eq("id", conversion.id)
-  .eq("user_id", user.id);
  return NextResponse.json({ error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." }, { status: 402 });
  }
  ublCreditDebited = true;
  }
 
- // Update conversion record
- const { error: updateError } = await admin
-.from("conversions")
-.update({
- status: "success",
- ubl_xml: ublXml,
- customer_name: summary.customerName || parsed.buyer.name || null,
- total_amount: summary.totalAmount ?? parsed.totals.total ?? null,
- invoice_number: summary.invoiceNumber || parsed.invoice.number || null,
- currency: summary.currency || parsed.invoice.currency || "EUR",
+ const { data: conversion, error: convError } = await admin
+ .from("conversions")
+ .insert({
+  user_id: user.id,
+  filename,
+  status: "success",
+  ubl_xml: ublXml,
+  customer_name: summary.customerName || parsed.buyer.name || null,
+  total_amount: summary.totalAmount ?? parsed.totals.total ?? null,
+  invoice_number: summary.invoiceNumber || parsed.invoice.number || null,
+  currency: summary.currency || parsed.invoice.currency || "EUR",
  })
- .eq("id", conversion.id);
+ .select("id")
+ .single();
 
-  if (updateError) {
+ if (convError || !conversion) {
+  if (ublCreditDebited) await releaseUblCredit(admin, user.id);
+  return NextResponse.json({ error: "Kan conversie niet aanmaken" }, { status: 500 });
+ }
+
+ const { error: uploadError } = await supabase.storage
+ .from("invoices")
+ .upload(`${user.id}/${conversion.id}.pdf`, Buffer.from(arrayBuffer), {
+ contentType: "application/pdf",
+ upsert: true,
+ });
+
+ if (uploadError) {
   if (ublCreditDebited) await releaseUblCredit(admin, user.id);
   await admin
    .from("conversions")
    .update({ status: "failed" })
    .eq("id", conversion.id)
    .eq("user_id", user.id);
-  return NextResponse.json({ error: "Kon conversie niet afronden" }, { status: 500 });
-  }
+  return NextResponse.json({ error: "PDF kon niet worden opgeslagen" }, { status: 500 });
+ }
 
-  // Log
+ // Log
  await admin.from("scan_logs").insert({
  user_id: user.id,
  action: "convert_success",

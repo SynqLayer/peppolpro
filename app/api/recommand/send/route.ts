@@ -87,7 +87,8 @@ function inProgressSendResponse(remainingCredits?: number | null) {
 }
 
 function hasCompletedSend(row?: TargetRow | null) {
- return !!row?.recommand_document_id || !!row?.sent_via_recommand_at;
+ const sentStatuses = new Set(["sent", "delivered", "as4_received"]);
+ return !!row?.sent_via_recommand_at || sentStatuses.has((row?.recommand_status || "").toLowerCase());
 }
 
 function isVoidedDuplicate(row?: TargetRow | null) {
