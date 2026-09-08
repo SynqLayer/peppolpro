@@ -54,8 +54,6 @@ alter table public.invoices
 
 revoke all on table public.user_profiles from anon, authenticated;
 grant select on table public.user_profiles to authenticated;
-grant update (company_name, country, kvk_kbo, btw_nr, address, postal_code, city, address_verified, address_validation_source, vat_validation_status, vat_validated_at, onboarding_complete)
- on table public.user_profiles to authenticated;
 grant all on table public.user_profiles to service_role;
 
 create or replace function public.create_billing_invoice_for_payment(
