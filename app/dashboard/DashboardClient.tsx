@@ -26,6 +26,8 @@ export type Profile = {
  address?: string | null;
  postal_code?: string | null;
  city?: string | null;
+ address_verified?: boolean | null;
+ address_validation_source?: string | null;
  iban?: string | null;
  recommand_company_id?: string | null;
  recommand_verified?: boolean | null;
@@ -203,7 +205,7 @@ const profileComplete = (profile: Profile | null) => {
  if (!profile) return false;
  const kvk = profile.kvk_number || profile.kvk_kbo || profile.kbo_number;
  const vat = profile.btw_number || profile.btw_nr;
- return Boolean(profile.company_name && kvk && vat && profile.address && profile.postal_code && profile.city);
+ return Boolean(profile.company_name && kvk && vat && profile.address && profile.postal_code && profile.city && ["pdok", "manual"].includes(profile.address_validation_source || ""));
 };
 
 const relativeTime = (value?: string | null) => {
@@ -523,12 +525,12 @@ export default function DashboardClient({
  const oldDrafts = activeConversions.filter((conversion) => isDraft(effectiveStatus(conversion)) && conversion.created_at && new Date(conversion.created_at).getTime() < threeDaysAgo).length;
  if (oldDrafts > 0) tasks.push({ title: `${oldDrafts} concept${oldDrafts === 1 ? "" : "en"} ouder dan 3 dagen`, detail: "Rond deze facturen af of verwijder ze uit je workflow.", href: "/nieuw", tone: "amber" });
  if (failedCount > 0) tasks.push({ title: `${failedCount} factuur${failedCount === 1 ? "" : "en"} mislukt`, detail: "Controleer de gegevens en genereer de UBL opnieuw.", href: "/convert", tone: "red" });
- if (!completeProfile) tasks.push({ title: "Profiel onvolledig", detail: "KvK/KBO, BTW-nummer of adres ontbreekt nog.", href: "/onboarding", tone: "blue" });
+ if (!completeProfile) tasks.push({ title: "Profiel onvolledig", detail: "Adres, KvK/KBO of BTW-nummer ontbreekt nog.", href: "/profile", tone: "blue" });
  if (!hasActiveSendCredits) tasks.push({ title: "Geen actief verzendtegoed", detail: "Koop een eenmalige verzendbundel om via Peppol te verzenden.", href: "/upgrade", tone: "blue" });
  if (isFree) tasks.push({ title: "Peppol Inbox nog niet beschikbaar", detail: "Direct ontvangen via PeppolPro is nog niet beschikbaar.", href: "/upgrade", tone: "blue" });
 
  const onboardingSteps = [
- { title: "Bedrijfsgegevens invullen", done: completeProfile, href: "/onboarding", cta: "Bedrijfsgegevens" },
+ { title: "Bedrijfsgegevens invullen", done: completeProfile, href: "/profile", cta: "Bedrijfsgegevens" },
  { title: "Eerste klant toevoegen", done: false, href: "/nieuw", cta: "Klant invoeren" },
  { title: "Eerste UBL-factuur maken", done: hasInvoices, href: "/nieuw", cta: "Factuur maken" },
  ];

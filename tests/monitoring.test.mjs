@@ -30,6 +30,7 @@ const migration0008 = readFileSync(new URL('../supabase/migrations/0008_billing_
 const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_credit_bundles.sql', import.meta.url), 'utf8');
 const migration0018 = readFileSync(new URL('../supabase/migrations/0018_webhook_robustness_and_grants.sql', import.meta.url), 'utf8');
 const migration0020 = readFileSync(new URL('../supabase/migrations/0020_harden_billing_table_grants.sql', import.meta.url), 'utf8');
+const migration0030 = readFileSync(new URL('../supabase/migrations/0030_billing_address_validation_and_atomic_invoice_rpc.sql', import.meta.url), 'utf8');
 const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
 const invoicePdfLib = readFileSync(new URL('../lib/invoice-pdf.ts', import.meta.url), 'utf8');
 const invoiceRoute = readFileSync(new URL('../app/api/invoices/[invoiceId]/route.ts', import.meta.url), 'utf8');
@@ -390,6 +391,9 @@ test('central monitoring entitlement requires active subscription and unexpired 
 test('billing migration adds invoice numbering, credit invoices and webhook event idempotency', () => {
  assert.match(migration0008, /invoice_number_sequences/);
  assert.match(migration0008, /next_billing_invoice_number/);
+ assert.match(migration0030, /create or replace function public\.create_billing_invoice_for_payment/);
+ assert.match(migration0030, /billing address incomplete/);
+ assert.match(migration0030, /test payments are not invoiced/);
  assert.match(migration0016, /invoice_kind in \('sales','subscription','credits','credit'\)/);
  assert.match(migration0008, /original_invoice_number text/);
  assert.match(migration0008, /create table if not exists public\.webhook_events/);
@@ -401,10 +405,11 @@ test('paid subscription payments create invoices and refunds create separate cre
  assert.match(billingLib, /export async function ensurePaymentInvoice/);
  assert.match(billingLib, /if \(!product\.paid\) return null/);
  assert.doesNotMatch(billingLib, /isMonitoringPlan/);
- assert.match(billingLib, /invoice_kind: product\.recurring \? "subscription" : "credits"/);
- assert.match(billingLib, /next_billing_invoice_number/);
+ assert.match(billingLib, /create_billing_invoice_for_payment/);
+ assert.match(billingLib, /invoiceKind: product\.recurring \? "subscription" : "credits"/);
+ assert.doesNotMatch(billingLib, /next_billing_invoice_number/);
  assert.match(billingLib, /export async function ensureCreditInvoice/);
- assert.match(billingLib, /invoice_kind: "credit"/);
+ assert.match(billingLib, /invoiceKind: "credit"/);
  assert.match(billingLib, /original_invoice_number/);
  assert.match(mollieWebhookRoute, /ensurePaymentInvoice/);
  assert.match(mollieWebhookRoute, /ensureCreditInvoice/);
@@ -413,8 +418,10 @@ test('paid subscription payments create invoices and refunds create separate cre
 test('paid and credit billing invoices are emailed with generated PDF attachments', () => {
  assert.match(billingLib, /sendBillingInvoiceEmail/);
  assert.match(billingLib, /generateBillingInvoicePdf/);
+ assert.match(billingLib, /storeBillingInvoicePdfs/);
+ assert.match(billingLib, /storage\.from\("invoices"\)/);
  assert.match(billingLib, /subject: `Factuur \$\{invoice\.invoice_number\} — PeppolPro`/);
- assert.match(billingLib, /attachment:\s*\[\s*\{\s*content: Buffer\.from\(pdf\)\.toString\("base64"\)/);
+ assert.match(billingLib, /attachment:\s*\[\s*\{\s*content: Buffer\.from\(stored\.pdf\)\.toString\("base64"\)/);
  assert.match(billingLib, /name: `\$\{invoice\.invoice_number \|\| "factuur"\}\.pdf`/);
  assert.match(billingLib, /await sendBillingInvoiceEmail\(supabase, invoice\.id\)/);
  assert.match(billingLib, /await sendBillingInvoiceEmail\(supabase, creditInvoice\.id\)/);
@@ -438,14 +445,15 @@ test('monitoring paid plans start a Mollie recurring subscription and invoice fl
  assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
 });
 
-test('invoice route downloads only own on-the-fly PDFs without server-side cache', () => {
+test('invoice route downloads only own stored billing PDFs with generated fallback', () => {
  assert.match(invoiceRoute, /export async function GET/);
  assert.match(invoiceRoute, /eq\("user_id", user\.id\)/);
+ assert.match(invoiceRoute, /storage\.from\("invoices"\)\.download/);
  assert.match(invoiceRoute, /generateBillingInvoicePdf/);
  assert.match(invoiceRoute, /Content-Type": "application\/pdf"/);
  assert.match(invoiceRoute, /"Cache-Control": "no-store"/);
  assert.match(invoicePdfLib, /PDFDocument\.create/);
- assert.doesNotMatch(`${invoiceRoute}\n${invoicePdfLib}`, /writeFile|createWriteStream|supabase\.storage|\.from\("storage"\)/);
+ assert.doesNotMatch(`${invoiceRoute}\n${invoicePdfLib}`, /writeFile|createWriteStream|\.from\("storage"\)/);
 });
 
 test('dashboard lists only the signed-in users billing invoices with download links', () => {
@@ -730,13 +738,16 @@ test('subscription cancel route cancels at Mollie but keeps access until period 
 });
 
 test('onboarding writes existing user_profiles columns', () => {
- assert.match(onboardingPage, /kvk_kbo:\s*country === "NL" \? kvk : kbo/);
- assert.match(onboardingPage, /btw_nr:\s*btw/);
- assert.match(onboardingPage, /address: address\.trim\(\)/);
- assert.match(onboardingPage, /postal_code: postalCode\.trim\(\)/);
- assert.match(onboardingPage, /city: city\.trim\(\)/);
- assert.match(onboardingPage, /Postcode \*/);
- assert.match(onboardingPage, /Plaats \*/);
+ const profileApi = readFileSync(new URL('../app/api/profile/route.ts', import.meta.url), 'utf8');
+ const profileForm = readFileSync(new URL('../app/profile/ProfileForm.tsx', import.meta.url), 'utf8');
+ assert.match(onboardingPage, /ProfileForm/);
+ assert.match(profileApi, /kvk_kbo: body\.kvkKbo/);
+ assert.match(profileApi, /btw_nr: body\.vatNumber/);
+ assert.match(profileApi, /address_verified: addressVerified/);
+ assert.match(profileApi, /lookupDutchAddress/);
+ assert.match(profileForm, /Postcode/);
+ assert.match(profileForm, /Plaats/);
+ assert.match(profileForm, /Adres handmatig invullen/);
  assert.doesNotMatch(onboardingPage, /kvk_number:\s*/);
  assert.doesNotMatch(onboardingPage, /kbo_number:\s*/);
  assert.doesNotMatch(onboardingPage, /btw_number:\s*/);

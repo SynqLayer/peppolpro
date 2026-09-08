@@ -15,6 +15,7 @@ const migration0019 = readFileSync(new URL('../supabase/migrations/0019_idempote
 const migration0021 = readFileSync(new URL('../supabase/migrations/0021_lock_down_security_definer_rpcs.sql', import.meta.url), 'utf8');
 const migration0022 = readFileSync(new URL('../supabase/migrations/0022_release_ubl_credit.sql', import.meta.url), 'utf8');
 const migration0029 = readFileSync(new URL('../supabase/migrations/0029_conversion_drafts_confirm_flow.sql', import.meta.url), 'utf8');
+const migration0030 = readFileSync(new URL('../supabase/migrations/0030_billing_address_validation_and_atomic_invoice_rpc.sql', import.meta.url), 'utf8');
 const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
 const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
 const confirmConvertRoute = readFileSync(new URL('../app/api/convert/confirm/route.ts', import.meta.url), 'utf8');
@@ -77,7 +78,8 @@ test('paid bundle webhook grants exact credits, extends expiry 12 months and cre
  assert.match(mollieWebhookRoute, /grant_send_credit_bundle/);
  assert.match(mollieWebhookRoute, /credits: bundle\.credits/);
  assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription: null \}\)/);
- assert.match(billingLib, /invoice_kind: product\.recurring \? "subscription" : "credits"/);
+ assert.match(billingLib, /invoiceKind: product\.recurring \? "subscription" : "credits"/);
+ assert.match(migration0030, /create_billing_invoice_for_payment/);
 });
 
 test('send credit grant is idempotent when a Mollie webhook retries after partial success', () => {
