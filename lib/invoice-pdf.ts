@@ -17,6 +17,10 @@ type InvoicePdfInput = {
  payment_method?: string | null;
  adminCopy?: boolean;
  molliePaymentId?: string | null;
+ payments?: {
+  plan?: string | null;
+  credits?: number | string | null;
+ } | null;
  user_profiles?: {
   company_name?: string | null;
   email?: string | null;
@@ -34,7 +38,16 @@ function money(value?: number | string | null, currency = "EUR") {
 
 function date(value?: string | null) {
  if (!value) return "-";
- return new Intl.DateTimeFormat("nl-NL", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(value));
+ return new Intl.DateTimeFormat("nl-NL", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value)).replace(/\//g, "-");
+}
+
+function description(invoice: InvoicePdfInput) {
+ if (invoice.invoice_kind === "credit") return `Credit voor ${invoice.original_invoice_number || "PeppolPro factuur"}`;
+ if (invoice.invoice_kind === "credits") {
+  const credits = invoice.payments?.credits || invoice.payments?.plan?.match(/send_credits_(\d+)/)?.[1];
+  return credits ? `PeppolPro verzendbundel ${credits} credits` : "PeppolPro verzendbundel";
+ }
+ return "PeppolPro monitoring abonnement";
 }
 
 export async function generateBillingInvoicePdf(invoice: InvoicePdfInput) {
@@ -84,7 +97,7 @@ export async function generateBillingInvoicePdf(invoice: InvoicePdfInput) {
  page.drawText("Aantal", { x: 330, y, size: 10, font: bold, color: muted });
  page.drawText("Bedrag", { x: 440, y, size: 10, font: bold, color: muted });
  y -= 24;
- page.drawText(invoice.invoice_kind === "credit" ? `Credit voor ${invoice.original_invoice_number || "PeppolPro factuur"}` : invoice.invoice_kind === "credits" ? "PeppolPro verzendbundel voor Peppol-facturen" : "PeppolPro monitoring abonnement", { x: 48, y, size: 12, font, color: dark });
+ page.drawText(description(invoice), { x: 48, y, size: 12, font, color: dark });
  page.drawText("1", { x: 330, y, size: 12, font, color: dark });
  page.drawText(money(totalExcl, currency), { x: 440, y, size: 12, font, color: dark });
 

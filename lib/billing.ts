@@ -44,6 +44,11 @@ type BillingInvoiceForEmail = {
  email_status?: string | null;
  brevo_message_id?: string | null;
  email_error?: string | null;
+ payments?: {
+  mollie_payment_id?: string | null;
+  plan?: string | null;
+  credits?: number | string | null;
+ } | null;
 };
 
 type UserProfileForEmail = {
@@ -97,9 +102,9 @@ function billingPdfPath(invoice: BillingInvoiceForEmail, admin = false) {
 async function storeBillingInvoicePdfs(supabase: AdminClient, invoiceId: string) {
  const { data: invoice, error: invoiceError } = await supabase
  .from("invoices")
- .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, admin_pdf_path, paid_at, delivered_at, payment_method, email_status, brevo_message_id, email_error, payments(mollie_payment_id)")
+ .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, admin_pdf_path, paid_at, delivered_at, payment_method, email_status, brevo_message_id, email_error, payments(mollie_payment_id, plan, credits)")
  .eq("id", invoiceId)
- .single<BillingInvoiceForEmail & { payments?: { mollie_payment_id?: string | null } | null }>();
+ .single<BillingInvoiceForEmail>();
  if (invoiceError || !invoice) throw invoiceError || new Error("Factuur niet gevonden voor PDF opslag");
 
  const { data: profile } = await supabase
