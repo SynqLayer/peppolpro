@@ -75,7 +75,7 @@ export async function generateBillingInvoicePdf(invoice: InvoicePdfInput) {
 
  const rows: Array<[string, string]> = [
  ["Factuurnummer", invoice.invoice_number || "-"],
- ["Datum", date(invoice.issued_at || invoice.invoice_date)],
+ ["Factuurdatum", date(invoice.issued_at || invoice.invoice_date)],
  ["Klant", customer],
  ["Klantadres", customerAddress.join(", ") || "-"],
  ["BTW klant", vatId],
