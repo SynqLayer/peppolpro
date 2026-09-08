@@ -45,6 +45,9 @@ test('address and invoice RPC hardening is present server-side', () => {
  assert.match(migration0030, /create or replace function public\.create_billing_invoice_for_payment/);
  assert.match(migration0030, /service_role required to create billing invoice/);
  assert.match(migration0030, /billing address incomplete/);
+ assert.match(migration0030, /address_validation_source, ''\) not in \('pdok','manual'\)/);
+ assert.doesNotMatch(migration0030, /address_verified, false\) is not true/);
+ assert.match(migration0030, /set address_validation_source = 'manual'/);
  assert.match(migration0030, /test payments are not invoiced/);
  assert.match(migration0030, /revoke all on table public\.user_profiles from anon, authenticated/);
  assert.match(migration0030, /grant select on table public\.user_profiles to authenticated/);

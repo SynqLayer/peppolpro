@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
   addressVerified = true;
   addressSource = "pdok";
  } else {
-  addressVerified = true;
+  addressVerified = false;
+  addressSource = "manual";
  }
 
  const validation = validateCompanyProfile({
@@ -49,7 +50,6 @@ export async function POST(req: NextRequest) {
   address,
   postalCode,
   city,
-  addressVerified,
  });
  if (!validation.valid) return NextResponse.json({ error: validation.errors.join(", "), errors: validation.errors }, { status: 400 });
 

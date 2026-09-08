@@ -9,7 +9,6 @@ export type CompanyProfileInput = AddressInput & {
  companyName?: string | null;
  kvkKbo?: string | null;
  vatNumber?: string | null;
- addressVerified?: boolean | null;
 };
 
 export function normalizeCountry(country?: string | null) {
@@ -55,6 +54,5 @@ export function validateCompanyProfile(input: CompanyProfileInput) {
  if (!input.address?.trim()) errors.push("Adres is verplicht");
  if (!validatePostalCode(postalCode, country)) errors.push("Postcode heeft geen geldig formaat");
  if (!input.city?.trim()) errors.push("Plaats is verplicht");
- if (input.addressVerified !== true) errors.push("Adres moet gevalideerd of handmatig bevestigd zijn");
  return { valid: errors.length === 0, errors, country, postalCode };
 }

@@ -27,6 +27,7 @@ export type Profile = {
  postal_code?: string | null;
  city?: string | null;
  address_verified?: boolean | null;
+ address_validation_source?: string | null;
  iban?: string | null;
  recommand_company_id?: string | null;
  recommand_verified?: boolean | null;
@@ -204,7 +205,7 @@ const profileComplete = (profile: Profile | null) => {
  if (!profile) return false;
  const kvk = profile.kvk_number || profile.kvk_kbo || profile.kbo_number;
  const vat = profile.btw_number || profile.btw_nr;
- return Boolean(profile.company_name && kvk && vat && profile.address && profile.postal_code && profile.city && profile.address_verified === true);
+ return Boolean(profile.company_name && kvk && vat && profile.address && profile.postal_code && profile.city && ["pdok", "manual"].includes(profile.address_validation_source || ""));
 };
 
 const relativeTime = (value?: string | null) => {

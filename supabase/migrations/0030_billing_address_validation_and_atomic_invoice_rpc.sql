@@ -56,6 +56,13 @@ revoke all on table public.user_profiles from anon, authenticated;
 grant select on table public.user_profiles to authenticated;
 grant all on table public.user_profiles to service_role;
 
+update public.user_profiles
+set address_validation_source = 'manual'
+where address_validation_source is null
+ and nullif(trim(coalesce(address, '')), '') is not null
+ and nullif(trim(coalesce(postal_code, '')), '') is not null
+ and nullif(trim(coalesce(city, '')), '') is not null;
+
 create or replace function public.create_billing_invoice_for_payment(
  p_payment_id uuid,
  p_invoice_kind text default null,
@@ -110,7 +117,7 @@ begin
  if nullif(trim(coalesce(v_profile.address, '')), '') is null
   or nullif(trim(coalesce(v_profile.postal_code, '')), '') is null
   or nullif(trim(coalesce(v_profile.city, '')), '') is null
-  or coalesce(v_profile.address_verified, false) is not true then
+  or coalesce(v_profile.address_validation_source, '') not in ('pdok','manual') then
   raise exception 'billing address incomplete';
  end if;
 
