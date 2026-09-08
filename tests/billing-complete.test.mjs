@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
 const invoiceRoute = readFileSync(new URL('../app/api/invoices/[invoiceId]/route.ts', import.meta.url), 'utf8');
+const invoicePdf = readFileSync(new URL('../lib/invoice-pdf.ts', import.meta.url), 'utf8');
 const brevoLib = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
 const brevoWebhookRoute = readFileSync(new URL('../app/api/brevo/webhook/route.ts', import.meta.url), 'utf8');
 const migration0030 = readFileSync(new URL('../supabase/migrations/0030_billing_address_validation_and_atomic_invoice_rpc.sql', import.meta.url), 'utf8');
@@ -15,6 +16,17 @@ test('billing profile selects use columns that exist on user_profiles', () => {
  const billingAndInvoiceSelects = `${billingLib}\n${invoiceRoute}`;
  assert.match(billingAndInvoiceSelects, /select\("company_name, email, address, postal_code, city, country, btw_nr"\)/);
  assert.doesNotMatch(billingAndInvoiceSelects, /full_name|btw_number/);
+});
+
+test('credit bundle invoices describe the purchased bundle size', () => {
+ assert.match(invoicePdf, /PeppolPro verzendbundel \$\{credits\} credits/);
+ assert.match(invoicePdf, /month: "2-digit"/);
+ assert.match(invoicePdf, /Totaal excl\. btw/);
+ assert.match(invoicePdf, /Prijs\/stuk excl\./);
+ assert.match(invoicePdf, /Dit bedrag is reeds voldaan\. U hoeft niets te betalen\./);
+ assert.doesNotMatch(invoicePdf, /server-side bewaard volgens de wettelijke bewaartermijn/);
+ assert.match(billingLib, /payments\(mollie_payment_id, plan, credits\)/);
+ assert.match(invoiceRoute, /payments\(plan, credits\)/);
 });
 
 test('billing email failures are explicit and invoices track Brevo delivery status', () => {
