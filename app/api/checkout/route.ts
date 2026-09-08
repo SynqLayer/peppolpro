@@ -24,11 +24,12 @@ export async function POST(req: NextRequest) {
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://peppolpro.nl";
   const admin = createAdminClient();
-  const { data: profile } = await admin
+  const { data: profile, error: profileError } = await admin
    .from("user_profiles")
    .select("id, email, company_name")
    .eq("id", user.id)
    .maybeSingle();
+  if (profileError) throw profileError;
 
   if (isCreditBundle(product.id)) {
    const payment = await createPayment({
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Checkout kon niet worden aangemaakt" }, { status: 502 });
    }
 
-   await admin.from("payments").upsert({
+   const { error: paymentError } = await admin.from("payments").upsert({
     user_id: user.id,
     type: "credit_purchase",
     mollie_payment_id: payment.id,
@@ -59,19 +60,21 @@ export async function POST(req: NextRequest) {
     status: payment.status || "open",
     sequence_type: "oneoff",
     plan: product.id,
-    metadata: payment.metadata || { plan: product.id, purchase_type: "send_credit_bundle" },
+   metadata: payment.metadata || { plan: product.id, purchase_type: "send_credit_bundle" },
    }, { onConflict: "mollie_payment_id" });
+   if (paymentError) throw paymentError;
 
    return NextResponse.json({ checkoutUrl: payment._links.checkout.href });
   }
 
   if (!isMonitoringPlan(product.id)) return NextResponse.json({ error: "Ongeldig abonnement" }, { status: 400 });
 
-  const { data: existingSubscription } = await admin
+  const { data: existingSubscription, error: existingSubscriptionError } = await admin
    .from("subscriptions")
    .select("mollie_customer_id")
    .eq("user_id", user.id)
    .maybeSingle();
+  if (existingSubscriptionError) throw existingSubscriptionError;
   let customerId = existingSubscription?.mollie_customer_id || undefined;
   if (!customerId) {
    const customer = await createCustomer({ email: user.email || profile?.email || "unknown@peppolpro.nl", name: profile?.company_name || user.email || null });
@@ -97,7 +100,7 @@ export async function POST(req: NextRequest) {
    return NextResponse.json({ error: "Checkout kon niet worden aangemaakt" }, { status: 502 });
   }
 
-  await admin.from("payments").upsert({
+  const { error: paymentError } = await admin.from("payments").upsert({
    user_id: user.id,
    type: "subscription_first",
    mollie_payment_id: payment.id,
@@ -110,8 +113,9 @@ export async function POST(req: NextRequest) {
    plan: product.id,
    metadata: payment.metadata || { plan: product.id },
   }, { onConflict: "mollie_payment_id" });
+  if (paymentError) throw paymentError;
 
-  await admin.from("subscriptions").upsert({
+  const { error: subscriptionError } = await admin.from("subscriptions").upsert({
    user_id: user.id,
    plan: product.id,
    mollie_customer_id: customerId,
@@ -119,6 +123,7 @@ export async function POST(req: NextRequest) {
    last_payment_id: payment.id,
    updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
+  if (subscriptionError) throw subscriptionError;
 
   return NextResponse.json({ checkoutUrl: payment._links.checkout.href });
  } catch (err) {

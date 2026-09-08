@@ -44,7 +44,13 @@ alter table public.invoices
  add column if not exists legal_supplier_city text,
  add column if not exists legal_supplier_country text,
  add column if not exists legal_supplier_vat_id text,
- add column if not exists legal_supplier_kvk text;
+ add column if not exists legal_supplier_kvk text,
+ add column if not exists email_status text not null default 'pending'
+  check (email_status in ('pending','accepted','delivered','failed')),
+ add column if not exists brevo_message_id text,
+ add column if not exists email_accepted_at timestamptz,
+ add column if not exists email_delivered_at timestamptz,
+ add column if not exists email_error text;
 
 revoke all on table public.user_profiles from anon, authenticated;
 grant select on table public.user_profiles to authenticated;

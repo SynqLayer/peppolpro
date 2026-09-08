@@ -19,13 +19,11 @@ type InvoicePdfInput = {
  molliePaymentId?: string | null;
  user_profiles?: {
   company_name?: string | null;
-  full_name?: string | null;
   email?: string | null;
   address?: string | null;
   postal_code?: string | null;
   city?: string | null;
   country?: string | null;
-  btw_number?: string | null;
   btw_nr?: string | null;
  } | null;
 };
@@ -49,9 +47,9 @@ export async function generateBillingInvoicePdf(invoice: InvoicePdfInput) {
  const accent = invoice.invoice_kind === "credit" ? rgb(0.86, 0.22, 0.22) : rgb(0.1, 0.45, 0.95);
  const currency = invoice.currency || "EUR";
  const profile = invoice.user_profiles;
- const customer = profile?.company_name || profile?.full_name || profile?.email || "Klant";
+ const customer = profile?.company_name || profile?.email || "Klant";
  const customerAddress = [profile?.address, [profile?.postal_code, profile?.city].filter(Boolean).join(" "), profile?.country || "NL"].filter(Boolean);
- const vatId = profile?.btw_number || profile?.btw_nr || "-";
+ const vatId = profile?.btw_nr || "-";
  const totalIncl = invoice.total_incl ?? invoice.amount ?? 0;
  const vat = invoice.vat_amount ?? 0;
  const totalExcl = invoice.total_excl ?? (Number(totalIncl) - Number(vat));

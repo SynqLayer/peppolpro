@@ -18,7 +18,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ inv
  if (error || !invoice) return NextResponse.json({ error: "Factuur niet gevonden" }, { status: 404 });
 
  if (invoice.pdf_path) {
-  const { data: stored } = await supabase.storage.from("invoices").download(invoice.pdf_path);
+  const { data: stored, error: storageError } = await supabase.storage.from("invoices").download(invoice.pdf_path);
+  if (storageError) console.error("Stored billing PDF download error:", storageError);
   if (stored) {
    const filename = `${invoice.invoice_number || "factuur"}.pdf`;
    return new NextResponse(Buffer.from(await stored.arrayBuffer()), {
@@ -32,11 +33,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ inv
   }
  }
 
- const { data: profile } = await supabase
+ const { data: profile, error: profileError } = await supabase
  .from("user_profiles")
- .select("company_name, full_name, email, address, postal_code, city, country, btw_number, btw_nr")
+ .select("company_name, email, address, postal_code, city, country, btw_nr")
  .eq("id", user.id)
  .maybeSingle();
+ if (profileError) return NextResponse.json({ error: "Profiel kon niet worden geladen" }, { status: 500 });
 
  const pdf = await generateBillingInvoicePdf({ ...invoice, user_profiles: profile || null });
  const filename = `${invoice.invoice_number || "factuur"}.pdf`;

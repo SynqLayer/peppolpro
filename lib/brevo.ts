@@ -3,7 +3,10 @@ const SENDER = { name: "PeppolPro", email: "info@synqlayer.com" };
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://peppolpro.nl";
 
 export async function sendWelcomeEmail(to: string, name: string) {
- if (!process.env.BREVO_API_KEY) return;
+ if (!process.env.BREVO_API_KEY) {
+ console.error("Brevo welcome email blocked: BREVO_API_KEY ontbreekt");
+ throw new Error("BREVO_API_KEY ontbreekt");
+ }
 
  const html = `
 <!DOCTYPE html>
@@ -88,7 +91,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
 </body>
 </html>`;
 
- await fetch(BREVO_API, {
+ const res = await fetch(BREVO_API, {
  method: "POST",
  headers: {
  "api-key": process.env.BREVO_API_KEY,
@@ -101,6 +104,11 @@ export async function sendWelcomeEmail(to: string, name: string) {
  htmlContent: html,
  }),
  });
+ if (!res.ok) {
+ const body = await res.text().catch(() => "");
+ console.error("Brevo welcome email failed:", res.status, body);
+ throw new Error(`Brevo welcome email failed: ${res.status}`);
+ }
 }
 
 export async function sendTransactionalEmail({
@@ -114,9 +122,12 @@ export async function sendTransactionalEmail({
  htmlContent: string;
  attachment?: { content: string; name: string }[];
 }) {
- if (!process.env.BREVO_API_KEY) return;
+ if (!process.env.BREVO_API_KEY) {
+ console.error("Brevo transactional email blocked: BREVO_API_KEY ontbreekt");
+ throw new Error("BREVO_API_KEY ontbreekt");
+ }
 
- await fetch(BREVO_API, {
+ const res = await fetch(BREVO_API, {
  method: "POST",
  headers: {
  "api-key": process.env.BREVO_API_KEY,
@@ -130,4 +141,10 @@ export async function sendTransactionalEmail({
  ...(attachment?.length ? { attachment } : {}),
  }),
  });
+ if (!res.ok) {
+ const body = await res.text().catch(() => "");
+ console.error("Brevo transactional email failed:", res.status, body);
+ throw new Error(`Brevo transactional email failed: ${res.status}`);
+ }
+ return await res.json().catch(() => ({})) as { messageId?: string; messageIds?: string[] };
 }

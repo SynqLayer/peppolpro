@@ -33,10 +33,11 @@ export async function GET() {
  getCompany: result.raw,
  };
 
- await admin.from("user_profiles").update({
+ const { error: updateError } = await admin.from("user_profiles").update({
  recommand_verified: result.isVerified,
  recommand_raw_response: rawResponse,
  }).eq("id", user.id);
+ if (updateError) throw updateError;
 
  if (!result.success) {
  return jsonError("Recommand company-status ophalen mislukt", 502, { raw: result.raw });

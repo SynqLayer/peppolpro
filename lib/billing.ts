@@ -41,17 +41,18 @@ type BillingInvoiceForEmail = {
  paid_at?: string | null;
  delivered_at?: string | null;
  payment_method?: string | null;
+ email_status?: string | null;
+ brevo_message_id?: string | null;
+ email_error?: string | null;
 };
 
 type UserProfileForEmail = {
  company_name?: string | null;
- full_name?: string | null;
  email?: string | null;
  address?: string | null;
  postal_code?: string | null;
  city?: string | null;
  country?: string | null;
- btw_number?: string | null;
  btw_nr?: string | null;
 };
 
@@ -96,14 +97,14 @@ function billingPdfPath(invoice: BillingInvoiceForEmail, admin = false) {
 async function storeBillingInvoicePdfs(supabase: AdminClient, invoiceId: string) {
  const { data: invoice, error: invoiceError } = await supabase
  .from("invoices")
- .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, admin_pdf_path, paid_at, delivered_at, payment_method, payments(mollie_payment_id)")
+ .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, admin_pdf_path, paid_at, delivered_at, payment_method, email_status, brevo_message_id, email_error, payments(mollie_payment_id)")
  .eq("id", invoiceId)
  .single<BillingInvoiceForEmail & { payments?: { mollie_payment_id?: string | null } | null }>();
  if (invoiceError || !invoice) throw invoiceError || new Error("Factuur niet gevonden voor PDF opslag");
 
  const { data: profile } = await supabase
  .from("user_profiles")
- .select("company_name, full_name, email, address, postal_code, city, country, btw_number, btw_nr")
+ .select("company_name, email, address, postal_code, city, country, btw_nr")
  .eq("id", invoice.user_id)
  .maybeSingle<UserProfileForEmail>();
  const fullInvoice = { ...invoice, user_profiles: profile || null };
@@ -117,32 +118,41 @@ async function storeBillingInvoicePdfs(supabase: AdminClient, invoiceId: string)
  if (customerError) throw customerError;
  const { error: adminError } = await bucket.upload(adminPdfPath, Buffer.from(adminPdf), { contentType, upsert: true });
  if (adminError) throw adminError;
- await supabase.from("invoices").update({
+ const { error: updateError } = await supabase.from("invoices").update({
   pdf_path: pdfPath,
   admin_pdf_path: adminPdfPath,
   pdf_stored_at: new Date().toISOString(),
  }).eq("id", invoiceId);
+ if (updateError) throw updateError;
  return { pdf: customerPdf, path: pdfPath };
 }
 
 export async function sendBillingInvoiceEmail(supabase: AdminClient, invoiceId: string) {
  const { data: invoice, error: invoiceError } = await supabase
  .from("invoices")
- .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, paid_at, delivered_at, payment_method")
+ .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, paid_at, delivered_at, payment_method, email_status, brevo_message_id, email_error")
  .eq("id", invoiceId)
  .single<BillingInvoiceForEmail>();
  if (invoiceError || !invoice) throw invoiceError || new Error("Factuur niet gevonden voor e-mail");
 
  const { data: profile } = await supabase
  .from("user_profiles")
- .select("company_name, full_name, email, address, postal_code, city, country, btw_number, btw_nr")
+ .select("company_name, email, address, postal_code, city, country, btw_nr")
  .eq("id", invoice.user_id)
  .maybeSingle<UserProfileForEmail>();
- if (!profile?.email) return;
+ if (!profile?.email) {
+  const message = "Factuurmail geblokkeerd: profiel mist e-mailadres";
+  console.error(message, { invoiceId });
+  const { error: updateError } = await supabase.from("invoices").update({ email_status: "failed", email_error: message }).eq("id", invoiceId);
+  if (updateError) throw updateError;
+  throw new Error(message);
+ }
 
  const stored = await storeBillingInvoicePdfs(supabase, invoice.id);
- const displayName = profile.company_name || profile.full_name || profile.email;
- await sendTransactionalEmail({
+ const displayName = profile.company_name || profile.email;
+ let result: { messageId?: string; messageIds?: string[] } | undefined;
+ try {
+ result = await sendTransactionalEmail({
  to: [{ email: profile.email, name: displayName || profile.email }],
  subject: `Factuur ${invoice.invoice_number} — PeppolPro`,
  htmlContent: `<!DOCTYPE html><html lang="nl"><body><p>Beste ${displayName || "klant"},</p><p>In de bijlage vind je je ${invoice.invoice_kind === "credit" ? "creditnota" : "factuur"} van PeppolPro.</p><p>Met vriendelijke groet,<br>SynqLayer / PeppolPro</p></body></html>`,
@@ -153,6 +163,20 @@ export async function sendBillingInvoiceEmail(supabase: AdminClient, invoiceId: 
  },
  ],
  });
+ } catch (error) {
+  const message = error instanceof Error ? error.message : "Brevo factuurmail mislukt";
+  const { error: updateError } = await supabase.from("invoices").update({ email_status: "failed", email_error: message }).eq("id", invoiceId);
+  if (updateError) console.error("Factuurmail status update failed:", updateError);
+  throw error;
+ }
+ const brevoMessageId = result?.messageId || result?.messageIds?.[0] || null;
+ const { error: updateError } = await supabase.from("invoices").update({
+  email_status: "accepted",
+  brevo_message_id: brevoMessageId,
+  email_accepted_at: new Date().toISOString(),
+  email_error: null,
+ }).eq("id", invoiceId);
+ if (updateError) throw updateError;
 }
 
 export async function ensurePaymentInvoice({
@@ -172,13 +196,17 @@ export async function ensurePaymentInvoice({
  const product = getCreditBundle(planId) || getPlan(planId);
  if (!product.paid) return null;
 
- const { data: existing } = await supabase
+ const { data: existing, error: existingError } = await supabase
  .from("invoices")
- .select("id, invoice_number")
+ .select("id, invoice_number, email_status")
  .eq("payment_id", paymentRow.id)
  .neq("invoice_kind", "credit")
  .maybeSingle();
- if (existing) return existing;
+ if (existingError) throw existingError;
+ if (existing) {
+  if (!["accepted", "delivered"].includes(String(existing.email_status || ""))) await sendBillingInvoiceEmail(supabase, existing.id);
+  return existing;
+ }
 
  const invoice = await createBillingInvoiceForPayment({
   supabase,
@@ -204,15 +232,19 @@ export async function ensureCreditInvoice({
 }) {
  if (payment.status !== "refunded" && payment.status !== "charged_back") return null;
  if (payment.mode === "test") return null;
- const { data: existingCredit } = await supabase
+ const { data: existingCredit, error: existingCreditError } = await supabase
  .from("invoices")
- .select("id, invoice_number")
+ .select("id, invoice_number, email_status")
  .eq("payment_id", paymentRow.id)
  .eq("invoice_kind", "credit")
  .maybeSingle();
- if (existingCredit) return existingCredit;
+ if (existingCreditError) throw existingCreditError;
+ if (existingCredit) {
+  if (!["accepted", "delivered"].includes(String(existingCredit.email_status || ""))) await sendBillingInvoiceEmail(supabase, existingCredit.id);
+  return existingCredit;
+ }
 
- const { data: original } = await supabase
+ const { data: original, error: originalError } = await supabase
  .from("invoices")
  .select("id, invoice_number, amount, vat_amount, vat_rate, currency, total_excl, total_incl")
  .eq("payment_id", paymentRow.id)
@@ -220,6 +252,7 @@ export async function ensureCreditInvoice({
  .order("issued_at", { ascending: true })
  .limit(1)
  .maybeSingle();
+ if (originalError) throw originalError;
 
  const creditInvoice = await createBillingInvoiceForPayment({
   supabase,

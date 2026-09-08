@@ -103,7 +103,8 @@ async function fetchTarget(supabase: Awaited<ReturnType<typeof createServerSupab
    .eq("id", targetId)
    .eq("user_id", userId)
    .single<TargetRow & { total_incl?: number | string | null }>();
-  if (error || !data) return null;
+  if (error) throw error;
+  if (!data) return null;
   return { ...data, total_amount: data.total_incl ?? data.total_amount };
  }
 
@@ -113,7 +114,8 @@ async function fetchTarget(supabase: Awaited<ReturnType<typeof createServerSupab
   .eq("id", targetId)
   .eq("user_id", userId)
   .single<TargetRow>();
- if (error || !data) return null;
+ if (error) throw error;
+ if (!data) return null;
  return data;
 }
 
@@ -135,12 +137,13 @@ async function claimTargetForSending(supabase: ReturnType<typeof createAdminSupa
    p_stale_after_minutes: RECOMMAND_SEND_STALE_AFTER_MINUTES,
   })
   .maybeSingle<ClaimRow>();
- if (error || !data || data.claimed !== true) return null;
+ if (error) throw error;
+ if (!data || data.claimed !== true) return null;
  return data;
 }
 
 async function resetSendingClaim(supabase: ReturnType<typeof createAdminSupabase>, table: "conversions" | "invoices", targetId: string, userId: string) {
- await supabase
+ const { error } = await supabase
   .from(table)
   .update({ recommand_status: null, recommand_claimed_at: null })
   .eq("id", targetId)
@@ -148,20 +151,23 @@ async function resetSendingClaim(supabase: ReturnType<typeof createAdminSupabase
   .eq("recommand_status", "sending")
   .is("recommand_document_id", null)
   .is("sent_via_recommand_at", null);
+ if (error) throw error;
 }
 
 async function reserveSendCredit(supabase: ReturnType<typeof createAdminSupabase>, userId: string) {
  const { data, error } = await supabase
   .rpc("reserve_send_credit", { p_user_id: userId })
   .maybeSingle<CreditRow>();
- if (error || !data) return null;
+ if (error) throw error;
+ if (!data) return null;
  return data;
 }
 
 async function releaseSendCredit(supabase: ReturnType<typeof createAdminSupabase>, userId: string) {
- const { data } = await supabase
+ const { data, error } = await supabase
   .rpc("release_send_credit", { p_user_id: userId })
   .maybeSingle<CreditRow>();
+ if (error) throw error;
  return data || null;
 }
 
@@ -248,24 +254,26 @@ export async function POST(request: NextRequest) {
   const verify = await verifyRecipient(recipient);
   if (!verify.isValid) {
    const released = await releaseAfterFailure();
-   await admin.from(targetTable).update({
+   const { error: updateError } = await admin.from(targetTable).update({
     verified_recipient: false,
     recommand_status: "recipient_not_found",
     recommand_claimed_at: null,
-    recommand_raw_response: { verify: verify.raw },
+   recommand_raw_response: { verify: verify.raw },
    }).eq("id", targetId).eq("user_id", user.id);
+   if (updateError) throw updateError;
    return jsonError("Ontvanger is niet gevonden op het Peppol-netwerk. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
 
   const support = await verifyRecipientSupportsInvoice(recipient);
   if (!support.isValid) {
    const released = await releaseAfterFailure();
-   await admin.from(targetTable).update({
+   const { error: updateError } = await admin.from(targetTable).update({
     verified_recipient: true,
     recommand_status: "invoice_not_supported",
     recommand_claimed_at: null,
-    recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw },
+   recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw },
    }).eq("id", targetId).eq("user_id", user.id);
+   if (updateError) throw updateError;
    return jsonError("Ontvanger ondersteunt dit Peppol factuurdocumenttype niet. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
 
@@ -275,14 +283,15 @@ export async function POST(request: NextRequest) {
   const recommandStatus = send.success ? (hasAs4Receipt(status?.body) ? "as4_received" : "sent") : "send_failed";
   const sentAt = send.success ? new Date().toISOString() : null;
 
-  await admin.from(targetTable).update({
+  const { error: updateError } = await admin.from(targetTable).update({
    verified_recipient: true,
    recommand_document_id: send.documentId,
    recommand_status: recommandStatus,
    recommand_claimed_at: null,
    recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status },
-   sent_via_recommand_at: sentAt,
+  sent_via_recommand_at: sentAt,
   }).eq("id", targetId).eq("user_id", user.id);
+  if (updateError) throw updateError;
 
   if (!send.success) {
    const released = await releaseAfterFailure();
@@ -292,11 +301,12 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ success: true, documentId: send.documentId, status: recommandStatus, sentAt, remainingCredits: reserved.send_credits });
  } catch (error) {
   const released = await releaseAfterFailure();
-  await admin.from(targetTable).update({
+  const { error: updateError } = await admin.from(targetTable).update({
    recommand_status: "send_failed",
    recommand_claimed_at: null,
-   recommand_raw_response: { error: error instanceof Error ? error.message : "Onbekende Recommand-fout" },
+  recommand_raw_response: { error: error instanceof Error ? error.message : "Onbekende Recommand-fout" },
   }).eq("id", targetId).eq("user_id", user.id);
+  if (updateError) console.error("Recommand failure update error:", updateError);
   return jsonError("Recommand verzenden is mislukt. Probeer het later opnieuw.", 502, { remainingCredits: released?.send_credits });
  }
 }
