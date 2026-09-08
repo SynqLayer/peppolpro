@@ -33,7 +33,8 @@ type InvoicePdfInput = {
 };
 
 function money(value?: number | string | null, currency = "EUR") {
- return new Intl.NumberFormat("nl-NL", { style: "currency", currency }).format(Number(value || 0));
+ const amount = new Intl.NumberFormat("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
+ return `${currency} ${amount}`;
 }
 
 function date(value?: string | null) {
@@ -71,7 +72,7 @@ export async function generateBillingInvoicePdf(invoice: InvoicePdfInput) {
  page.drawText("SynqLayer", { x: 48, y: 750, size: 12, font: bold, color: dark });
  page.drawText("De Akker 39, 2743 DR Waddinxveen", { x: 48, y: 733, size: 10, font, color: muted });
  page.drawText("Btw-identificatienummer NL005450830B62 | KvK 42041391", { x: 48, y: 718, size: 10, font, color: muted });
- page.drawRectangle({ x: 48, y: 724, width: 500, height: 2, color: accent });
+ page.drawRectangle({ x: 48, y: 704, width: 500, height: 2, color: accent });
 
  const rows: Array<[string, string]> = [
  ["Factuurnummer", invoice.invoice_number || "-"],
