@@ -9,22 +9,22 @@ export default function PrivacyPage() {
  <div style={{ maxWidth: 700, margin: "0 auto", padding: "100px 24px 60px" }}>
  <Link href="/" style={{ fontSize: 13, color: "#475569", textDecoration: "none", marginBottom: 20, display: "block" }}>← Terug naar home</Link>
  <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8 }}>Privacyverklaring</h1>
- <p style={{ fontSize: 13, color: "#475569", marginBottom: 32 }}>Laatst bijgewerkt: augustus 2026</p>
+ <p style={{ fontSize: 13, color: "#475569", marginBottom: 32 }}>Laatst bijgewerkt: september 2026</p>
 
  <h2 style={h2}>1. Wie zijn wij</h2>
  <p style={p}>PeppolPro is een product van SynqLayer, gevestigd in Nederland. KvK-nummer: 42041391. BTW-nummer: NL005450830B62. Wij zijn verantwoordelijk voor de verwerking van persoonsgegevens zoals beschreven in deze privacyverklaring.</p>
 
  <h2 style={h2}>2. Welke gegevens verwerken wij</h2>
- <p style={p}>Bij registratie: e-mailadres, bedrijfsnaam, KvK/KBO-nummer, BTW-nummer. Bij gebruik: geüploade PDF-facturen (tijdelijk), gegenereerde UBL XML-bestanden, Peppol-monitoringgegevens, team-uitnodigingen, webhook-configuratie, IP-adres en browsergegevens voor beveiliging.</p>
+ <p style={p}>Bij registratie: e-mailadres, bedrijfsnaam, KvK/KBO-nummer, BTW-nummer en factuuradres. Bij gebruik: geüploade PDF-facturen (tijdelijk), gegenereerde UBL XML-bestanden, betaal- en factuurgegevens, Peppol-monitoringgegevens, team-uitnodigingen, webhook-configuratie, IP-adres en browsergegevens voor beveiliging.</p>
 
  <h2 style={h2}>3. Doel van verwerking</h2>
  <p style={p}>Wij verwerken gegevens voor: het leveren van onze dienst (PDF naar UBL conversie), accountbeheer, facturatie, monitoring van Peppol-registraties, teamtoegang, webhook-doorgifte op eigen verzoek van de gebruiker, en wettelijke verplichtingen. Factuurdata wordt opgeslagen in je account voor conversie, factuurhistorie en dashboardweergave, totdat je deze verwijdert of verwijdering aanvraagt.</p>
 
  <h2 style={h2}>4. Bewaartermijnen</h2>
- <p style={p}>Accountgegevens: zolang je account actief is. Geüploade PDF-facturen: maximaal 14 dagen na conversie, daarna automatisch verwijderd. Monitoring-events voor Peppol-bewaking: maximaal 12 maanden. Team-uitnodigingen: maximaal 30 dagen als pending uitnodiging; daarna wordt het e-mailadres uit de uitnodigingsrij verwijderd en blijft alleen beperkte auditmetadata over. Betalingsgegevens: 7 jaar (wettelijke bewaarplicht). Loggegevens: maximaal 90 dagen.</p>
+ <p style={p}>Accountgegevens: zolang je account actief is. Geüploade PDF-facturen: maximaal 14 dagen na conversie, daarna automatisch verwijderd. Uitgaande btw-facturen voor PeppolPro-abonnementen en verzendbundels bewaren wij 7 jaar vanwege de wettelijke administratieplicht. Monitoring-events voor Peppol-bewaking: maximaal 12 maanden. Team-uitnodigingen: maximaal 30 dagen als pending uitnodiging; daarna wordt het e-mailadres uit de uitnodigingsrij verwijderd en blijft alleen beperkte auditmetadata over. Betalingsgegevens: 7 jaar. Loggegevens: maximaal 90 dagen.</p>
 
  <h2 style={h2}>5. Delen met derden</h2>
- <p style={p}>Wij delen gegevens met: Google (Gemini AI, voor factuurverwerking), Supabase (database hosting, EU), Vercel (website hosting), Mollie (betalingsverwerking), Brevo (transactionele e-mail, verwerkt naam en e-mailadres) en Recommand (Peppol access point, voor het registreren van je bedrijf op het Peppol-netwerk en het verzenden van facturen). Bij het activeren van verzenden moet een vertegenwoordiger van je bedrijf zich eenmalig identificeren via een externe identiteitscontrole van Recommand; dat verloopt volledig buiten PeppolPro om, en wij ontvangen of bewaren zelf geen kopie van dat identiteitsbewijs. Conversions en invoices, waaronder UBL, bedragen, klantgegevens en het e-mailadres van de ontvanger, bewaren wij zolang je account actief is, tenzij je een factuur zelf verwijdert. Als je zelf een webhook-URL instelt, sturen wij monitoring-events op jouw verzoek door naar dat door jou gekozen eindpunt. Wij verkopen nooit persoonsgegevens aan derden.</p>
+ <p style={p}>Wij delen gegevens met: Google (Gemini AI, voor factuurverwerking), Supabase (database hosting, EU), Vercel (website hosting), Mollie (betalingsverwerking), Brevo (transactionele e-mail, verwerkt naam en e-mailadres), PDOK/BAG Locatieserver (adresvalidatie voor Nederlandse adressen), EU VIES (BTW-nummercontrole) en Recommand (Peppol access point, voor het registreren van je bedrijf op het Peppol-netwerk en het verzenden van facturen). Bij het activeren van verzenden moet een vertegenwoordiger van je bedrijf zich eenmalig identificeren via een externe identiteitscontrole van Recommand; dat verloopt volledig buiten PeppolPro om, en wij ontvangen of bewaren zelf geen kopie van dat identiteitsbewijs. Conversions en invoices, waaronder UBL, bedragen, klantgegevens en het e-mailadres van de ontvanger, bewaren wij zolang je account actief is, tenzij je een factuur zelf verwijdert. Als je zelf een webhook-URL instelt, sturen wij monitoring-events op jouw verzoek door naar dat door jou gekozen eindpunt. Wij verkopen nooit persoonsgegevens aan derden.</p>
 
  <h2 style={h2}>6. Beveiliging</h2>
  <p style={p}>Wij gebruiken encryptie (TLS/SSL), row-level security in onze database, en verwerken zo min mogelijk persoonsgegevens (dataminimalisatie).</p>

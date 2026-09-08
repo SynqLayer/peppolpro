@@ -56,5 +56,5 @@ test('webhook creates recurring subscriptions only for recurring monitoring prod
  assert.match(mollieWebhookRoute, /createSubscription\(\{/);
  assert.match(mollieWebhookRoute, /await ensureRecurringSubscription\(\{ supabase, payment, userId, plan: planConfig\.id/);
  assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
- assert.match(billingLib, /invoice_kind: product\.recurring \? "subscription" : "credits"/);
+ assert.match(billingLib, /invoiceKind: product\.recurring \? "subscription" : "credits"/);
 });

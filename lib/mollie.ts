@@ -5,6 +5,7 @@ type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string
 export interface MolliePayment {
  id: string;
  status: string;
+ mode?: "live" | "test";
  customerId?: string;
  mandateId?: string;
  subscriptionId?: string;

@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase-server";
-import ProfileForm from "@/app/profile/ProfileForm";
+import ProfileForm from "./ProfileForm";
 
-export default async function OnboardingPage() {
+export default async function ProfilePage() {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user) redirect("/login");
@@ -13,5 +13,5 @@ export default async function OnboardingPage() {
   .eq("id", user.id)
   .maybeSingle();
 
- return <ProfileForm profile={profile || null} mode="onboarding" />;
+ return <ProfileForm profile={profile || null} mode="profile" />;
 }

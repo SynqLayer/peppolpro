@@ -10,16 +10,31 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ inv
  const { invoiceId } = await params;
  const { data: invoice, error } = await supabase
  .from("invoices")
- .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl")
+ .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, paid_at, delivered_at, payment_method")
  .eq("id", invoiceId)
  .eq("user_id", user.id)
  .single();
 
  if (error || !invoice) return NextResponse.json({ error: "Factuur niet gevonden" }, { status: 404 });
 
+ if (invoice.pdf_path) {
+  const { data: stored } = await supabase.storage.from("invoices").download(invoice.pdf_path);
+  if (stored) {
+   const filename = `${invoice.invoice_number || "factuur"}.pdf`;
+   return new NextResponse(Buffer.from(await stored.arrayBuffer()), {
+    status: 200,
+    headers: {
+     "Content-Type": "application/pdf",
+     "Content-Disposition": `attachment; filename="${filename}"`,
+     "Cache-Control": "no-store",
+    },
+   });
+  }
+ }
+
  const { data: profile } = await supabase
  .from("user_profiles")
- .select("company_name, full_name, email, address, btw_number, btw_nr")
+ .select("company_name, full_name, email, address, postal_code, city, country, btw_number, btw_nr")
  .eq("id", user.id)
  .maybeSingle();
 

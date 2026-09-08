@@ -167,6 +167,7 @@ export async function POST(req: NextRequest) {
   if (!paymentId) return NextResponse.json({ ok: false }, { status: 400 });
 
   const payment = await getPayment(paymentId);
+  if (payment.mode === "test") return NextResponse.json({ ok: true, test: true });
   const event = await startWebhook(supabase, payment);
   eventKey = event.eventKey;
   if (event.duplicate) return NextResponse.json({ ok: true, duplicate: true });
@@ -192,6 +193,7 @@ export async function POST(req: NextRequest) {
    mollie_customer_id: payment.customerId || null,
    mollie_subscription_id: payment.subscriptionId || existingPayment?.mollie_subscription_id || null,
    mollie_mandate_id: payment.mandateId || null,
+   mollie_mode: payment.mode || "live",
    amount: payment.amount?.value ? parseFloat(payment.amount.value) : parseFloat(bundle?.amount || planConfig.amount),
    credits: bundle?.credits || 0,
    status: payment.status,
