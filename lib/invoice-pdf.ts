@@ -86,29 +86,34 @@ export async function generateBillingInvoicePdf(invoice: InvoicePdfInput) {
  if (invoice.adminCopy && invoice.molliePaymentId) rows.push(["Mollie payment-ID", invoice.molliePaymentId]);
  if (invoice.invoice_kind === "credit") rows.push(["Credit op", invoice.original_invoice_number || "originele factuur"]);
 
- let y = 690;
+ let y = 686;
  for (const [label, value] of rows) {
  page.drawText(label, { x: 48, y, size: 10, font: bold, color: muted });
  page.drawText(value, { x: 180, y, size: 11, font, color: dark });
- y -= 24;
+ y -= 20;
  }
 
- y -= 20;
+ y -= 12;
  page.drawText("Omschrijving", { x: 48, y, size: 10, font: bold, color: muted });
- page.drawText("Aantal", { x: 330, y, size: 10, font: bold, color: muted });
- page.drawText("Bedrag", { x: 440, y, size: 10, font: bold, color: muted });
+ page.drawText("Aantal", { x: 300, y, size: 10, font: bold, color: muted });
+ page.drawText("Prijs/stuk excl.", { x: 360, y, size: 10, font: bold, color: muted });
+ page.drawText("Bedrag", { x: 470, y, size: 10, font: bold, color: muted });
  y -= 24;
  page.drawText(description(invoice), { x: 48, y, size: 12, font, color: dark });
- page.drawText("1", { x: 330, y, size: 12, font, color: dark });
- page.drawText(money(totalExcl, currency), { x: 440, y, size: 12, font, color: dark });
+ page.drawText("1", { x: 300, y, size: 12, font, color: dark });
+ page.drawText(money(totalExcl, currency), { x: 360, y, size: 12, font, color: dark });
+ page.drawText(money(totalExcl, currency), { x: 470, y, size: 12, font, color: dark });
 
- y -= 70;
+ y -= 58;
+ page.drawText("Totaal excl. btw", { x: 330, y, size: 11, font, color: muted });
+ page.drawText(money(totalExcl, currency), { x: 470, y, size: 11, font, color: dark });
+ y -= 24;
  page.drawText(`BTW ${Number(invoice.vat_rate ?? 21)}%`, { x: 330, y, size: 11, font, color: muted });
- page.drawText(money(vat, currency), { x: 440, y, size: 11, font, color: dark });
+ page.drawText(money(vat, currency), { x: 470, y, size: 11, font, color: dark });
  y -= 28;
  page.drawText("Totaal incl. BTW", { x: 330, y, size: 13, font: bold, color: dark });
- page.drawText(money(totalIncl, currency), { x: 440, y, size: 13, font: bold, color: dark });
+ page.drawText(money(totalIncl, currency), { x: 470, y, size: 13, font: bold, color: dark });
 
- page.drawText(invoice.adminCopy ? "Administratiekopie" : "Factuur is voldaan en server-side bewaard volgens de wettelijke bewaartermijn.", { x: 48, y: 70, size: 9, font, color: muted });
+ page.drawText(invoice.adminCopy ? "Administratiekopie" : "Dit bedrag is reeds voldaan. U hoeft niets te betalen.", { x: 48, y: 70, size: 9, font, color: muted });
  return pdf.save();
 }

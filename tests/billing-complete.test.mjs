@@ -21,6 +21,10 @@ test('billing profile selects use columns that exist on user_profiles', () => {
 test('credit bundle invoices describe the purchased bundle size', () => {
  assert.match(invoicePdf, /PeppolPro verzendbundel \$\{credits\} credits/);
  assert.match(invoicePdf, /month: "2-digit"/);
+ assert.match(invoicePdf, /Totaal excl\. btw/);
+ assert.match(invoicePdf, /Prijs\/stuk excl\./);
+ assert.match(invoicePdf, /Dit bedrag is reeds voldaan\. U hoeft niets te betalen\./);
+ assert.doesNotMatch(invoicePdf, /server-side bewaard volgens de wettelijke bewaartermijn/);
  assert.match(billingLib, /payments\(mollie_payment_id, plan, credits\)/);
  assert.match(invoiceRoute, /payments\(plan, credits\)/);
 });
