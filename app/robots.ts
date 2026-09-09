@@ -3,7 +3,11 @@ import { site } from "@/lib/monitor/site";
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: "/" },
+    rules: {
+      userAgent: "*",
+      allow: "/",
+      disallow: ["/api/", "/dashboard/", "/admin/", "/onboarding/"],
+    },
     sitemap: `${site.url}/sitemap.xml`,
   };
 }
