@@ -76,6 +76,16 @@ test('root sitemap and robots expose monitor routes via monitor route config', (
   assert.match(robots, /sitemap\.xml/);
 });
 
+test('robots metadata is the sole wildcard policy with production sitemap', () => {
+  assert.equal(existsSync(new URL('../public/robots.txt', import.meta.url)), false);
+  assert.match(robots, /userAgent:\s*"\*"/);
+  assert.match(robots, /allow:\s*"\/"/);
+  assert.match(robots, /disallow:\s*\[\s*"\/api\/",\s*"\/dashboard\/",\s*"\/admin\/",\s*"\/onboarding\/"\s*\]/);
+  assert.match(robots, /sitemap:\s*`\$\{site\.url\}\/sitemap\.xml`/);
+  assert.doesNotMatch(robots, /Googlebot|Bingbot|GPTBot|ChatGPT-User|ClaudeBot|PerplexityBot|CCBot|Applebot/i);
+  assert.match(site, /url:\s*process\.env\.NEXT_PUBLIC_SITE_URL\s*\|\|\s*"https:\/\/peppolpro\.nl"/);
+});
+
 test('commercial-intent monitor pages exist with unique metadata and audience-aware CTAs', () => {
   for (const slug of commercialIntentRoutes) {
     assert.equal(existsSync(new URL(`../app/monitor/${slug}/page.tsx`, import.meta.url)), true, `${slug} missing`);
