@@ -1,5 +1,5 @@
 import type { RecommandInvoiceDocument } from "./recommand-invoice";
-import type { RecommandCreditNoteDocument } from "./recommand-credit-note";
+import type { RecommandCreditNoteDocument, RecommandParty } from "./recommand-credit-note";
 import { payableAmountFromUbl } from "./ubl-amounts.ts";
 
 export type RecommandInvoicePayloadFromUbl = {
@@ -35,6 +35,16 @@ function firstTag(xml: string, tag: string) {
  return match ? decodeXml(match[1]) : "";
 }
 
+function tagValueAndAttribute(xml: string, tag: string, attribute: string) {
+ const match = xml.match(new RegExp(`<(?:[A-Za-z0-9_-]+:)?${tag}\\b([^>]*)>([\\s\\S]*?)<\\/(?:[A-Za-z0-9_-]+:)?${tag}>`, "i"));
+ if (!match) return { value: "", attributeValue: "" };
+ const attributeMatch = match[1].match(new RegExp(`\\b${attribute}=["']([^"']*)["']`, "i"));
+ return {
+  value: decodeXml(match[2]),
+  attributeValue: attributeMatch ? decodeXml(attributeMatch[1]) : "",
+ };
+}
+
 function section(xml: string, tag: string) {
  const match = xml.match(new RegExp(`<(?:[A-Za-z0-9_-]+:)?${tag}\\b(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[A-Za-z0-9_-]+:)?${tag}>`, "i"));
  return match?.[1] || "";
@@ -54,10 +64,16 @@ function fixedDecimal(value: string) {
  return Number.isFinite(number) ? number.toFixed(2) : value;
 }
 
-function party(sectionXml: string) {
+type BaseParty = Omit<RecommandParty, "enterpriseNumber" | "enterpriseNumberScheme">;
+
+function party(sectionXml: string): BaseParty;
+function party(sectionXml: string, includeEnterpriseIdentifiers: true): RecommandParty;
+function party(sectionXml: string, includeEnterpriseIdentifiers = false): BaseParty | RecommandParty {
  const partyXml = section(sectionXml, "Party");
  const postal = section(partyXml, "PostalAddress");
- return {
+ const legalEntity = section(partyXml, "PartyLegalEntity");
+ const enterprise = tagValueAndAttribute(legalEntity, "CompanyID", "schemeID");
+ const baseParty = {
   vatNumber: firstTag(section(partyXml, "PartyTaxScheme"), "CompanyID"),
   name: firstTag(partyXml, "RegistrationName") || firstTag(section(partyXml, "PartyName"), "Name"),
   street: firstTag(postal, "StreetName"),
@@ -65,6 +81,11 @@ function party(sectionXml: string) {
   postalZone: firstTag(postal, "PostalZone"),
   country: firstTag(section(postal, "Country"), "IdentificationCode"),
  };
+ return includeEnterpriseIdentifiers ? {
+  ...baseParty,
+  enterpriseNumber: enterprise.value,
+  enterpriseNumberScheme: enterprise.attributeValue,
+ } : baseParty;
 }
 
 function linesFromUbl(ublXml: string, lineTag: "InvoiceLine" | "CreditNoteLine", quantityTag: "InvoicedQuantity" | "CreditedQuantity") {
@@ -106,13 +127,14 @@ export function buildRecommandPayloadFromUbl(ublXml: string): RecommandPayloadFr
   const document: RecommandCreditNoteDocument = {
    creditNoteNumber: firstTag(ublXml, "ID"),
    issueDate: common.issueDate,
+   buyerReference: firstTag(ublXml, "BuyerReference") || undefined,
    note: "Creditfactuur verzonden via PeppolPro.",
    invoiceReferences: originalInvoiceId ? [{
     id: originalInvoiceId,
     ...(originalIssueDate ? { issueDate: originalIssueDate } : {}),
    }] : [],
-   seller: common.seller,
-   buyer: common.buyer,
+   seller: party(supplierSection, true),
+   buyer: party(customerSection, true),
    lines: linesFromUbl(ublXml, "CreditNoteLine", "CreditedQuantity"),
   };
   return { recipient, documentType: "creditNote", document, currency, payableAmount };

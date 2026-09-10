@@ -5,6 +5,7 @@ import { generateUBL } from '../lib/ubl-generator.ts';
 import { validateInvoiceData } from '../lib/ubl-validator.ts';
 import { buildRecommandPayloadFromUbl } from '../lib/ubl-to-recommand.ts';
 import { buildInvoicePreviewFromPayload } from '../lib/invoice-preview.ts';
+import { classifySendException } from '../lib/recommand-send-outcome.ts';
 import {
  findOutgoingDocument,
  PEPPOL_BIS_BILLING_CREDIT_NOTE_DOCUMENT_TYPE,
@@ -13,6 +14,7 @@ import {
 
 const root = new URL('../', import.meta.url);
 const sendRoute = readFileSync(new URL('app/api/recommand/send/route.ts', root), 'utf8');
+const recommandClient = readFileSync(new URL('lib/recommand.ts', root), 'utf8');
 const generateRoute = readFileSync(new URL('app/api/generate/route.ts', root), 'utf8');
 const nieuwPage = readFileSync(new URL('app/nieuw/page.tsx', root), 'utf8');
 const confirmation = readFileSync(new URL('app/components/InvoiceConfirmation.tsx', root), 'utf8');
@@ -111,6 +113,9 @@ test('raw Dutch OIN uses scheme 0190 for endpoint and legal entity', () => {
  assert.match(xml, new RegExp(`<cbc:EndpointID schemeID="0190">${oin}</cbc:EndpointID>`));
  assert.match(xml, new RegExp(`<cbc:CompanyID schemeID="0190">${oin}</cbc:CompanyID>`));
  assert.equal(buildRecommandPayloadFromUbl(xml).recipient, `0190:${oin}`);
+ const payload = buildRecommandPayloadFromUbl(xml);
+ assert.equal(payload.document.buyer.enterpriseNumber, oin);
+ assert.equal(payload.document.buyer.enterpriseNumberScheme, '0190');
 });
 
 test('negative CreditNote quantity or price is blocked with the exact safe-UX message', () => {
@@ -132,9 +137,14 @@ test('Recommand payload is derived from CreditNote UBL with invoice references',
  assert.equal(payload.documentType, 'creditNote');
  assert.equal(payload.document.creditNoteNumber, 'CN-2026-001');
  assert.equal(payload.document.issueDate, '2026-09-10');
+ assert.equal(payload.document.buyerReference, 'ORDER-1');
  assert.deepEqual(payload.document.invoiceReferences, [{ id: 'INV-2026-004', issueDate: '2026-08-20' }]);
  assert.equal(payload.document.seller.name, 'Supplier BV');
+ assert.equal(payload.document.seller.enterpriseNumber, '42041391');
+ assert.equal(payload.document.seller.enterpriseNumberScheme, '0106');
  assert.equal(payload.document.buyer.name, 'Customer BV');
+ assert.equal(payload.document.buyer.enterpriseNumber, '87654321');
+ assert.equal(payload.document.buyer.enterpriseNumberScheme, '0106');
  assert.deepEqual(payload.document.lines.map((line) => [line.quantity, line.netPriceAmount, line.vat.percentage]), [
   ['2', '50.00', '21.00'],
   ['1', '100.00', '9.00'],
@@ -176,8 +186,29 @@ test('provider acceptance never releases credit when status lookup or persistenc
  assert.match(sendRoute, /existing\.recommand_status === "sending"[\s\S]*findOutgoingDocument/);
  assert.ok(sendRoute.indexOf('findOutgoingDocument', sendRoute.indexOf('export async function POST')) < sendRoute.indexOf('claimTargetForSending', sendRoute.indexOf('export async function POST')));
  const catchBlock = sendRoute.match(/\} catch \(error\) \{[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
- assert.match(catchBlock, /if \(providerAccepted\)/);
- assert.ok(catchBlock.indexOf('if (providerAccepted)') < catchBlock.indexOf('releaseAfterFailure()'));
+ assert.match(catchBlock, /sendException === "provider_accepted"/);
+ assert.ok(catchBlock.indexOf('sendException === "provider_accepted"') < catchBlock.indexOf('releaseAfterFailure()'));
+});
+
+test('missing provider response creates an unknown outcome without releasing credit or automatic resend', () => {
+ assert.equal(classifySendException({ sendAttempted: true, providerOutcomeKnown: false, providerAccepted: false }), 'provider_outcome_unknown');
+ assert.equal(classifySendException({ sendAttempted: true, providerOutcomeKnown: true, providerAccepted: false }), 'safe_to_release');
+ assert.equal(classifySendException({ sendAttempted: false, providerOutcomeKnown: false, providerAccepted: false }), 'safe_to_release');
+ assert.match(sendRoute, /classifySendException/);
+ assert.match(sendRoute, /let sendAttempted = false/);
+ assert.match(sendRoute, /let providerOutcomeKnown = false/);
+ assert.match(sendRoute, /sendDocument\([^;]*\(\) => \{ sendAttempted = true; \}\)/);
+ assert.match(recommandClient, /onRequestStarted\?\.\(\);[\s\S]*await fetch/);
+ assert.match(sendRoute, /function unknownSendOutcomeResponse[\s\S]*status: 409/);
+ assert.match(sendRoute, /providerOutcomeKnown = true/);
+ const catchBlock = sendRoute.match(/\} catch \(error\) \{[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
+ assert.match(catchBlock, /sendException === "provider_outcome_unknown"/);
+ assert.match(catchBlock, /findOutgoingDocument/);
+ assert.ok(catchBlock.indexOf('findOutgoingDocument', catchBlock.indexOf('sendException === "provider_outcome_unknown"')) < catchBlock.indexOf('recommand_status: "send_outcome_unknown"'));
+ assert.match(catchBlock, /recommand_status: "send_outcome_unknown"/);
+ assert.ok(catchBlock.indexOf('sendException === "provider_outcome_unknown"') < catchBlock.indexOf('releaseAfterFailure()'));
+ assert.match(sendRoute, /existing\.recommand_status === "send_outcome_unknown"/);
+ assert.match(sendRoute, /!recovered\.checked[\s\S]*unknownSendOutcomeResponse/);
 });
 
 test('CreditNote preview labels the correction and avoids due-date wording', () => {

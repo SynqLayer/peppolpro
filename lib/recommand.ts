@@ -72,17 +72,19 @@ async function parseResponseBody(response: Response): Promise<unknown> {
  }
 }
 
-async function requestRecommand(path: string, init: RequestInit = {}): Promise<RecommandRawResponse> {
+async function requestRecommand(path: string, init: RequestInit = {}, onRequestStarted?: () => void): Promise<RecommandRawResponse> {
  const url = `${RECOMMAND_BASE_URL}${path}`;
- const response = await fetch(url, {
- ...init,
- headers: {
- Authorization: basicAuthHeader(),
- "Content-Type": "application/json",
- ...(init.headers || {}),
- },
- cache: "no-store",
- });
+ const requestInit: RequestInit = {
+  ...init,
+  headers: {
+  Authorization: basicAuthHeader(),
+  "Content-Type": "application/json",
+  ...(init.headers || {}),
+  },
+  cache: "no-store",
+ };
+ onRequestStarted?.();
+ const response = await fetch(url, requestInit);
  const body = await parseResponseBody(response);
  return { ok: response.ok, status: response.status, statusText: response.statusText, url, body };
 }
@@ -231,11 +233,11 @@ export async function verifyRecipientSupportsCreditNote(peppolId: string): Promi
  };
 }
 
-export async function sendDocument(companyId: string, payload: JsonObject): Promise<RecommandSendResult> {
+export async function sendDocument(companyId: string, payload: JsonObject, onRequestStarted?: () => void): Promise<RecommandSendResult> {
  const raw = await requestRecommand(`/${encodeURIComponent(companyId)}/send`, {
  method: "POST",
  body: JSON.stringify(payload),
- });
+ }, onRequestStarted);
  const body = asObject(raw.body);
  return {
  success: raw.ok && body.success === true,

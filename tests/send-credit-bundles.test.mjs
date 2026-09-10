@@ -228,6 +228,8 @@ test('dashboard status prefers Recommand delivery state and only labels AS4 rece
  assert.doesNotMatch(dashboard, /recommand_raw_response\?:/);
  assert.doesNotMatch(dashboard, /responseReason/);
  assert.match(dashboard, /duplicate_voided: \{ label: "Vervallen \(dubbel\)"/);
+ assert.match(dashboard, /send_outcome_unknown: \{ label: "Uitkomst verzending onbekend"/);
+ assert.match(dashboard, /\["sent", "delivered", "as4_received", "sending", "send_outcome_unknown", "duplicate_voided"\]/);
  assert.doesNotMatch(dashboard, /delivered: \{ label: "Afgeleverd"/);
  assert.match(dashboard, /<StatusBadge conversion=\{conversion\} \/>/);
  assert.doesNotMatch(dashboard, /<StatusBadge status=\{conversion\.status\} \/>/);
@@ -240,6 +242,17 @@ test('dashboard send action updates row state and the send-credit KPI without re
  assert.match(dashboard, /setLocalConversions\(\(current\) => current\.map/);
  assert.match(dashboard, /recommand_status: body\.status/);
  assert.match(dashboard, /recommand_document_id: body\.documentId/);
+});
+
+test('unknown provider outcomes immediately block both send clients and preserve the displayed credit balance', () => {
+ assert.match(recommandRoute, /const message = "De provideruitkomst is nog onbekend/);
+ assert.match(recommandRoute, /status: "send_outcome_unknown"[\s\S]*error: message[\s\S]*message/);
+ assert.match(recommandRoute, /\{ status: 409 \}/);
+ assert.match(dashboard, /if \(body\.status === "send_outcome_unknown"\)[\s\S]*recommand_status: "send_outcome_unknown"/);
+ assert.match(dashboard, /if \(typeof body\.remainingCredits === "number"\) setLocalSendCredits\(body\.remainingCredits\)/);
+ assert.match(nieuwPage, /const \[sendOutcomeUnknown, setSendOutcomeUnknown\] = useState\(false\)/);
+ assert.match(nieuwPage, /if \(body\.status === "send_outcome_unknown"\)[\s\S]*setSendOutcomeUnknown\(true\)/);
+ assert.match(nieuwPage, /disabled=\{submitting \|\| !recommandVerified \|\| sendOutcomeUnknown\}/);
 });
 
 test('send route derives the provider payload exclusively from stored UBL when dashboard sends only the conversion id', () => {

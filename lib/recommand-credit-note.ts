@@ -2,6 +2,8 @@ import type { RecommandInvoiceLine } from "./recommand-invoice";
 
 export type RecommandParty = {
  vatNumber: string;
+ enterpriseNumber: string;
+ enterpriseNumberScheme: string;
  name: string;
  street: string;
  city: string;
@@ -12,6 +14,7 @@ export type RecommandParty = {
 export type RecommandCreditNoteDocument = {
  creditNoteNumber: string;
  issueDate: string;
+ buyerReference?: string;
  note?: string;
  invoiceReferences: Array<{ id: string; issueDate?: string }>;
  seller: RecommandParty;

@@ -43,6 +43,7 @@ export default function NieuwPage() {
  const [submitting, setSubmitting] = useState(false);
  const [errors, setErrors] = useState<string[]>([]);
  const [sendStatus, setSendStatus] = useState<string | null>(null);
+ const [sendOutcomeUnknown, setSendOutcomeUnknown] = useState(false);
  const [xml, setXml] = useState("");
  const [conversionId, setConversionId] = useState<string | null>(null);
  const [generatedTotalAmount, setGeneratedTotalAmount] = useState<number | string | null>(null);
@@ -185,6 +186,7 @@ export default function NieuwPage() {
  setGeneratedTotalAmount(null);
  setConfirmation(null);
  setSendStatus(null);
+ setSendOutcomeUnknown(false);
  if (!result.valid) return;
 
  setSubmitting(true);
@@ -267,11 +269,17 @@ export default function NieuwPage() {
  body: JSON.stringify({ conversionId }),
  });
  const body = await res.json().catch(() => ({}));
+ if (typeof body.remainingCredits === "number") setSendCredits(body.remainingCredits);
+ if (body.status === "send_outcome_unknown") {
+  setSendOutcomeUnknown(true);
+  setErrors([body.error || body.message || "De provideruitkomst is nog onbekend."]);
+  setConfirmation(null);
+  return;
+ }
  if (!res.ok) {
  setErrors(body.errors || [body.error || "Verzenden via Peppol mislukt"]);
  return;
  }
- if (typeof body.remainingCredits === "number") setSendCredits(body.remainingCredits);
  setSendStatus(body.status === "sending" ? body.message || "Verzending loopt nog. De status wordt zo ververst." : `Verzonden via Peppol. Document-ID: ${body.documentId}`);
  setConfirmation(null);
  } catch (error) {
@@ -489,7 +497,7 @@ export default function NieuwPage() {
  {sendStatus && <p style={{ color: "#86efac", fontSize: 13, fontWeight: 800, margin: "0 0 14px" }}>{sendStatus}</p>}
  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
  <button onClick={prepareDownloadXml} style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700 }}>Download UBL/XML</button>
- <button onClick={hasSendBundle ? prepareSendViaPeppol : () => router.push("/prijzen")} disabled={submitting || !recommandVerified} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : !recommandVerified ? "Verifieer eerst je bedrijf" : hasSendBundle ? "Verzenden via Peppol" : "Koop verzendbundel"}</button>
+ <button onClick={hasSendBundle ? prepareSendViaPeppol : () => router.push("/prijzen")} disabled={submitting || !recommandVerified || sendOutcomeUnknown} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified && !sendOutcomeUnknown ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : sendOutcomeUnknown ? "Verzending geblokkeerd" : !recommandVerified ? "Verifieer eerst je bedrijf" : hasSendBundle ? "Verzenden via Peppol" : "Koop verzendbundel"}</button>
  <button onClick={() => router.push("/dashboard")} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 700 }}>Opslaan in dashboard</button>
  </div>
  <pre style={{ overflow: "auto", maxHeight: 420, background: "rgba(0,0,0,0.32)", borderRadius: 10, padding: 16, color: C.gray, fontSize: 12 }}>{xml}</pre>

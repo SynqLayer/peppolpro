@@ -146,6 +146,7 @@ const statusMap: Record<string, { label: string; bg: string; color: string; bord
  sent: { label: "Verzonden, wacht op bevestiging", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
  delivered: { label: "Verzonden, wacht op bevestiging", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "klaar" },
  sending: { label: "Verzenden...", bg: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "rgba(59,130,246,0.22)", group: "in_behandeling" },
+ send_outcome_unknown: { label: "Uitkomst verzending onbekend", bg: "rgba(245,158,11,0.12)", color: "#fcd34d", border: "rgba(245,158,11,0.24)", group: "in_behandeling" },
  as4_received: { label: "Afgeleverd", bg: "rgba(16,185,129,0.12)", color: "#6ee7b7", border: "rgba(16,185,129,0.24)", group: "afgeleverd" },
  send_failed: { label: "Verzenden mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
  recipient_not_found: { label: "Verzenden mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
@@ -190,7 +191,7 @@ const isArchived = (status?: string | null) => archivedStatuses.includes((status
 const canSendConversion = (conversion: Conversion) => {
  const status = (conversion.recommand_status || "").toLowerCase();
  const failed = failedStatuses.includes(status);
- return Boolean(conversion.id && conversion.ubl_xml && (failed || !conversion.recommand_document_id) && !["sent", "delivered", "as4_received", "sending", "duplicate_voided"].includes(status));
+ return Boolean(conversion.id && conversion.ubl_xml && (failed || !conversion.recommand_document_id) && !["sent", "delivered", "as4_received", "sending", "send_outcome_unknown", "duplicate_voided"].includes(status));
 };
 
 const failureReason = (status?: string | null) => {
@@ -455,11 +456,20 @@ export default function DashboardClient({
    body: JSON.stringify({ conversionId: conversion.id }),
   });
   const body = await res.json().catch(() => ({}));
+  if (typeof body.remainingCredits === "number") setLocalSendCredits(body.remainingCredits);
+  if (body.status === "send_outcome_unknown") {
+   setLocalConversions((current) => current.map((item) => item.id === conversion.id ? {
+    ...item,
+    recommand_status: "send_outcome_unknown",
+   } : item));
+   setConfirmation(null);
+   setSendActionStatus((current) => ({ ...current, [conversion.id as string]: body.error || body.message || "De provideruitkomst is nog onbekend." }));
+   return;
+  }
   if (!res.ok) {
    setSendActionStatus((current) => ({ ...current, [conversion.id as string]: body.error || "Verzenden via Peppol mislukt" }));
    return;
   }
-  if (typeof body.remainingCredits === "number") setLocalSendCredits(body.remainingCredits);
   const stillSending = body.status === "sending";
   setLocalConversions((current) => current.map((item) => item.id === conversion.id ? {
    ...item,
