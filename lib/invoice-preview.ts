@@ -1,4 +1,5 @@
 import type { RecommandInvoiceDocument, RecommandInvoiceLine } from "./recommand-invoice";
+import type { RecommandCreditNoteDocument } from "./recommand-credit-note";
 import { payableAmountFromUbl } from "./ubl-amounts.ts";
 
 export type InvoicePreviewVatTotal = {
@@ -8,8 +9,10 @@ export type InvoicePreviewVatTotal = {
 };
 
 export type InvoicePreview = {
+ documentType: "invoice" | "creditNote";
  recipient: string;
  invoiceNumber: string;
+ originalInvoiceNumber?: string;
  issueDate: string;
  dueDate: string;
  currency: string;
@@ -67,7 +70,7 @@ function identifier(...values: Array<string | null | undefined>) {
  return values.find((value) => Boolean(value?.trim()))?.trim() || "-";
 }
 
-export function computeDocumentTotals(document: RecommandInvoiceDocument) {
+export function computeDocumentTotals(document: RecommandInvoiceDocument | RecommandCreditNoteDocument) {
  const vatByRate = new Map<string, { taxable: number; vat: number }>();
  let subtotal = 0;
  for (const line of document.lines) {
@@ -92,13 +95,16 @@ export function computeDocumentTotals(document: RecommandInvoiceDocument) {
  };
 }
 
-export function buildInvoicePreviewFromPayload(recipient: string, document: RecommandInvoiceDocument, currency = "EUR"): InvoicePreview {
+export function buildInvoicePreviewFromPayload(recipient: string, document: RecommandInvoiceDocument | RecommandCreditNoteDocument, currency = "EUR"): InvoicePreview {
  const totals = computeDocumentTotals(document);
+ const isCreditNote = "creditNoteNumber" in document;
  return {
+  documentType: isCreditNote ? "creditNote" : "invoice",
   recipient,
-  invoiceNumber: document.invoiceNumber,
+  invoiceNumber: isCreditNote ? document.creditNoteNumber : document.invoiceNumber,
+  ...(isCreditNote ? { originalInvoiceNumber: document.invoiceReferences[0]?.id || "" } : {}),
   issueDate: document.issueDate,
-  dueDate: document.dueDate,
+  dueDate: isCreditNote ? "" : document.dueDate,
   currency,
   seller: {
    name: document.seller?.name || "-",
@@ -118,7 +124,7 @@ export function buildInvoicePreviewFromPayload(recipient: string, document: Reco
    lineNetAmount: money(lineNetAmount(line)),
   })),
   totals,
-  dueDateWarning: Boolean(document.issueDate && document.dueDate && new Date(document.dueDate).getTime() <= new Date(document.issueDate).getTime()),
+  dueDateWarning: !isCreditNote && Boolean(document.issueDate && document.dueDate && new Date(document.dueDate).getTime() <= new Date(document.issueDate).getTime()),
  };
 }
 

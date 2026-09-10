@@ -3,6 +3,9 @@ export const RECOMMAND_BASE_URL = "https://app.recommand.eu/api/v1";
 export const PEPPOL_BIS_BILLING_INVOICE_DOCUMENT_TYPE =
  "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1";
 
+export const PEPPOL_BIS_BILLING_CREDIT_NOTE_DOCUMENT_TYPE =
+ "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2::CreditNote##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1";
+
 type JsonObject = Record<string, unknown>;
 
 export type RecommandRawResponse = {
@@ -69,23 +72,75 @@ async function parseResponseBody(response: Response): Promise<unknown> {
  }
 }
 
-async function requestRecommand(path: string, init: RequestInit = {}): Promise<RecommandRawResponse> {
+async function requestRecommand(path: string, init: RequestInit = {}, onRequestStarted?: () => void): Promise<RecommandRawResponse> {
  const url = `${RECOMMAND_BASE_URL}${path}`;
- const response = await fetch(url, {
- ...init,
- headers: {
- Authorization: basicAuthHeader(),
- "Content-Type": "application/json",
- ...(init.headers || {}),
- },
- cache: "no-store",
- });
+ const requestInit: RequestInit = {
+  ...init,
+  headers: {
+  Authorization: basicAuthHeader(),
+  "Content-Type": "application/json",
+  ...(init.headers || {}),
+  },
+  cache: "no-store",
+ };
+ onRequestStarted?.();
+ const response = await fetch(url, requestInit);
  const body = await parseResponseBody(response);
  return { ok: response.ok, status: response.status, statusText: response.statusText, url, body };
 }
 
 function asObject(value: unknown): JsonObject {
  return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
+}
+
+export type RecommandOutgoingDocumentLookup = {
+ checked: boolean;
+ documentId: string | null;
+ createdAt: string | null;
+};
+
+export async function findOutgoingDocument(
+ companyId: string,
+ documentType: "invoice" | "creditNote",
+ documentNumber: string,
+ recipient: string,
+): Promise<RecommandOutgoingDocumentLookup> {
+ const query = new URLSearchParams({
+  page: "1",
+  limit: "200",
+  companyId,
+  direction: "outgoing",
+  type: documentType,
+  search: documentNumber,
+  excludeAttachments: "true",
+ });
+ try {
+  const raw = await requestRecommand(`/documents?${query.toString()}`);
+  const body = asObject(raw.body);
+  if (!raw.ok || body.success === false || !Array.isArray(body.documents)) {
+   return { checked: false, documentId: null, createdAt: null };
+  }
+  const expectedRecipient = recipient.trim().toLowerCase();
+  const expectedField = documentType === "creditNote" ? "creditNoteNumber" : "invoiceNumber";
+  const match = body.documents.find((value) => {
+   const listed = asObject(value);
+   const parsed = asObject(listed.parsed);
+   return listed.companyId === companyId
+    && listed.direction === "outgoing"
+    && listed.type === documentType
+    && typeof listed.receiverId === "string"
+    && listed.receiverId.trim().toLowerCase() === expectedRecipient
+    && parsed[expectedField] === documentNumber;
+  });
+  const listed = asObject(match);
+  return {
+   checked: true,
+   documentId: typeof listed.id === "string" ? listed.id : null,
+   createdAt: typeof listed.createdAt === "string" ? listed.createdAt : null,
+  };
+ } catch {
+  return { checked: false, documentId: null, createdAt: null };
+ }
 }
 
 function normalizeEnterpriseNumberScheme(country: string, explicitScheme?: string) {
@@ -162,11 +217,27 @@ export async function verifyRecipientSupportsInvoice(peppolId: string): Promise<
  };
 }
 
-export async function sendDocument(companyId: string, payload: JsonObject): Promise<RecommandSendResult> {
+export async function verifyRecipientSupportsCreditNote(peppolId: string): Promise<RecommandVerifyResult> {
+ const raw = await requestRecommand("/verify-document-support", {
+ method: "POST",
+ body: JSON.stringify({
+ peppolAddress: peppolId,
+ documentType: PEPPOL_BIS_BILLING_CREDIT_NOTE_DOCUMENT_TYPE,
+ }),
+ });
+ const body = asObject(raw.body);
+ return {
+ success: raw.ok && body.success !== false,
+ isValid: raw.ok && body.isValid === true,
+ raw,
+ };
+}
+
+export async function sendDocument(companyId: string, payload: JsonObject, onRequestStarted?: () => void): Promise<RecommandSendResult> {
  const raw = await requestRecommand(`/${encodeURIComponent(companyId)}/send`, {
  method: "POST",
  body: JSON.stringify(payload),
- });
+ }, onRequestStarted);
  const body = asObject(raw.body);
  return {
  success: raw.ok && body.success === true,

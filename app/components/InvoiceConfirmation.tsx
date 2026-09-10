@@ -31,9 +31,11 @@ export function InvoiceConfirmation({ title, preview, remainingCreditsAfterSend,
   <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(2,6,23,0.78)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
    <div role="dialog" aria-modal="true" aria-label={title} style={{ width: "min(860px, 100%)", maxHeight: "90vh", overflow: "auto", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 24px 90px rgba(0,0,0,0.42)", padding: 22 }}>
     <h2 style={{ margin: "0 0 8px", color: C.white, fontSize: 22, fontWeight: 900 }}>{title}</h2>
-    <p style={{ margin: "0 0 18px", color: C.dim, fontSize: 13, lineHeight: 1.55 }}>Controleer wat er werkelijk in de factuur staat voordat je doorgaat.</p>
+    <p style={{ margin: "0 0 18px", color: C.dim, fontSize: 13, lineHeight: 1.55 }}>Controleer wat er werkelijk in het document staat voordat je doorgaat.</p>
 
-    {preview.dueDateWarning && (
+    {preview.documentType === "creditNote" ? <div style={{ marginBottom: 16, color: "#f8fafc", fontSize: 18, fontWeight: 900 }}>CREDITFACTUUR</div> : null}
+
+    {preview.documentType !== "creditNote" && preview.dueDateWarning && (
      <div style={{ marginBottom: 16, border: "1px solid rgba(245,158,11,0.38)", background: "rgba(120,53,15,0.22)", color: "#fbbf24", borderRadius: 10, padding: 12, fontSize: 13, fontWeight: 900 }}>
       Let op: de vervaldatum ligt op of vóór de factuurdatum.
      </div>
@@ -43,7 +45,12 @@ export function InvoiceConfirmation({ title, preview, remainingCreditsAfterSend,
      <Row label="Afzender" value={`${preview.seller.name} · ${preview.seller.identifier}`} />
      <Row label="Ontvanger" value={`${preview.buyer.name} · ${preview.buyer.identifier} · ${preview.buyer.country}`} />
      <Row label="Peppol-ID ontvanger" value={preview.buyer.peppolId} />
-     <Row label="Factuur" value={`${preview.invoiceNumber} · ${preview.issueDate} · vervalt ${preview.dueDate}`} />
+     {preview.documentType === "creditNote" ? (
+      <>
+       <Row label="Creditfactuur" value={`${preview.invoiceNumber} · ${preview.issueDate}`} />
+       <Row label="Crediteert factuur:" value={preview.originalInvoiceNumber || "-"} />
+      </>
+     ) : <Row label="Factuur" value={`${preview.invoiceNumber} · ${preview.issueDate} · vervalt ${preview.dueDate}`} />}
      <Row label="Valuta" value={preview.currency} />
      {remainingCreditsAfterSend !== null && remainingCreditsAfterSend !== undefined ? <Row label="Verzendtegoed na verzending" value={String(remainingCreditsAfterSend)} /> : null}
     </div>
@@ -72,7 +79,7 @@ export function InvoiceConfirmation({ title, preview, remainingCreditsAfterSend,
     <div style={{ display: "grid", gap: 6, color: "#cbd5e1", fontSize: 13, marginBottom: 20 }}>
      <strong style={{ color: C.white }}>Subtotaal: {preview.totals.subtotal} {preview.currency}</strong>
      {preview.totals.vatByRate.map((vat) => <span key={vat.percentage}>BTW {vat.percentage}% over {vat.taxableAmount}: {vat.vatAmount} {preview.currency}</span>)}
-     <strong style={{ color: C.white }}>Totaalbedrag: {preview.totals.total} {preview.currency}</strong>
+     <strong style={{ color: C.white }}>{preview.documentType === "creditNote" ? "Te crediteren totaal" : "Totaalbedrag"}: {preview.totals.total} {preview.currency}</strong>
     </div>
 
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>

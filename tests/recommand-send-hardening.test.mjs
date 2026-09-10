@@ -39,7 +39,7 @@ test('Recommand send route has explicit duration and bounded wait inside Vercel 
 test('Recommand send API response excludes raw provider data and full documents', () => {
   const responseBlock = route.match(/return NextResponse\.json\(\{ success: true[\s\S]*?\}\);/)?.[0] || '';
   assert.match(responseBlock, /success: true/);
-  assert.match(responseBlock, /documentId: send\.documentId/);
+  assert.match(responseBlock, /documentId: acceptedDocumentId/);
   assert.match(responseBlock, /status: recommandStatus/);
   assert.match(responseBlock, /sentAt/);
   assert.match(responseBlock, /remainingCredits: reserved\.send_credits/);

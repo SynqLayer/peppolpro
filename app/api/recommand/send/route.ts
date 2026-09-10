@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
-import { getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsInvoice } from "@/lib/recommand";
+import { findOutgoingDocument, getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsCreditNote, verifyRecipientSupportsInvoice } from "@/lib/recommand";
+import type { RecommandRawResponse } from "@/lib/recommand";
+import { validateRecommandCreditNoteDocument } from "@/lib/recommand-credit-note";
 import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
 import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
 import { validateStoredInvoiceConsistency } from "@/lib/invoice-preview";
+import { classifySendException, classifySendResult, type SendOutcomeDisposition } from "@/lib/recommand-send-outcome";
 
 export const maxDuration = 60;
 
@@ -84,6 +87,19 @@ function inProgressSendResponse(remainingCredits?: number | null) {
   remainingCredits,
   message: "Verzending loopt nog. De status wordt zo ververst.",
  }, { status: 202 });
+}
+
+function unknownSendOutcomeResponse(remainingCredits?: number | null) {
+ const message = "De provideruitkomst is nog onbekend. Er wordt niet opnieuw verzonden totdat reconciliatie de uitkomst bevestigt.";
+ return NextResponse.json({
+  success: false,
+  documentId: null,
+  status: "send_outcome_unknown",
+  sentAt: null,
+  remainingCredits,
+  error: message,
+  message,
+ }, { status: 409 });
 }
 
 function hasCompletedSend(row?: TargetRow | null) {
@@ -184,6 +200,15 @@ function hasAs4Receipt(value: unknown): boolean {
  return false;
 }
 
+async function getDocumentStatusBestEffort(documentId: string) {
+ try {
+  return await getDocumentStatus(documentId);
+ } catch {
+  console.error("Recommand status lookup failed after document submission");
+  return null;
+ }
+}
+
 export async function POST(request: NextRequest) {
  const supabase = await createServerSupabase();
  const admin = createAdminSupabase();
@@ -211,15 +236,15 @@ export async function POST(request: NextRequest) {
  const consistency = validateStoredInvoiceConsistency(existing.total_amount, existing.ubl_xml);
  if (!consistency.ok) return jsonError(consistency.error, 409);
 
- let recipient = normalizePeppolId(input.recipient || input.peppolId || input.peppolAddress);
- let document = input.document;
- if ((!recipient || !document) && existing.ubl_xml) {
-  const fromUbl = buildRecommandPayloadFromUbl(existing.ubl_xml);
-  recipient ||= fromUbl.recipient;
-  document ||= fromUbl.document;
- }
+ if (!existing.ubl_xml) return jsonError("Opgeslagen UBL ontbreekt; genereer het document opnieuw voordat je verzendt.", 409);
+ const fromUbl = buildRecommandPayloadFromUbl(existing.ubl_xml);
+ const recipient = normalizePeppolId(fromUbl.recipient);
+ const document = fromUbl.document;
+ const documentType = fromUbl.documentType;
  if (!recipient) return jsonError("Ontvanger-Peppol-ID ontbreekt", 400);
- const documentErrors = validateRecommandInvoiceDocument(document);
+ const documentErrors = documentType === "creditNote"
+  ? validateRecommandCreditNoteDocument(document)
+  : validateRecommandInvoiceDocument(document);
  if (documentErrors.length > 0) {
   return jsonError("Verzenden is geblokkeerd: vul de ontbrekende factuurgegevens aan en probeer opnieuw.", 400, { errors: documentErrors });
  }
@@ -233,6 +258,36 @@ export async function POST(request: NextRequest) {
  if (profileError || !profile) return jsonError("Bedrijfsprofiel niet gevonden", 404);
  if (profile.recommand_verified !== true || !profile.recommand_company_id) {
   return jsonError("Verifieer eerst je bedrijf voordat je via Peppol verzendt.", 403, { upgradeUrl: "/dashboard#peppol-verzending" });
+ }
+ const companyId = profile.recommand_company_id;
+
+ if (existing.recommand_status === "sending" || existing.recommand_status === "send_outcome_unknown") {
+  const hasUnknownOutcome = existing.recommand_status === "send_outcome_unknown";
+  const documentNumber = fromUbl.documentType === "creditNote"
+   ? fromUbl.document.creditNoteNumber
+   : fromUbl.document.invoiceNumber;
+  const recovered = await findOutgoingDocument(companyId, documentType, documentNumber, recipient);
+  if (!recovered.checked) {
+   return hasUnknownOutcome ? unknownSendOutcomeResponse() : inProgressSendResponse();
+  }
+  if (recovered.documentId) {
+   const recoveredAt = recovered.createdAt || new Date().toISOString();
+   const { error: recoveryError } = await admin.from(targetTable).update({
+    recommand_document_id: recovered.documentId,
+    recommand_status: "sent",
+    recommand_claimed_at: null,
+    sent_via_recommand_at: recoveredAt,
+   }).eq("id", targetId).eq("user_id", user.id);
+   if (recoveryError) return hasUnknownOutcome ? unknownSendOutcomeResponse() : inProgressSendResponse();
+   return existingSendResponse({
+    ...existing,
+    recommand_document_id: recovered.documentId,
+    recommand_status: "sent",
+    recommand_claimed_at: null,
+    sent_via_recommand_at: recoveredAt,
+   });
+  }
+  if (hasUnknownOutcome) return unknownSendOutcomeResponse();
  }
 
  const claim = await claimTargetForSending(admin, targetTable, targetId, user.id);
@@ -248,7 +303,54 @@ export async function POST(request: NextRequest) {
   return jsonError("Je hebt geen geldig verzendtegoed. Koop een verzendbundel om via Peppol te verzenden.", 402, { upgradeUrl: "/upgrade", remainingCredits: 0 });
  }
 
- const releaseAfterFailure = async () => releaseSendCredit(admin, user.id);
+ let releasedCredit: CreditRow | null = null;
+ let creditReleased = false;
+ const releaseAfterFailure = async () => {
+  if (!creditReleased) {
+   releasedCredit = await releaseSendCredit(admin, user.id);
+   creditReleased = true;
+  }
+  return releasedCredit;
+ };
+
+ let sendAttempted = false;
+ let sendOutcome: SendOutcomeDisposition | null = null;
+ let lastSendRaw: RecommandRawResponse | null = null;
+ let acceptedDocumentId: string | null | undefined;
+ let acceptedAt: string | null = null;
+
+ const reconcileUnknownSendOutcome = async () => {
+  const documentNumber = fromUbl.documentType === "creditNote"
+   ? fromUbl.document.creditNoteNumber
+   : fromUbl.document.invoiceNumber;
+  const recovered = await findOutgoingDocument(companyId, documentType, documentNumber, recipient);
+  if (recovered.checked && recovered.documentId) {
+   const recoveredAt = recovered.createdAt || new Date().toISOString();
+   const { error: recoveryError } = await admin.from(targetTable).update({
+    recommand_document_id: recovered.documentId,
+    recommand_status: "sent",
+    recommand_claimed_at: null,
+    sent_via_recommand_at: recoveredAt,
+   }).eq("id", targetId).eq("user_id", user.id).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
+   if (!recoveryError) {
+    return existingSendResponse({
+     ...existing,
+     recommand_document_id: recovered.documentId,
+     recommand_status: "sent",
+     recommand_claimed_at: null,
+     sent_via_recommand_at: recoveredAt,
+    }, reserved.send_credits);
+   }
+  }
+  const { error: unknownUpdateError } = await admin.from(targetTable).update({
+   recommand_status: "send_outcome_unknown",
+   recommand_raw_response: lastSendRaw
+    ? { error: "provider_outcome_unknown", send: lastSendRaw }
+    : { error: "provider_outcome_unknown" },
+  }).eq("id", targetId).eq("user_id", user.id).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
+  if (unknownUpdateError) console.error("Recommand unknown-outcome update failed");
+  return unknownSendOutcomeResponse(reserved.send_credits);
+ };
 
  try {
   const verify = await verifyRecipient(recipient);
@@ -264,7 +366,9 @@ export async function POST(request: NextRequest) {
    return jsonError("Ontvanger is niet gevonden op het Peppol-netwerk. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
 
-  const support = await verifyRecipientSupportsInvoice(recipient);
+  const support = documentType === "creditNote"
+   ? await verifyRecipientSupportsCreditNote(recipient)
+   : await verifyRecipientSupportsInvoice(recipient);
   if (!support.isValid) {
    const released = await releaseAfterFailure();
    const { error: updateError } = await admin.from(targetTable).update({
@@ -274,32 +378,75 @@ export async function POST(request: NextRequest) {
    recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw },
    }).eq("id", targetId).eq("user_id", user.id);
    if (updateError) throw updateError;
-   return jsonError("Ontvanger ondersteunt dit Peppol factuurdocumenttype niet. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
+   return jsonError("Ontvanger ondersteunt dit Peppol-documenttype niet. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
 
-  const payload = { recipient, documentType: "invoice", document };
-  const send = await sendDocument(profile.recommand_company_id, payload);
-  const status = send.documentId ? await getDocumentStatus(send.documentId) : null;
-  const recommandStatus = send.success ? (hasAs4Receipt(status?.body) ? "as4_received" : "sent") : "send_failed";
-  const sentAt = send.success ? new Date().toISOString() : null;
+  const payload = { recipient, documentType, document };
+  const send = await sendDocument(companyId, payload, () => { sendAttempted = true; });
+  lastSendRaw = send.raw;
+  sendOutcome = classifySendResult(send);
 
-  const { error: updateError } = await admin.from(targetTable).update({
-   verified_recipient: true,
-   recommand_document_id: send.documentId,
-   recommand_status: recommandStatus,
-   recommand_claimed_at: null,
-   recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status },
-  sent_via_recommand_at: sentAt,
-  }).eq("id", targetId).eq("user_id", user.id);
-  if (updateError) throw updateError;
+  if (sendOutcome === "provider_outcome_unknown") {
+   return reconcileUnknownSendOutcome();
+  }
 
-  if (!send.success) {
+  if (sendOutcome === "safe_to_release") {
+   const { error: updateError } = await admin.from(targetTable).update({
+    verified_recipient: true,
+    recommand_document_id: null,
+    recommand_status: "send_failed",
+    recommand_claimed_at: null,
+    recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw },
+    sent_via_recommand_at: null,
+   }).eq("id", targetId).eq("user_id", user.id);
+   if (updateError) throw updateError;
    const released = await releaseAfterFailure();
    return jsonError("Recommand heeft het document niet geaccepteerd. Controleer de factuurgegevens en probeer opnieuw.", 502, { remainingCredits: released?.send_credits });
   }
 
-  return NextResponse.json({ success: true, documentId: send.documentId, status: recommandStatus, sentAt, remainingCredits: reserved.send_credits });
+  if (!send.documentId) {
+   sendOutcome = "provider_outcome_unknown";
+   return reconcileUnknownSendOutcome();
+  }
+  acceptedDocumentId = send.documentId;
+  acceptedAt = new Date().toISOString();
+  const status = await getDocumentStatusBestEffort(acceptedDocumentId);
+  const recommandStatus = hasAs4Receipt(status?.body) ? "as4_received" : "sent";
+  const sentAt = acceptedAt;
+
+  const { error: updateError } = await admin.from(targetTable).update({
+   verified_recipient: true,
+   recommand_document_id: acceptedDocumentId,
+   recommand_status: recommandStatus,
+   recommand_claimed_at: null,
+   recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status },
+   sent_via_recommand_at: sentAt,
+  }).eq("id", targetId).eq("user_id", user.id);
+  if (updateError) throw updateError;
+
+  return NextResponse.json({ success: true, documentId: acceptedDocumentId, status: recommandStatus, sentAt, remainingCredits: reserved.send_credits });
  } catch (error) {
+  const sendException = sendOutcome || classifySendException({ sendAttempted });
+  if (sendException === "provider_outcome_unknown") {
+   return reconcileUnknownSendOutcome();
+  }
+  if (sendException === "provider_accepted") {
+   const { error: acceptedUpdateError } = await admin.from(targetTable).update({
+    recommand_document_id: acceptedDocumentId,
+    recommand_status: "sent",
+    recommand_claimed_at: null,
+    sent_via_recommand_at: acceptedAt,
+   }).eq("id", targetId).eq("user_id", user.id);
+   if (acceptedUpdateError) console.error("Recommand accepted-send recovery update failed");
+   return NextResponse.json({
+    success: true,
+    documentId: acceptedDocumentId || null,
+    status: "sending",
+    sentAt: acceptedAt,
+    remainingCredits: reserved.send_credits,
+    message: "Recommand heeft het document geaccepteerd. De afleverstatus wordt later bijgewerkt; verzend niet opnieuw.",
+   }, { status: 202 });
+  }
   const released = await releaseAfterFailure();
   const { error: updateError } = await admin.from(targetTable).update({
    recommand_status: "send_failed",

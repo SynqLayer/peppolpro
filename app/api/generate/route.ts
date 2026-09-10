@@ -17,6 +17,11 @@ export async function POST(req: NextRequest) {
  return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
  }
  const invoiceData = await req.json() as InvoiceData;
+ const documentType = invoiceData.documentType || "invoice";
+ if (documentType !== "invoice" && documentType !== "creditNote") {
+ return NextResponse.json({ error: "Ongeldig documenttype" }, { status: 400 });
+ }
+ invoiceData.documentType = documentType;
 
  const { valid, errors } = validateInvoiceData(invoiceData);
  if (!valid) {

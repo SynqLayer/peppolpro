@@ -43,6 +43,7 @@ export default function NieuwPage() {
  const [submitting, setSubmitting] = useState(false);
  const [errors, setErrors] = useState<string[]>([]);
  const [sendStatus, setSendStatus] = useState<string | null>(null);
+ const [sendOutcomeUnknown, setSendOutcomeUnknown] = useState(false);
  const [xml, setXml] = useState("");
  const [conversionId, setConversionId] = useState<string | null>(null);
  const [generatedTotalAmount, setGeneratedTotalAmount] = useState<number | string | null>(null);
@@ -53,6 +54,7 @@ export default function NieuwPage() {
  const [sendCreditsExpiresAt, setSendCreditsExpiresAt] = useState<string | null>(null);
  const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
  const [quantityInputs, setQuantityInputs] = useState<Record<string, string>>({});
+ const [documentType, setDocumentType] = useState<"invoice" | "creditNote">("invoice");
 
  const [supplierName, setSupplierName] = useState("");
  const [supplierAddress, setSupplierAddress] = useState("");
@@ -77,6 +79,8 @@ export default function NieuwPage() {
  const [invoiceNumber, setInvoiceNumber] = useState(invoiceNo);
  const [invoiceDate, setInvoiceDate] = useState(today);
  const [dueDate, setDueDate] = useState(due);
+ const [originalInvoiceNumber, setOriginalInvoiceNumber] = useState("");
+ const [originalInvoiceDate, setOriginalInvoiceDate] = useState("");
  const [currency, setCurrency] = useState("EUR");
  const [lines, setLines] = useState<InvoiceLine[]>([emptyLine()]);
 
@@ -137,9 +141,12 @@ export default function NieuwPage() {
  customerPeppolId,
  customerEmail,
  buyerReference,
+ documentType,
  invoiceNumber,
  invoiceDate,
  dueDate,
+ originalInvoiceNumber,
+ originalInvoiceDate,
  currency,
  lines,
  });
@@ -179,6 +186,7 @@ export default function NieuwPage() {
  setGeneratedTotalAmount(null);
  setConfirmation(null);
  setSendStatus(null);
+ setSendOutcomeUnknown(false);
  if (!result.valid) return;
 
  setSubmitting(true);
@@ -261,11 +269,17 @@ export default function NieuwPage() {
  body: JSON.stringify({ conversionId }),
  });
  const body = await res.json().catch(() => ({}));
+ if (typeof body.remainingCredits === "number") setSendCredits(body.remainingCredits);
+ if (body.status === "send_outcome_unknown") {
+  setSendOutcomeUnknown(true);
+  setErrors([body.error || body.message || "De provideruitkomst is nog onbekend."]);
+  setConfirmation(null);
+  return;
+ }
  if (!res.ok) {
  setErrors(body.errors || [body.error || "Verzenden via Peppol mislukt"]);
  return;
  }
- if (typeof body.remainingCredits === "number") setSendCredits(body.remainingCredits);
  setSendStatus(body.status === "sending" ? body.message || "Verzending loopt nog. De status wordt zo ververst." : `Verzonden via Peppol. Document-ID: ${body.documentId}`);
  setConfirmation(null);
  } catch (error) {
@@ -300,6 +314,12 @@ export default function NieuwPage() {
  title,
  priceInputs[line.id] ?? String(line.unitPrice),
  (rawValue) => {
+  if (documentType === "creditNote" && (rawValue.includes("-") || /[−–—]/.test(rawValue))) {
+   setPriceInputs((current) => ({ ...current, [line.id]: rawValue }));
+   setLine(line.id, { unitPrice: -Math.abs(parseDecimalCurrencyInput(rawValue) || 1) });
+   setErrors(["Gebruik geen minteken. Voer het te crediteren bedrag positief in."]);
+   return;
+  }
   const visibleValue = sanitizeDecimalCurrencyDisplayInput(rawValue);
   setPriceInputs((current) => ({ ...current, [line.id]: visibleValue }));
   setLine(line.id, { unitPrice: parseDecimalCurrencyInput(visibleValue) });
@@ -312,6 +332,12 @@ export default function NieuwPage() {
  title,
  quantityInputs[line.id] ?? String(line.quantity),
  (rawValue) => {
+  if (documentType === "creditNote" && (rawValue.includes("-") || /[−–—]/.test(rawValue))) {
+   setQuantityInputs((current) => ({ ...current, [line.id]: rawValue }));
+   setLine(line.id, { quantity: -Math.abs(parseDecimalInput(rawValue, 3) || 1) });
+   setErrors(["Gebruik geen minteken. Voer het te crediteren bedrag positief in."]);
+   return;
+  }
   const visibleValue = sanitizeDecimalDisplayInput(rawValue, 3);
   setQuantityInputs((current) => ({ ...current, [line.id]: visibleValue }));
   setLine(line.id, { quantity: parseDecimalInput(visibleValue, 3) });
@@ -329,6 +355,15 @@ export default function NieuwPage() {
  </div>
  );
 
+ const changeDocumentType = (next: "invoice" | "creditNote") => {
+ setDocumentType(next);
+ setXml("");
+ setConversionId(null);
+ setConfirmation(null);
+ setErrors([]);
+ setSendStatus(null);
+ };
+
  return (
  <div style={{ background: C.bg, minHeight: "100vh", color: C.white, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
  <style>{`
@@ -342,7 +377,7 @@ export default function NieuwPage() {
  <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", marginBottom: 28 }}>
  <div>
  <a href="/dashboard" style={{ color: C.dim, textDecoration: "none", fontSize: 13 }}>← Dashboard</a>
- <h1 style={{ fontSize: 32, fontWeight: 800, marginTop: 14 }}>Nieuwe factuur</h1>
+ <h1 style={{ fontSize: 32, fontWeight: 800, marginTop: 14 }}>{documentType === "creditNote" ? "Nieuwe creditfactuur" : "Nieuwe factuur"}</h1>
  </div>
  <button onClick={submit} disabled={submitting} style={{ padding: "12px 18px", borderRadius: 10, border: "none", background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, color: "#fff", fontWeight: 800, cursor: submitting ? "wait" : "pointer" }}>
  {submitting ? "Genereren..." : "Genereer UBL"}
@@ -350,6 +385,16 @@ export default function NieuwPage() {
  </div>
 
  {loadingProfile && <p style={{ color: C.dim, marginBottom: 18 }}>Profiel laden...</p>}
+
+ <Section title="Documenttype">
+ <div style={{ maxWidth: 360 }}>
+ <label style={label}>Kies document</label>
+ <select value={documentType} onChange={(event) => changeDocumentType(event.target.value as "invoice" | "creditNote")} style={input}>
+ <option value="invoice">Factuur</option>
+ <option value="creditNote">Creditfactuur</option>
+ </select>
+ </div>
+ </Section>
 
  <div style={{ marginBottom: 18, border: `1px solid ${hasSendBundle ? "rgba(34,197,94,0.28)" : "rgba(245,158,11,0.28)"}`, background: hasSendBundle ? "rgba(34,197,94,0.10)" : "rgba(120,53,15,0.16)", color: hasSendBundle ? "#86efac" : "#fbbf24", borderRadius: 8, padding: 14, fontSize: 13, fontWeight: 800 }}>
   Verzendtegoed: {sendCredits} credit{sendCredits === 1 ? "" : "s"}. {hasSendBundle ? `Geldig tot ${new Intl.DateTimeFormat("nl-NL").format(new Date(sendCreditsExpiresAt || ""))}.` : "Koop een verzendbundel om via Peppol te verzenden."}
@@ -376,23 +421,26 @@ export default function NieuwPage() {
  {field("Stad", customerCity, setCustomerCity)}
  {select("Land", customerCountry, setCustomerCountry, countries)}
  {field("BTW-nummer", customerVatNr, setCustomerVatNr)}
- {field("KvK/KBO optioneel", customerKvkKbo, setCustomerKvkKbo)}
+ {field(documentType === "creditNote" && supplierCountry === "NL" && customerCountry === "NL" ? "KvK/OIN (verplicht voor Nederlandse creditfactuur)" : "KvK/KBO optioneel", customerKvkKbo, setCustomerKvkKbo)}
  {field("Peppol-ID optioneel (voor UBL, niet voor directe verzending)", customerPeppolId, setCustomerPeppolId)}
  {field("E-mailadres ontvanger", customerEmail, setCustomerEmail, "email")}
  {field("Betalingskenmerk", buyerReference, setBuyerReference)}
  </div>
  </Section>
 
- <Section title="Factuurgegevens">
+ <Section title={documentType === "creditNote" ? "Creditfactuurgegevens" : "Factuurgegevens"}>
  <div className="form-grid">
- {field("Factuurnummer", invoiceNumber, setInvoiceNumber)}
- {field("Factuurdatum", invoiceDate, setInvoiceDate, "date")}
- {field("Vervaldatum", dueDate, setDueDate, "date")}
+ {field(documentType === "creditNote" ? "Creditfactuurnummer" : "Factuurnummer", invoiceNumber, setInvoiceNumber)}
+ {field(documentType === "creditNote" ? "Creditfactuurdatum" : "Factuurdatum", invoiceDate, setInvoiceDate, "date")}
+ {documentType === "invoice" ? field("Vervaldatum", dueDate, setDueDate, "date") : null}
+ {documentType === "creditNote" ? field(`Oorspronkelijk factuurnummer${supplierCountry === "NL" ? " (verplicht)" : ""}`, originalInvoiceNumber, setOriginalInvoiceNumber) : null}
+ {documentType === "creditNote" ? field("Oorspronkelijke factuurdatum optioneel", originalInvoiceDate, setOriginalInvoiceDate, "date") : null}
  {select("Valuta", currency, setCurrency, ["EUR"])}
  </div>
  </Section>
 
- <Section title="Factuurregels">
+ <Section title={documentType === "creditNote" ? "Creditfactuurregels" : "Factuurregels"}>
+ {documentType === "creditNote" ? <p style={{ color: C.dim, fontSize: 13, margin: "0 0 16px" }}>Voer hoeveelheden en te crediteren bedragen positief in. Gebruik geen minteken.</p> : null}
  <div style={{ display: "grid", gap: 12 }}>
  {lines.map((line) => (
  <div key={line.id} className="line-grid">
@@ -416,7 +464,7 @@ export default function NieuwPage() {
  <div style={{ marginTop: 24, display: "grid", gap: 6, color: C.gray, fontSize: 14 }}>
  <strong style={{ color: C.white }}>Totaal excl.: €{totals.excl.toFixed(2)}</strong>
  {Object.entries(totals.vatByPct).map(([pct, value]) => <span key={pct}>BTW {pct}%: €{value.toFixed(2)}</span>)}
- <strong style={{ color: C.white }}>Totaal incl.: €{totals.incl.toFixed(2)}</strong>
+ <strong style={{ color: C.white }}>{documentType === "creditNote" ? "Te crediteren totaal" : "Totaal incl."}: €{totals.incl.toFixed(2)}</strong>
  </div>
  </Section>
 
@@ -449,7 +497,7 @@ export default function NieuwPage() {
  {sendStatus && <p style={{ color: "#86efac", fontSize: 13, fontWeight: 800, margin: "0 0 14px" }}>{sendStatus}</p>}
  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
  <button onClick={prepareDownloadXml} style={{ padding: "10px 14px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700 }}>Download UBL/XML</button>
- <button onClick={hasSendBundle ? prepareSendViaPeppol : () => router.push("/prijzen")} disabled={submitting || !recommandVerified} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : !recommandVerified ? "Verifieer eerst je bedrijf" : hasSendBundle ? "Verzenden via Peppol" : "Koop verzendbundel"}</button>
+ <button onClick={hasSendBundle ? prepareSendViaPeppol : () => router.push("/prijzen")} disabled={submitting || !recommandVerified || sendOutcomeUnknown} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${recommandVerified ? C.blue : C.border}`, background: recommandVerified ? C.blue : "rgba(148,163,184,0.08)", color: recommandVerified ? "#fff" : C.gray, fontWeight: 700, cursor: submitting ? "wait" : recommandVerified && !sendOutcomeUnknown ? "pointer" : "not-allowed" }}>{submitting ? "Verzenden..." : sendOutcomeUnknown ? "Verzending geblokkeerd" : !recommandVerified ? "Verifieer eerst je bedrijf" : hasSendBundle ? "Verzenden via Peppol" : "Koop verzendbundel"}</button>
  <button onClick={() => router.push("/dashboard")} style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontWeight: 700 }}>Opslaan in dashboard</button>
  </div>
  <pre style={{ overflow: "auto", maxHeight: 420, background: "rgba(0,0,0,0.32)", borderRadius: 10, padding: 16, color: C.gray, fontSize: 12 }}>{xml}</pre>

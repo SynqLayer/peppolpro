@@ -31,6 +31,8 @@ export function validateInvoiceData(data: InvoiceData): ValidationResult {
  ["Factuurnummer", data.invoiceNumber],
  ["Factuurdatum", data.invoiceDate],
  ["Vervaldatum", data.dueDate],
+ ["Oorspronkelijk factuurnummer", data.originalInvoiceNumber],
+ ["Oorspronkelijke factuurdatum", data.originalInvoiceDate],
  ["Valuta", data.currency],
  ];
 
@@ -55,7 +57,13 @@ export function validateInvoiceData(data: InvoiceData): ValidationResult {
 
  if (!data.invoiceNumber?.trim()) errors.push("Factuurnummer ontbreekt");
  if (!data.invoiceDate?.trim()) errors.push("Factuurdatum ontbreekt");
- if (!data.dueDate?.trim()) errors.push("Vervaldatum ontbreekt");
+ if (data.documentType !== "creditNote" && !data.dueDate?.trim()) errors.push("Vervaldatum ontbreekt");
+ if (data.documentType === "creditNote" && data.supplierCountry?.trim().toUpperCase() === "NL" && !data.originalInvoiceNumber?.trim()) {
+ errors.push("Oorspronkelijk factuurnummer ontbreekt");
+ }
+ if (data.documentType === "creditNote" && data.supplierCountry?.trim().toUpperCase() === "NL" && data.customerCountry?.trim().toUpperCase() === "NL" && !data.customerKvkKbo?.trim()) {
+ errors.push("Klant: KvK/OIN ontbreekt voor een Nederlandse creditfactuur");
+ }
  if ((data.currency || "").trim().toUpperCase() !== "EUR") errors.push("Alleen EUR-facturen worden ondersteund");
 
  if (!data.lines || data.lines.length === 0) {
@@ -66,8 +74,12 @@ export function validateInvoiceData(data: InvoiceData): ValidationResult {
  const row = index + 1;
  if (!line.description?.trim()) errors.push(`Regel ${row}: omschrijving ontbreekt`);
  if (/[\u0000-\u001F\u007F]/.test(line.description || "")) errors.push(`Regel ${row}: omschrijving bevat een ongeldig teken`);
+ if (data.documentType === "creditNote" && (line.quantity < 0 || line.unitPrice < 0)) {
+ errors.push("Gebruik geen minteken. Voer het te crediteren bedrag positief in.");
+ } else {
  if (line.quantity <= 0) errors.push(`Regel ${row}: aantal moet > 0 zijn`);
  if (line.unitPrice < 0) errors.push(`Regel ${row}: prijs mag niet negatief zijn`);
+ }
  if (![0, 6, 9, 21].includes(line.vatPct)) {
  errors.push(`Regel ${row}: BTW-tarief ${line.vatPct}% is ongebruikelijk, controleer`);
  }
