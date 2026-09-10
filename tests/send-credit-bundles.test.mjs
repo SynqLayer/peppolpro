@@ -162,7 +162,7 @@ test('send route releases reserved credits on provider-side failure paths', () =
  assert.match(recommandRoute, /if \(!creditReleased\)[\s\S]*releaseSendCredit\(admin, user\.id\)/);
  const recipientFailBlock = recommandRoute.match(/if \(!verify\.isValid\) \{[\s\S]*?return jsonError\("Ontvanger is niet gevonden/)?.[0] || '';
  const supportFailBlock = recommandRoute.match(/if \(!support\.isValid\) \{[\s\S]*?return jsonError\("Ontvanger ondersteunt/)?.[0] || '';
- const sendFailBlock = recommandRoute.match(/if \(!send\.success\) \{[\s\S]*?return jsonError\("Recommand heeft/)?.[0] || '';
+ const sendFailBlock = recommandRoute.match(/if \(sendOutcome === "safe_to_release"\) \{[\s\S]*?return jsonError\("Recommand heeft/)?.[0] || '';
  const catchBlock = recommandRoute.match(/catch \(error\) \{[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
  for (const block of [recipientFailBlock, supportFailBlock, sendFailBlock, catchBlock]) {
   assert.match(block, /releaseAfterFailure\(\)/);

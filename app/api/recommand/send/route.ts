@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
 import { findOutgoingDocument, getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsCreditNote, verifyRecipientSupportsInvoice } from "@/lib/recommand";
+import type { RecommandRawResponse } from "@/lib/recommand";
 import { validateRecommandCreditNoteDocument } from "@/lib/recommand-credit-note";
 import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
 import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
 import { validateStoredInvoiceConsistency } from "@/lib/invoice-preview";
-import { classifySendException } from "@/lib/recommand-send-outcome";
+import { classifySendException, classifySendResult, type SendOutcomeDisposition } from "@/lib/recommand-send-outcome";
 
 export const maxDuration = 60;
 
@@ -258,13 +259,14 @@ export async function POST(request: NextRequest) {
  if (profile.recommand_verified !== true || !profile.recommand_company_id) {
   return jsonError("Verifieer eerst je bedrijf voordat je via Peppol verzendt.", 403, { upgradeUrl: "/dashboard#peppol-verzending" });
  }
+ const companyId = profile.recommand_company_id;
 
  if (existing.recommand_status === "sending" || existing.recommand_status === "send_outcome_unknown") {
   const hasUnknownOutcome = existing.recommand_status === "send_outcome_unknown";
   const documentNumber = fromUbl.documentType === "creditNote"
    ? fromUbl.document.creditNoteNumber
    : fromUbl.document.invoiceNumber;
-  const recovered = await findOutgoingDocument(profile.recommand_company_id, documentType, documentNumber, recipient);
+  const recovered = await findOutgoingDocument(companyId, documentType, documentNumber, recipient);
   if (!recovered.checked) {
    return hasUnknownOutcome ? unknownSendOutcomeResponse() : inProgressSendResponse();
   }
@@ -311,11 +313,44 @@ export async function POST(request: NextRequest) {
   return releasedCredit;
  };
 
- let providerAccepted = false;
  let sendAttempted = false;
- let providerOutcomeKnown = false;
+ let sendOutcome: SendOutcomeDisposition | null = null;
+ let lastSendRaw: RecommandRawResponse | null = null;
  let acceptedDocumentId: string | null | undefined;
  let acceptedAt: string | null = null;
+
+ const reconcileUnknownSendOutcome = async () => {
+  const documentNumber = fromUbl.documentType === "creditNote"
+   ? fromUbl.document.creditNoteNumber
+   : fromUbl.document.invoiceNumber;
+  const recovered = await findOutgoingDocument(companyId, documentType, documentNumber, recipient);
+  if (recovered.checked && recovered.documentId) {
+   const recoveredAt = recovered.createdAt || new Date().toISOString();
+   const { error: recoveryError } = await admin.from(targetTable).update({
+    recommand_document_id: recovered.documentId,
+    recommand_status: "sent",
+    recommand_claimed_at: null,
+    sent_via_recommand_at: recoveredAt,
+   }).eq("id", targetId).eq("user_id", user.id).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
+   if (!recoveryError) {
+    return existingSendResponse({
+     ...existing,
+     recommand_document_id: recovered.documentId,
+     recommand_status: "sent",
+     recommand_claimed_at: null,
+     sent_via_recommand_at: recoveredAt,
+    }, reserved.send_credits);
+   }
+  }
+  const { error: unknownUpdateError } = await admin.from(targetTable).update({
+   recommand_status: "send_outcome_unknown",
+   recommand_raw_response: lastSendRaw
+    ? { error: "provider_outcome_unknown", send: lastSendRaw }
+    : { error: "provider_outcome_unknown" },
+  }).eq("id", targetId).eq("user_id", user.id).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
+  if (unknownUpdateError) console.error("Recommand unknown-outcome update failed");
+  return unknownSendOutcomeResponse(reserved.send_credits);
+ };
 
  try {
   const verify = await verifyRecipient(recipient);
@@ -347,62 +382,53 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = { recipient, documentType, document };
-  const send = await sendDocument(profile.recommand_company_id, payload, () => { sendAttempted = true; });
-  providerOutcomeKnown = true;
-  providerAccepted = send.success;
-  acceptedDocumentId = send.documentId;
-  acceptedAt = send.success ? new Date().toISOString() : null;
-  const status = send.documentId ? await getDocumentStatusBestEffort(send.documentId) : null;
-  const recommandStatus = send.success ? (hasAs4Receipt(status?.body) ? "as4_received" : "sent") : "send_failed";
-  const sentAt = acceptedAt;
+  const send = await sendDocument(companyId, payload, () => { sendAttempted = true; });
+  lastSendRaw = send.raw;
+  sendOutcome = classifySendResult(send);
 
-  const { error: updateError } = await admin.from(targetTable).update({
-   verified_recipient: true,
-   recommand_document_id: send.documentId,
-   recommand_status: recommandStatus,
-   recommand_claimed_at: null,
-   recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status },
-  sent_via_recommand_at: sentAt,
-  }).eq("id", targetId).eq("user_id", user.id);
-  if (updateError) throw updateError;
+  if (sendOutcome === "provider_outcome_unknown") {
+   return reconcileUnknownSendOutcome();
+  }
 
-  if (!send.success) {
+  if (sendOutcome === "safe_to_release") {
+   const { error: updateError } = await admin.from(targetTable).update({
+    verified_recipient: true,
+    recommand_document_id: null,
+    recommand_status: "send_failed",
+    recommand_claimed_at: null,
+    recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw },
+    sent_via_recommand_at: null,
+   }).eq("id", targetId).eq("user_id", user.id);
+   if (updateError) throw updateError;
    const released = await releaseAfterFailure();
    return jsonError("Recommand heeft het document niet geaccepteerd. Controleer de factuurgegevens en probeer opnieuw.", 502, { remainingCredits: released?.send_credits });
   }
 
-  return NextResponse.json({ success: true, documentId: send.documentId, status: recommandStatus, sentAt, remainingCredits: reserved.send_credits });
+  if (!send.documentId) {
+   sendOutcome = "provider_outcome_unknown";
+   return reconcileUnknownSendOutcome();
+  }
+  acceptedDocumentId = send.documentId;
+  acceptedAt = new Date().toISOString();
+  const status = await getDocumentStatusBestEffort(acceptedDocumentId);
+  const recommandStatus = hasAs4Receipt(status?.body) ? "as4_received" : "sent";
+  const sentAt = acceptedAt;
+
+  const { error: updateError } = await admin.from(targetTable).update({
+   verified_recipient: true,
+   recommand_document_id: acceptedDocumentId,
+   recommand_status: recommandStatus,
+   recommand_claimed_at: null,
+   recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status },
+   sent_via_recommand_at: sentAt,
+  }).eq("id", targetId).eq("user_id", user.id);
+  if (updateError) throw updateError;
+
+  return NextResponse.json({ success: true, documentId: acceptedDocumentId, status: recommandStatus, sentAt, remainingCredits: reserved.send_credits });
  } catch (error) {
-  const sendException = classifySendException({ sendAttempted, providerOutcomeKnown, providerAccepted });
+  const sendException = sendOutcome || classifySendException({ sendAttempted });
   if (sendException === "provider_outcome_unknown") {
-   const documentNumber = fromUbl.documentType === "creditNote"
-    ? fromUbl.document.creditNoteNumber
-    : fromUbl.document.invoiceNumber;
-   const recovered = await findOutgoingDocument(profile.recommand_company_id, documentType, documentNumber, recipient);
-   if (recovered.checked && recovered.documentId) {
-    const recoveredAt = recovered.createdAt || new Date().toISOString();
-    const { error: recoveryError } = await admin.from(targetTable).update({
-     recommand_document_id: recovered.documentId,
-     recommand_status: "sent",
-     recommand_claimed_at: null,
-     sent_via_recommand_at: recoveredAt,
-    }).eq("id", targetId).eq("user_id", user.id).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
-    if (!recoveryError) {
-     return existingSendResponse({
-      ...existing,
-      recommand_document_id: recovered.documentId,
-      recommand_status: "sent",
-      recommand_claimed_at: null,
-      sent_via_recommand_at: recoveredAt,
-     }, reserved.send_credits);
-    }
-   }
-   const { error: unknownUpdateError } = await admin.from(targetTable).update({
-    recommand_status: "send_outcome_unknown",
-    recommand_raw_response: { error: "provider_outcome_unknown" },
-   }).eq("id", targetId).eq("user_id", user.id).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
-   if (unknownUpdateError) console.error("Recommand unknown-outcome update failed");
-   return unknownSendOutcomeResponse(reserved.send_credits);
+   return reconcileUnknownSendOutcome();
   }
   if (sendException === "provider_accepted") {
    const { error: acceptedUpdateError } = await admin.from(targetTable).update({

@@ -5,11 +5,12 @@ import { generateUBL } from '../lib/ubl-generator.ts';
 import { validateInvoiceData } from '../lib/ubl-validator.ts';
 import { buildRecommandPayloadFromUbl } from '../lib/ubl-to-recommand.ts';
 import { buildInvoicePreviewFromPayload } from '../lib/invoice-preview.ts';
-import { classifySendException } from '../lib/recommand-send-outcome.ts';
+import { classifySendException, classifySendResult } from '../lib/recommand-send-outcome.ts';
 import {
  findOutgoingDocument,
  PEPPOL_BIS_BILLING_CREDIT_NOTE_DOCUMENT_TYPE,
  PEPPOL_BIS_BILLING_INVOICE_DOCUMENT_TYPE,
+ sendDocument,
 } from '../lib/recommand.ts';
 
 const root = new URL('../', import.meta.url);
@@ -172,7 +173,9 @@ test('send route trusts stored UBL for document type and preserves protected cre
  const send = sendRoute.indexOf('sendDocument', verifySupport);
  assert.ok(consistency >= 0 && claim > consistency && reserve > claim && verifySupport > reserve && send > verifySupport);
  assert.match(sendRoute, /if \(!support\.isValid\)[\s\S]*releaseAfterFailure/);
- assert.match(sendRoute, /if \(!send\.success\)[\s\S]*releaseAfterFailure/);
+ assert.match(sendRoute, /sendOutcome = classifySendResult\(send\)/);
+ assert.match(sendRoute, /if \(sendOutcome === "provider_outcome_unknown"\)/);
+ assert.match(sendRoute, /if \(sendOutcome === "safe_to_release"\)/);
  assert.match(sendRoute, /if \(!creditReleased\)[\s\S]*releaseSendCredit/);
  assert.match(sendRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
  assert.match(sendRoute, /if \(!claim\)[\s\S]*waitForCompletedSend/);
@@ -180,9 +183,9 @@ test('send route trusts stored UBL for document type and preserves protected cre
 
 test('provider acceptance never releases credit when status lookup or persistence fails', () => {
  assert.match(sendRoute, /async function getDocumentStatusBestEffort/);
- assert.match(sendRoute, /getDocumentStatusBestEffort\(send\.documentId\)/);
- assert.match(sendRoute, /let providerAccepted = false/);
- assert.match(sendRoute, /providerAccepted = send\.success/);
+ assert.match(sendRoute, /getDocumentStatusBestEffort\(acceptedDocumentId\)/);
+ assert.match(sendRoute, /let sendOutcome: SendOutcomeDisposition \| null = null/);
+ assert.match(sendRoute, /sendOutcome = classifySendResult\(send\)/);
  assert.match(sendRoute, /existing\.recommand_status === "sending"[\s\S]*findOutgoingDocument/);
  assert.ok(sendRoute.indexOf('findOutgoingDocument', sendRoute.indexOf('export async function POST')) < sendRoute.indexOf('claimTargetForSending', sendRoute.indexOf('export async function POST')));
  const catchBlock = sendRoute.match(/\} catch \(error\) \{[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
@@ -190,22 +193,64 @@ test('provider acceptance never releases credit when status lookup or persistenc
  assert.ok(catchBlock.indexOf('sendException === "provider_accepted"') < catchBlock.indexOf('releaseAfterFailure()'));
 });
 
-test('missing provider response creates an unknown outcome without releasing credit or automatic resend', () => {
- assert.equal(classifySendException({ sendAttempted: true, providerOutcomeKnown: false, providerAccepted: false }), 'provider_outcome_unknown');
- assert.equal(classifySendException({ sendAttempted: true, providerOutcomeKnown: true, providerAccepted: false }), 'safe_to_release');
- assert.equal(classifySendException({ sendAttempted: false, providerOutcomeKnown: false, providerAccepted: false }), 'safe_to_release');
+const rawSend = (status, body) => ({ ok: status >= 200 && status < 300, status, statusText: '', url: 'https://provider.invalid/send', body });
+
+test('200 success=true with a contract document id is proven accepted', () => {
+ assert.equal(classifySendResult({ success: true, documentId: 'doc-123', raw: rawSend(200, { success: true, id: 'doc-123' }) }), 'provider_accepted');
+});
+
+test('400 success=false is a proven reject and may release credit', () => {
+ assert.equal(classifySendResult({ success: false, documentId: null, raw: rawSend(400, { success: false, error: 'validation' }) }), 'safe_to_release');
+});
+
+test('422 success=false is a proven reject and may release credit', () => {
+ assert.equal(classifySendResult({ success: false, documentId: null, raw: rawSend(422, { success: false, error: 'rejected' }) }), 'safe_to_release');
+});
+
+test('500 response is unknown and may not release credit', () => {
+ assert.equal(classifySendResult({ success: false, documentId: null, raw: rawSend(500, { success: false }) }), 'provider_outcome_unknown');
+});
+
+test('200 malformed or missing success/id is unknown and may not release credit', () => {
+ for (const body of [{}, { success: true }, { success: false }, 'not-json']) {
+  assert.equal(classifySendResult({ success: false, documentId: null, raw: rawSend(200, body) }), 'provider_outcome_unknown');
+ }
+});
+
+test('fetch exception after request start is unknown and may not release credit', async () => {
+ const oldKey = process.env.RECOMMAND_API_KEY;
+ const oldSecret = process.env.RECOMMAND_API_SECRET;
+ const oldFetch = globalThis.fetch;
+ process.env.RECOMMAND_API_KEY = 'test-key';
+ process.env.RECOMMAND_API_SECRET = 'test-secret';
+ let sendAttempted = false;
+ globalThis.fetch = async () => { throw new Error('connection lost'); };
+ try {
+  await assert.rejects(sendDocument('company-1', {}, () => { sendAttempted = true; }), /connection lost/);
+  assert.equal(classifySendException({ sendAttempted }), 'provider_outcome_unknown');
+ } finally {
+  globalThis.fetch = oldFetch;
+  if (oldKey === undefined) delete process.env.RECOMMAND_API_KEY; else process.env.RECOMMAND_API_KEY = oldKey;
+  if (oldSecret === undefined) delete process.env.RECOMMAND_API_SECRET; else process.env.RECOMMAND_API_SECRET = oldSecret;
+ }
+});
+
+test('unknown outcomes reconcile without releasing credit or automatic resend', () => {
+ assert.equal(classifySendException({ sendAttempted: false }), 'safe_to_release');
  assert.match(sendRoute, /classifySendException/);
+ assert.match(sendRoute, /classifySendResult\(send\)/);
  assert.match(sendRoute, /let sendAttempted = false/);
- assert.match(sendRoute, /let providerOutcomeKnown = false/);
  assert.match(sendRoute, /sendDocument\([^;]*\(\) => \{ sendAttempted = true; \}\)/);
  assert.match(recommandClient, /onRequestStarted\?\.\(\);[\s\S]*await fetch/);
  assert.match(sendRoute, /function unknownSendOutcomeResponse[\s\S]*status: 409/);
- assert.match(sendRoute, /providerOutcomeKnown = true/);
  const catchBlock = sendRoute.match(/\} catch \(error\) \{[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
  assert.match(catchBlock, /sendException === "provider_outcome_unknown"/);
- assert.match(catchBlock, /findOutgoingDocument/);
- assert.ok(catchBlock.indexOf('findOutgoingDocument', catchBlock.indexOf('sendException === "provider_outcome_unknown"')) < catchBlock.indexOf('recommand_status: "send_outcome_unknown"'));
- assert.match(catchBlock, /recommand_status: "send_outcome_unknown"/);
+ assert.match(catchBlock, /return reconcileUnknownSendOutcome\(\)/);
+ const reconcileBlock = sendRoute.match(/const reconcileUnknownSendOutcome = async \(\) => \{[\s\S]*?return unknownSendOutcomeResponse\(reserved\.send_credits\);[\s\S]*?\};/)?.[0] || '';
+ assert.match(reconcileBlock, /findOutgoingDocument/);
+ assert.ok(reconcileBlock.indexOf('findOutgoingDocument') < reconcileBlock.indexOf('recommand_status: "send_outcome_unknown"'));
+ assert.match(reconcileBlock, /recommand_status: "send_outcome_unknown"/);
+ assert.doesNotMatch(reconcileBlock, /releaseAfterFailure/);
  assert.ok(catchBlock.indexOf('sendException === "provider_outcome_unknown"') < catchBlock.indexOf('releaseAfterFailure()'));
  assert.match(sendRoute, /existing\.recommand_status === "send_outcome_unknown"/);
  assert.match(sendRoute, /!recovered\.checked[\s\S]*unknownSendOutcomeResponse/);
