@@ -430,7 +430,7 @@ export default function Home() {
  {[
   { label: "Hoe werkt het", href: "#how" },
   { label: "Features", href: "#features" },
-  { label: "Prijzen", href: "#pricing" },
+  { label: "Prijzen", href: "/prijzen" },
   { label: "Over ons", href: "/over-ons" },
   { label: "API Docs", href: "/contact" },
  ].map((l) => (

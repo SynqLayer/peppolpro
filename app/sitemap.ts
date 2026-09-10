@@ -6,6 +6,7 @@ const rootRoutes = [
   "/peppol-factuur-versturen",
   "/peppol-verplicht-belgie",
   "/pdf-naar-ubl",
+  "/prijzen",
   "/login",
   "/register",
   "/upgrade",
