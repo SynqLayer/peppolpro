@@ -1,0 +1,5 @@
+interface:
+  display_name: "SynqLayer Implement"
+  short_description: "Implement safely; no automatic commit, push, or deploy"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+interface:
+  display_name: "SynqLayer Code Review"
+  short_description: "Hardened read-only review with prompt-injection defenses"
+policy:
+  allow_implicit_invocation: false
