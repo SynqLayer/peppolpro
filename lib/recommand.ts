@@ -3,6 +3,9 @@ export const RECOMMAND_BASE_URL = "https://app.recommand.eu/api/v1";
 export const PEPPOL_BIS_BILLING_INVOICE_DOCUMENT_TYPE =
  "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2::Invoice##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1";
 
+export const PEPPOL_BIS_BILLING_CREDIT_NOTE_DOCUMENT_TYPE =
+ "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2::CreditNote##urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0::2.1";
+
 type JsonObject = Record<string, unknown>;
 
 export type RecommandRawResponse = {
@@ -152,6 +155,22 @@ export async function verifyRecipientSupportsInvoice(peppolId: string): Promise<
  body: JSON.stringify({
  peppolAddress: peppolId,
  documentType: PEPPOL_BIS_BILLING_INVOICE_DOCUMENT_TYPE,
+ }),
+ });
+ const body = asObject(raw.body);
+ return {
+ success: raw.ok && body.success !== false,
+ isValid: raw.ok && body.isValid === true,
+ raw,
+ };
+}
+
+export async function verifyRecipientSupportsCreditNote(peppolId: string): Promise<RecommandVerifyResult> {
+ const raw = await requestRecommand("/verify-document-support", {
+ method: "POST",
+ body: JSON.stringify({
+ peppolAddress: peppolId,
+ documentType: PEPPOL_BIS_BILLING_CREDIT_NOTE_DOCUMENT_TYPE,
  }),
  });
  const body = asObject(raw.body);

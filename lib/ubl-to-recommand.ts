@@ -1,12 +1,24 @@
 import type { RecommandInvoiceDocument } from "./recommand-invoice";
+import type { RecommandCreditNoteDocument } from "./recommand-credit-note";
 import { payableAmountFromUbl } from "./ubl-amounts.ts";
 
-export type RecommandPayloadFromUbl = {
+export type RecommandInvoicePayloadFromUbl = {
  recipient: string;
+ documentType: "invoice";
  document: RecommandInvoiceDocument;
  currency: string;
  payableAmount: number | null;
 };
+
+export type RecommandCreditNotePayloadFromUbl = {
+ recipient: string;
+ documentType: "creditNote";
+ document: RecommandCreditNoteDocument;
+ currency: string;
+ payableAmount: number | null;
+};
+
+export type RecommandPayloadFromUbl = RecommandInvoicePayloadFromUbl | RecommandCreditNotePayloadFromUbl;
 
 function decodeXml(value: string) {
  return value
@@ -55,33 +67,66 @@ function party(sectionXml: string) {
  };
 }
 
+function linesFromUbl(ublXml: string, lineTag: "InvoiceLine" | "CreditNoteLine", quantityTag: "InvoicedQuantity" | "CreditedQuantity") {
+ return sections(ublXml, lineTag).map((lineXml) => {
+  const item = section(lineXml, "Item");
+  const tax = section(item, "ClassifiedTaxCategory");
+  return {
+   name: firstTag(item, "Name") || firstTag(item, "Description"),
+   description: firstTag(item, "Description") || firstTag(item, "Name"),
+   quantity: firstTag(lineXml, quantityTag),
+   netPriceAmount: firstTag(section(lineXml, "Price"), "PriceAmount"),
+   vat: {
+    category: firstTag(tax, "ID"),
+    percentage: fixedDecimal(firstTag(tax, "Percent")),
+   },
+  };
+ });
+}
+
 export function buildRecommandPayloadFromUbl(ublXml: string): RecommandPayloadFromUbl {
  const supplierSection = section(ublXml, "AccountingSupplierParty");
  const customerSection = section(ublXml, "AccountingCustomerParty");
  const customerParty = section(customerSection, "Party");
  const recipient = endpoint(customerParty);
- const document: RecommandInvoiceDocument = {
-  invoiceNumber: firstTag(ublXml, "ID"),
+ const currency = firstTag(ublXml, "DocumentCurrencyCode") || "EUR";
+ const payableAmount = payableAmountFromUbl(ublXml);
+ const common = {
   issueDate: firstTag(ublXml, "IssueDate"),
-  dueDate: firstTag(ublXml, "DueDate"),
-  note: "Factuur verzonden via PeppolPro.",
   seller: party(supplierSection),
   buyer: party(customerSection),
-  paymentMeans: [{ iban: firstTag(section(ublXml, "PayeeFinancialAccount"), "ID") }],
-  lines: sections(ublXml, "InvoiceLine").map((lineXml) => {
-   const item = section(lineXml, "Item");
-   const tax = section(item, "ClassifiedTaxCategory");
-   return {
-    name: firstTag(item, "Name") || firstTag(item, "Description"),
-    description: firstTag(item, "Description") || firstTag(item, "Name"),
-    quantity: firstTag(lineXml, "InvoicedQuantity"),
-    netPriceAmount: firstTag(section(lineXml, "Price"), "PriceAmount"),
-    vat: {
-     category: firstTag(tax, "ID"),
-     percentage: fixedDecimal(firstTag(tax, "Percent")),
-    },
-   };
-  }),
  };
- return { recipient, document, currency: firstTag(ublXml, "DocumentCurrencyCode") || "EUR", payableAmount: payableAmountFromUbl(ublXml) };
+ const isCreditNote = /<(?:[A-Za-z0-9_-]+:)?CreditNote\b/i.test(ublXml)
+  && !/<(?:[A-Za-z0-9_-]+:)?Invoice\b/i.test(ublXml);
+
+ if (isCreditNote) {
+  const invoiceReference = section(section(ublXml, "BillingReference"), "InvoiceDocumentReference");
+  const originalInvoiceId = firstTag(invoiceReference, "ID");
+  const originalIssueDate = firstTag(invoiceReference, "IssueDate");
+  const document: RecommandCreditNoteDocument = {
+   creditNoteNumber: firstTag(ublXml, "ID"),
+   issueDate: common.issueDate,
+   note: "Creditfactuur verzonden via PeppolPro.",
+   invoiceReferences: originalInvoiceId ? [{
+    id: originalInvoiceId,
+    ...(originalIssueDate ? { issueDate: originalIssueDate } : {}),
+   }] : [],
+   seller: common.seller,
+   buyer: common.buyer,
+   lines: linesFromUbl(ublXml, "CreditNoteLine", "CreditedQuantity"),
+  };
+  return { recipient, documentType: "creditNote", document, currency, payableAmount };
+ }
+
+ const document: RecommandInvoiceDocument = {
+  invoiceNumber: firstTag(ublXml, "ID"),
+  issueDate: common.issueDate,
+  dueDate: firstTag(ublXml, "DueDate"),
+  note: "Factuur verzonden via PeppolPro.",
+  seller: common.seller,
+  buyer: common.buyer,
+  paymentMeans: [{ iban: firstTag(section(ublXml, "PayeeFinancialAccount"), "ID") }],
+  lines: linesFromUbl(ublXml, "InvoiceLine", "InvoicedQuantity"),
+ };
+ return { recipient, documentType: "invoice", document, currency, payableAmount };
 }

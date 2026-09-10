@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
-import { getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsInvoice } from "@/lib/recommand";
+import { getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsCreditNote, verifyRecipientSupportsInvoice } from "@/lib/recommand";
+import { validateRecommandCreditNoteDocument } from "@/lib/recommand-credit-note";
 import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
 import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
 import { validateStoredInvoiceConsistency } from "@/lib/invoice-preview";
@@ -211,15 +212,15 @@ export async function POST(request: NextRequest) {
  const consistency = validateStoredInvoiceConsistency(existing.total_amount, existing.ubl_xml);
  if (!consistency.ok) return jsonError(consistency.error, 409);
 
- let recipient = normalizePeppolId(input.recipient || input.peppolId || input.peppolAddress);
- let document = input.document;
- if ((!recipient || !document) && existing.ubl_xml) {
-  const fromUbl = buildRecommandPayloadFromUbl(existing.ubl_xml);
-  recipient ||= fromUbl.recipient;
-  document ||= fromUbl.document;
- }
+ if (!existing.ubl_xml) return jsonError("Opgeslagen UBL ontbreekt; genereer het document opnieuw voordat je verzendt.", 409);
+ const fromUbl = buildRecommandPayloadFromUbl(existing.ubl_xml);
+ const recipient = normalizePeppolId(fromUbl.recipient);
+ const document = fromUbl.document;
+ const documentType = fromUbl.documentType;
  if (!recipient) return jsonError("Ontvanger-Peppol-ID ontbreekt", 400);
- const documentErrors = validateRecommandInvoiceDocument(document);
+ const documentErrors = documentType === "creditNote"
+  ? validateRecommandCreditNoteDocument(document)
+  : validateRecommandInvoiceDocument(document);
  if (documentErrors.length > 0) {
   return jsonError("Verzenden is geblokkeerd: vul de ontbrekende factuurgegevens aan en probeer opnieuw.", 400, { errors: documentErrors });
  }
@@ -248,7 +249,15 @@ export async function POST(request: NextRequest) {
   return jsonError("Je hebt geen geldig verzendtegoed. Koop een verzendbundel om via Peppol te verzenden.", 402, { upgradeUrl: "/upgrade", remainingCredits: 0 });
  }
 
- const releaseAfterFailure = async () => releaseSendCredit(admin, user.id);
+ let releasedCredit: CreditRow | null = null;
+ let creditReleased = false;
+ const releaseAfterFailure = async () => {
+  if (!creditReleased) {
+   releasedCredit = await releaseSendCredit(admin, user.id);
+   creditReleased = true;
+  }
+  return releasedCredit;
+ };
 
  try {
   const verify = await verifyRecipient(recipient);
@@ -264,7 +273,9 @@ export async function POST(request: NextRequest) {
    return jsonError("Ontvanger is niet gevonden op het Peppol-netwerk. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
 
-  const support = await verifyRecipientSupportsInvoice(recipient);
+  const support = documentType === "creditNote"
+   ? await verifyRecipientSupportsCreditNote(recipient)
+   : await verifyRecipientSupportsInvoice(recipient);
   if (!support.isValid) {
    const released = await releaseAfterFailure();
    const { error: updateError } = await admin.from(targetTable).update({
@@ -274,10 +285,10 @@ export async function POST(request: NextRequest) {
    recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw },
    }).eq("id", targetId).eq("user_id", user.id);
    if (updateError) throw updateError;
-   return jsonError("Ontvanger ondersteunt dit Peppol factuurdocumenttype niet. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
+   return jsonError("Ontvanger ondersteunt dit Peppol-documenttype niet. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
 
-  const payload = { recipient, documentType: "invoice", document };
+  const payload = { recipient, documentType, document };
   const send = await sendDocument(profile.recommand_company_id, payload);
   const status = send.documentId ? await getDocumentStatus(send.documentId) : null;
   const recommandStatus = send.success ? (hasAs4Receipt(status?.body) ? "as4_received" : "sent") : "send_failed";

@@ -524,7 +524,7 @@ test('Recommand send route refuses duplicate voided targets before provider call
  assert.match(recommandRoute, /if \(isVoidedDuplicate\(existing\)\) return jsonError\("Deze factuur is gemarkeerd als dubbel\/voided/);
  assert.match(recommandRoute, /rpc\("claim_recommand_send_target"/);
  assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
- assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('let recipient = normalizePeppolId'));
+ assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const fromUbl = buildRecommandPayloadFromUbl'));
  assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const reserved = await reserveSendCredit'));
 });
 

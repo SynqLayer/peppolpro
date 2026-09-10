@@ -139,7 +139,7 @@ test('send route is idempotent for already-sent targets before validation, provi
  assert.match(recommandRoute, /function existingSendResponse/);
  assert.match(recommandRoute, /function hasCompletedSend/);
  assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
- const beforeRecipientValidation = recommandRoute.match(/const existing = await fetchTarget[\s\S]*?let recipient = normalizePeppolId/)?.[0] || '';
+ const beforeRecipientValidation = recommandRoute.match(/const existing = await fetchTarget[\s\S]*?const fromUbl = buildRecommandPayloadFromUbl/)?.[0] || '';
  assert.match(beforeRecipientValidation, /hasCompletedSend\(existing\)/);
  assert.doesNotMatch(beforeRecipientValidation, /sendDocument\(|reserve_send_credit|verifyRecipient\(/);
 });
@@ -158,7 +158,8 @@ test('send route claims a target and reserves credits atomically before provider
 
 test('send route releases reserved credits on provider-side failure paths', () => {
  assert.match(recommandRoute, /rpc\("release_send_credit"/);
- assert.match(recommandRoute, /const releaseAfterFailure = async \(\) => releaseSendCredit/);
+ assert.match(recommandRoute, /const releaseAfterFailure = async \(\) => \{/);
+ assert.match(recommandRoute, /if \(!creditReleased\)[\s\S]*releaseSendCredit\(admin, user\.id\)/);
  const recipientFailBlock = recommandRoute.match(/if \(!verify\.isValid\) \{[\s\S]*?return jsonError\("Ontvanger is niet gevonden/)?.[0] || '';
  const supportFailBlock = recommandRoute.match(/if \(!support\.isValid\) \{[\s\S]*?return jsonError\("Ontvanger ondersteunt/)?.[0] || '';
  const sendFailBlock = recommandRoute.match(/if \(!send\.success\) \{[\s\S]*?return jsonError\("Recommand heeft/)?.[0] || '';
@@ -241,11 +242,13 @@ test('dashboard send action updates row state and the send-credit KPI without re
  assert.match(dashboard, /recommand_document_id: body\.documentId/);
 });
 
-test('send route can reuse a stored conversion UBL when dashboard sends only the conversion id', () => {
+test('send route derives the provider payload exclusively from stored UBL when dashboard sends only the conversion id', () => {
  assert.match(recommandRoute, /buildRecommandPayloadFromUbl/);
  assert.match(recommandRoute, /existing\.ubl_xml/);
- assert.match(recommandRoute, /document \|\|= fromUbl\.document/);
- assert.match(recommandRoute, /recipient \|\|= fromUbl\.recipient/);
+ assert.match(recommandRoute, /const document = fromUbl\.document/);
+ assert.match(recommandRoute, /const recipient = normalizePeppolId\(fromUbl\.recipient\)/);
+ assert.match(recommandRoute, /const documentType = fromUbl\.documentType/);
+ assert.doesNotMatch(recommandRoute, /documentType\s*=\s*input\./);
 
  const xml = generateUBL({
   supplierName: 'SynqLayer BV',
@@ -273,6 +276,7 @@ test('send route can reuse a stored conversion UBL when dashboard sends only the
   lines: [{ id: '1', description: 'Dienst', quantity: 2, unitPrice: 50, vatPct: 21 }],
  });
  const payload = buildRecommandPayloadFromUbl(xml);
+ assert.equal(payload.documentType, 'invoice');
  assert.equal(payload.recipient, '0106:87654321');
  assert.equal(payload.document.invoiceNumber, 'F-TEST-1');
  assert.equal(payload.document.buyer.name, 'Klant BV');
