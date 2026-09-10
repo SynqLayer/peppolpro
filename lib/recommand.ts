@@ -91,6 +91,56 @@ function asObject(value: unknown): JsonObject {
  return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
 }
 
+export type RecommandOutgoingDocumentLookup = {
+ checked: boolean;
+ documentId: string | null;
+ createdAt: string | null;
+};
+
+export async function findOutgoingDocument(
+ companyId: string,
+ documentType: "invoice" | "creditNote",
+ documentNumber: string,
+ recipient: string,
+): Promise<RecommandOutgoingDocumentLookup> {
+ const query = new URLSearchParams({
+  page: "1",
+  limit: "200",
+  companyId,
+  direction: "outgoing",
+  type: documentType,
+  search: documentNumber,
+  excludeAttachments: "true",
+ });
+ try {
+  const raw = await requestRecommand(`/documents?${query.toString()}`);
+  const body = asObject(raw.body);
+  if (!raw.ok || body.success === false || !Array.isArray(body.documents)) {
+   return { checked: false, documentId: null, createdAt: null };
+  }
+  const expectedRecipient = recipient.trim().toLowerCase();
+  const expectedField = documentType === "creditNote" ? "creditNoteNumber" : "invoiceNumber";
+  const match = body.documents.find((value) => {
+   const listed = asObject(value);
+   const parsed = asObject(listed.parsed);
+   return listed.companyId === companyId
+    && listed.direction === "outgoing"
+    && listed.type === documentType
+    && typeof listed.receiverId === "string"
+    && listed.receiverId.trim().toLowerCase() === expectedRecipient
+    && parsed[expectedField] === documentNumber;
+  });
+  const listed = asObject(match);
+  return {
+   checked: true,
+   documentId: typeof listed.id === "string" ? listed.id : null,
+   createdAt: typeof listed.createdAt === "string" ? listed.createdAt : null,
+  };
+ } catch {
+  return { checked: false, documentId: null, createdAt: null };
+ }
+}
+
 function normalizeEnterpriseNumberScheme(country: string, explicitScheme?: string) {
  if (explicitScheme) return explicitScheme;
  if (country.toUpperCase() === "NL") return "0106";

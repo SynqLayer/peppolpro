@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
-import { getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsCreditNote, verifyRecipientSupportsInvoice } from "@/lib/recommand";
+import { findOutgoingDocument, getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsCreditNote, verifyRecipientSupportsInvoice } from "@/lib/recommand";
 import { validateRecommandCreditNoteDocument } from "@/lib/recommand-credit-note";
 import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
 import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
@@ -185,6 +185,15 @@ function hasAs4Receipt(value: unknown): boolean {
  return false;
 }
 
+async function getDocumentStatusBestEffort(documentId: string) {
+ try {
+  return await getDocumentStatus(documentId);
+ } catch {
+  console.error("Recommand status lookup failed after document submission");
+  return null;
+ }
+}
+
 export async function POST(request: NextRequest) {
  const supabase = await createServerSupabase();
  const admin = createAdminSupabase();
@@ -236,6 +245,33 @@ export async function POST(request: NextRequest) {
   return jsonError("Verifieer eerst je bedrijf voordat je via Peppol verzendt.", 403, { upgradeUrl: "/dashboard#peppol-verzending" });
  }
 
+ if (existing.recommand_status === "sending") {
+  const documentNumber = fromUbl.documentType === "creditNote"
+   ? fromUbl.document.creditNoteNumber
+   : fromUbl.document.invoiceNumber;
+  const recovered = await findOutgoingDocument(profile.recommand_company_id, documentType, documentNumber, recipient);
+  if (!recovered.checked) {
+   return inProgressSendResponse();
+  }
+  if (recovered.documentId) {
+   const recoveredAt = recovered.createdAt || new Date().toISOString();
+   const { error: recoveryError } = await admin.from(targetTable).update({
+    recommand_document_id: recovered.documentId,
+    recommand_status: "sent",
+    recommand_claimed_at: null,
+    sent_via_recommand_at: recoveredAt,
+   }).eq("id", targetId).eq("user_id", user.id);
+   if (recoveryError) return inProgressSendResponse();
+   return existingSendResponse({
+    ...existing,
+    recommand_document_id: recovered.documentId,
+    recommand_status: "sent",
+    recommand_claimed_at: null,
+    sent_via_recommand_at: recoveredAt,
+   });
+  }
+ }
+
  const claim = await claimTargetForSending(admin, targetTable, targetId, user.id);
  if (!claim) {
   const completed = await waitForCompletedSend(supabase, targetTable, targetId, user.id);
@@ -258,6 +294,10 @@ export async function POST(request: NextRequest) {
   }
   return releasedCredit;
  };
+
+ let providerAccepted = false;
+ let acceptedDocumentId: string | null | undefined;
+ let acceptedAt: string | null = null;
 
  try {
   const verify = await verifyRecipient(recipient);
@@ -290,9 +330,12 @@ export async function POST(request: NextRequest) {
 
   const payload = { recipient, documentType, document };
   const send = await sendDocument(profile.recommand_company_id, payload);
-  const status = send.documentId ? await getDocumentStatus(send.documentId) : null;
+  providerAccepted = send.success;
+  acceptedDocumentId = send.documentId;
+  acceptedAt = send.success ? new Date().toISOString() : null;
+  const status = send.documentId ? await getDocumentStatusBestEffort(send.documentId) : null;
   const recommandStatus = send.success ? (hasAs4Receipt(status?.body) ? "as4_received" : "sent") : "send_failed";
-  const sentAt = send.success ? new Date().toISOString() : null;
+  const sentAt = acceptedAt;
 
   const { error: updateError } = await admin.from(targetTable).update({
    verified_recipient: true,
@@ -311,6 +354,23 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ success: true, documentId: send.documentId, status: recommandStatus, sentAt, remainingCredits: reserved.send_credits });
  } catch (error) {
+  if (providerAccepted) {
+   const { error: acceptedUpdateError } = await admin.from(targetTable).update({
+    recommand_document_id: acceptedDocumentId,
+    recommand_status: "sent",
+    recommand_claimed_at: null,
+    sent_via_recommand_at: acceptedAt,
+   }).eq("id", targetId).eq("user_id", user.id);
+   if (acceptedUpdateError) console.error("Recommand accepted-send recovery update failed");
+   return NextResponse.json({
+    success: true,
+    documentId: acceptedDocumentId || null,
+    status: "sending",
+    sentAt: acceptedAt,
+    remainingCredits: reserved.send_credits,
+    message: "Recommand heeft het document geaccepteerd. De afleverstatus wordt later bijgewerkt; verzend niet opnieuw.",
+   }, { status: 202 });
+  }
   const released = await releaseAfterFailure();
   const { error: updateError } = await admin.from(targetTable).update({
    recommand_status: "send_failed",

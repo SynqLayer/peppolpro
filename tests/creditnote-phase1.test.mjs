@@ -6,6 +6,7 @@ import { validateInvoiceData } from '../lib/ubl-validator.ts';
 import { buildRecommandPayloadFromUbl } from '../lib/ubl-to-recommand.ts';
 import { buildInvoicePreviewFromPayload } from '../lib/invoice-preview.ts';
 import {
+ findOutgoingDocument,
  PEPPOL_BIS_BILLING_CREDIT_NOTE_DOCUMENT_TYPE,
  PEPPOL_BIS_BILLING_INVOICE_DOCUMENT_TYPE,
 } from '../lib/recommand.ts';
@@ -167,6 +168,18 @@ test('send route trusts stored UBL for document type and preserves protected cre
  assert.match(sendRoute, /if \(!claim\)[\s\S]*waitForCompletedSend/);
 });
 
+test('provider acceptance never releases credit when status lookup or persistence fails', () => {
+ assert.match(sendRoute, /async function getDocumentStatusBestEffort/);
+ assert.match(sendRoute, /getDocumentStatusBestEffort\(send\.documentId\)/);
+ assert.match(sendRoute, /let providerAccepted = false/);
+ assert.match(sendRoute, /providerAccepted = send\.success/);
+ assert.match(sendRoute, /existing\.recommand_status === "sending"[\s\S]*findOutgoingDocument/);
+ assert.ok(sendRoute.indexOf('findOutgoingDocument', sendRoute.indexOf('export async function POST')) < sendRoute.indexOf('claimTargetForSending', sendRoute.indexOf('export async function POST')));
+ const catchBlock = sendRoute.match(/\} catch \(error\) \{[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
+ assert.match(catchBlock, /if \(providerAccepted\)/);
+ assert.ok(catchBlock.indexOf('if (providerAccepted)') < catchBlock.indexOf('releaseAfterFailure()'));
+});
+
 test('CreditNote preview labels the correction and avoids due-date wording', () => {
  const payload = buildRecommandPayloadFromUbl(generateUBL(base));
  const preview = buildInvoicePreviewFromPayload(payload.recipient, payload.document, payload.currency);
@@ -185,4 +198,37 @@ test('/nieuw exposes document choice and CreditNote references without changing 
  assert.match(nieuwPage, /originalInvoiceNumber/);
  assert.match(nieuwPage, /originalInvoiceDate/);
  assert.doesNotMatch(convertRoute, /creditNote|CreditNote|originalInvoice/);
+});
+
+test('Recommand reconciliation matches only the exact outgoing company document and recipient', async () => {
+ const oldKey = process.env.RECOMMAND_API_KEY;
+ const oldSecret = process.env.RECOMMAND_API_SECRET;
+ const oldFetch = globalThis.fetch;
+ process.env.RECOMMAND_API_KEY = 'test-key';
+ process.env.RECOMMAND_API_SECRET = 'test-secret';
+ let requestedUrl = '';
+ globalThis.fetch = async (url) => {
+  requestedUrl = String(url);
+  return new Response(JSON.stringify({
+   success: true,
+   documents: [
+    { id: 'wrong', companyId: 'company-1', direction: 'outgoing', receiverId: '0106:99999999', type: 'creditNote', parsed: { creditNoteNumber: 'CN-2026-001' } },
+    { id: 'doc-match', companyId: 'company-1', direction: 'outgoing', receiverId: '0106:87654321', type: 'creditNote', createdAt: '2026-09-10T09:00:00Z', parsed: { creditNoteNumber: 'CN-2026-001' } },
+   ],
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+ };
+ try {
+  const result = await findOutgoingDocument('company-1', 'creditNote', 'CN-2026-001', '0106:87654321');
+  assert.equal(result.checked, true);
+  assert.equal(result.documentId, 'doc-match');
+  assert.equal(result.createdAt, '2026-09-10T09:00:00Z');
+  assert.match(requestedUrl, /companyId=company-1/);
+  assert.match(requestedUrl, /direction=outgoing/);
+  assert.match(requestedUrl, /type=creditNote/);
+  assert.match(requestedUrl, /search=CN-2026-001/);
+ } finally {
+  globalThis.fetch = oldFetch;
+  if (oldKey === undefined) delete process.env.RECOMMAND_API_KEY; else process.env.RECOMMAND_API_KEY = oldKey;
+  if (oldSecret === undefined) delete process.env.RECOMMAND_API_SECRET; else process.env.RECOMMAND_API_SECRET = oldSecret;
+ }
 });
