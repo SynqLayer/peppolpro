@@ -3,8 +3,8 @@ import { RelatedLinks } from "./_components/Page";
 import { pageMetadata } from "@/lib/monitor/site";
 
 export const metadata = pageMetadata({
-  title: "Peppol-Check | Gratis Peppol ID opzoeken",
-  description: "Zoek gratis via de officiële Peppol Directory of een Nederlands bedrijf een Peppol-ID en documenttypen heeft.",
+  title: "Peppol checker | Gratis Peppol ID opzoeken",
+  description: "Gebruik de gratis Peppol checker om via de officiële Peppol Directory te controleren of een Nederlands bedrijf een Peppol-ID en documenttypen heeft.",
   path: "/monitor",
 });
 
@@ -26,6 +26,7 @@ export default function Home() {
         { href: "/monitor/peppol-verplicht-zzp", title: "Peppol verplicht voor zzp?", description: "Nuchtere uitleg voor zelfstandigen zonder harde datums te verzinnen." },
         { href: "/monitor/peppol-verplicht-webshop", title: "Peppol verplicht voor webshops?", description: "Wanneer e-facturatie relevant wordt voor B2B-webshops." },
         { href: "/monitor/peppol-niet-aangesloten-wat-nu", title: "Niet aangesloten: wat nu?", description: "Welke stappen je kunt nemen na een niet-gevonden resultaat." },
+        { href: "/monitor/klanten-controleren-op-peppol", title: "Klanten controleren op Peppol", description: "Voor accountants en kantoren die meerdere klantdossiers willen controleren." },
       ]} />
     </main>
   );

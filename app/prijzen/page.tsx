@@ -1,8 +1,15 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import GlassCard from "../../components/GlassCard";
 import PlanButton from "../../components/PlanButton";
 import { C } from "../../lib/constants";
 import { publicPricingPlans } from "../../lib/plans";
+
+export const metadata: Metadata = {
+ title: "Peppol prijzen en kosten",
+ description: "Bekijk de actuele PeppolPro-prijzen voor UBL-generatie, Peppol-verzending en monitoring. Vergelijk verzendbundels en monitorabonnementen.",
+ alternates: { canonical: "/prijzen" },
+};
 
 export default function PrijzenPage() {
  return (
