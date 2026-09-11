@@ -112,14 +112,14 @@ export const PLANS: Record<PlanId, PlanConfig> = {
 export const CREDIT_BUNDLES: Record<CreditBundleId, CreditBundleConfig> = {
  send_credits_10: {
   id: "send_credits_10",
-  name: "10 verzendingen",
+  name: "10 documenten aanmaken en verzenden",
   price: "€9",
   amount: "9.00",
   period: "eenmalig",
   description: "Voor incidentele Peppol-verzendingen zonder abonnement.",
-  checkoutDescription: "PeppolPro verzendbundel 10 credits",
+  checkoutDescription: "PeppolPro: 10 documenten aanmaken en verzenden",
   features: [
-   "10 Peppol-verzendingen",
+   "10 documenten aanmaken en verzenden",
    "12 maanden geldig vanaf aankoop",
    "Eenmalige betaling, geen incasso",
    "iDEAL beschikbaar bij eenmalige betaling",
@@ -133,14 +133,14 @@ export const CREDIT_BUNDLES: Record<CreditBundleId, CreditBundleConfig> = {
  },
  send_credits_25: {
   id: "send_credits_25",
-  name: "25 verzendingen",
+  name: "25 documenten aanmaken en verzenden",
   price: "€19",
   amount: "19.00",
   period: "eenmalig",
   description: "Voor ondernemers die af en toe batches via Peppol versturen.",
-  checkoutDescription: "PeppolPro verzendbundel 25 credits",
+  checkoutDescription: "PeppolPro: 25 documenten aanmaken en verzenden",
   features: [
-   "25 Peppol-verzendingen",
+   "25 documenten aanmaken en verzenden",
    "12 maanden geldig vanaf aankoop",
    "Eenmalige betaling, geen incasso",
    "iDEAL beschikbaar bij eenmalige betaling",
@@ -155,14 +155,14 @@ export const CREDIT_BUNDLES: Record<CreditBundleId, CreditBundleConfig> = {
  },
  send_credits_50: {
   id: "send_credits_50",
-  name: "50 verzendingen",
+  name: "50 documenten aanmaken en verzenden",
   price: "€34",
   amount: "34.00",
   period: "eenmalig",
   description: "Voor accountants en bedrijven met meerdere verzendingen per jaar.",
-  checkoutDescription: "PeppolPro verzendbundel 50 credits",
+  checkoutDescription: "PeppolPro: 50 documenten aanmaken en verzenden",
   features: [
-   "50 Peppol-verzendingen",
+   "50 documenten aanmaken en verzenden",
    "12 maanden geldig vanaf aankoop",
    "Eenmalige betaling, geen incasso",
    "iDEAL beschikbaar bij eenmalige betaling",

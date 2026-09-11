@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 const migration = readFileSync(new URL('../supabase/migrations/0023_harden_client_table_privileges.sql', import.meta.url), 'utf8');
 const migration0024 = readFileSync(new URL('../supabase/migrations/0024_account_members_service_role_writes.sql', import.meta.url), 'utf8');
 const migration0029 = readFileSync(new URL('../supabase/migrations/0029_conversion_drafts_confirm_flow.sql', import.meta.url), 'utf8');
+const migration0031 = readFileSync(new URL('../supabase/migrations/0031_bundle_ubl_generation_credits.sql', import.meta.url), 'utf8');
 const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
 const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
 const confirmConvertRoute = readFileSync(new URL('../app/api/convert/confirm/route.ts', import.meta.url), 'utf8');
@@ -54,7 +55,9 @@ test('clients, invoice lines, conversions and invoices are authenticated SELECT-
   assert.doesNotMatch(migration, new RegExp(`grant (insert|update|delete)[^;]+public\\.${table} to authenticated`, 'i'));
  }
  assert.match(generateRoute, /const admin = createAdminSupabase\(\)/);
- assert.match(generateRoute, /admin\.from\("conversions"\)\.insert/);
+ assert.match(generateRoute, /admin\.rpc\("create_generated_conversion"/);
+ assert.match(migration0031, /service_role required to create generated conversion/);
+ assert.match(migration0031, /insert into public\.conversions/);
  assert.match(convertRoute, /const admin = createAdminSupabase\(\)/);
  assert.match(convertRoute, /await admin\s*\n\s*\.from\("conversion_drafts"\)\s*\n\s*\.insert/);
  assert.match(confirmConvertRoute, /const admin = createAdminSupabase\(\)/);

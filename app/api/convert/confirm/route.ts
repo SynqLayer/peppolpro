@@ -3,6 +3,7 @@ import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server
 import { validateParsedInvoiceForConversion } from "@/lib/conversion-drafts";
 import { generateUBL, InvoiceData } from "@/lib/ubl-generator";
 import { parseUblSummary, summarizeInvoiceData } from "@/lib/ubl-summary";
+import { documentCreditExhaustedBody } from "@/lib/document-credit";
 
 export async function POST(req: NextRequest) {
  try {
@@ -46,13 +47,14 @@ export async function POST(req: NextRequest) {
    p_total_amount: summary.totalAmount ?? fallbackSummary.totalAmount,
    p_invoice_number: summary.invoiceNumber || fallbackSummary.invoiceNumber,
    p_currency: summary.currency || fallbackSummary.currency,
+   p_document_type: invoiceData.documentType === "creditNote" ? "CreditNote" : "Invoice",
   });
 
   if (error) {
    const msg = error.message || "Bevestigen mislukt";
    if (msg.includes("conversion_draft_not_found")) return NextResponse.json({ error: "Concept niet gevonden" }, { status: 404 });
    if (msg.includes("conversion_draft_expired")) return NextResponse.json({ error: "Concept is verlopen. Upload de PDF opnieuw." }, { status: 410 });
-   if (msg.includes("insufficient_credits")) return NextResponse.json({ error: "Geen gratis UBL-generaties meer. Bekijk de prijzen om verder te gaan.", upgradeUrl: "/prijzen" }, { status: 402 });
+   if (msg.includes("insufficient_credits")) return NextResponse.json(documentCreditExhaustedBody(), { status: 402 });
    return NextResponse.json({ error: "Bevestigen mislukt" }, { status: 500 });
   }
 

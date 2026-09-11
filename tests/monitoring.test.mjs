@@ -31,6 +31,7 @@ const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_cre
 const migration0018 = readFileSync(new URL('../supabase/migrations/0018_webhook_robustness_and_grants.sql', import.meta.url), 'utf8');
 const migration0020 = readFileSync(new URL('../supabase/migrations/0020_harden_billing_table_grants.sql', import.meta.url), 'utf8');
 const migration0030 = readFileSync(new URL('../supabase/migrations/0030_billing_address_validation_and_atomic_invoice_rpc.sql', import.meta.url), 'utf8');
+const migration0031 = readFileSync(new URL('../supabase/migrations/0031_bundle_ubl_generation_credits.sql', import.meta.url), 'utf8');
 const billingLib = readFileSync(new URL('../lib/billing.ts', import.meta.url), 'utf8');
 const invoicePdfLib = readFileSync(new URL('../lib/invoice-pdf.ts', import.meta.url), 'utf8');
 const invoiceRoute = readFileSync(new URL('../app/api/invoices/[invoiceId]/route.ts', import.meta.url), 'utf8');
@@ -155,8 +156,8 @@ test('send credit bundles replace Compleet while monitoring tiers stay configure
  assert.doesNotMatch(plans, /\bcompleet\b/i);
  assert.match(plans, /free:\s*{[\s\S]*Eenmalig 3 gratis UBL-generaties bij registratie/);
  assert.match(plans, /free:\s*{[\s\S]*Geen Peppol-verzending inbegrepen/);
- assert.doesNotMatch(generateRoute, /Koop een verzendbundel om verder te gaan|Bekijk de prijzen om verder te gaan/);
- assert.doesNotMatch(convertRoute, /Koop een verzendbundel om verder te gaan|Bekijk de prijzen om verder te gaan/);
+ assert.match(generateRoute, /documentCreditExhaustedBody/);
+ assert.match(convertRoute, /documentCreditExhaustedBody/);
  assert.match(plans, /send_credits_10:\s*{[\s\S]*amount:\s*"9\.00"/);
  assert.match(plans, /send_credits_25:\s*{[\s\S]*amount:\s*"19\.00"/);
  assert.match(plans, /send_credits_50:\s*{[\s\S]*amount:\s*"34\.00"/);
@@ -720,8 +721,9 @@ test('new invoice flow requires and stores customer email and can send only afte
  assert.doesNotMatch(nieuwPage, /deriveRecommandRecipient\(data\)/);
  assert.match(nieuwPage, /conversionId/);
  assert.match(nieuwPage, /customerEmail/);
- assert.match(generateRoute, /customer_email: invoiceData\.customerEmail\.trim\(\)/);
- assert.match(generateRoute, /conversionId: conversion\.id/);
+ assert.match(generateRoute, /p_customer_email: invoiceData\.customerEmail\.trim\(\)/);
+ assert.match(migration0031, /p_customer_email[\s\S]*insert into public\.conversions/);
+ assert.match(generateRoute, /conversionId: creation\.conversion_id/);
 });
 
 test('subscription cancel route cancels at Mollie but keeps access until period end', () => {

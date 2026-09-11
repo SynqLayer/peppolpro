@@ -12,9 +12,11 @@ const adminPage = readFileSync(new URL('app/admin/page.tsx', root), 'utf8');
 const retentionRoute = readFileSync(new URL('app/api/cron/retention-cleanup/route.ts', root), 'utf8');
 const migration0028 = readFileSync(new URL('supabase/migrations/0028_normalize_conversion_status.sql', root), 'utf8');
 const migration0029 = readFileSync(new URL('supabase/migrations/0029_conversion_drafts_confirm_flow.sql', root), 'utf8');
+const migration0031 = readFileSync(new URL('supabase/migrations/0031_bundle_ubl_generation_credits.sql', root), 'utf8');
 
 test('conversion creation uses done as the only completed conversion status', () => {
- assert.match(generateRoute, /status: "done"/);
+ assert.match(generateRoute, /admin\.rpc\("create_generated_conversion"/);
+ assert.match(migration0031, /p_user_id, p_filename, 'done'/);
  assert.match(migration0029, /insert into public\.conversions/);
  assert.match(migration0029, /'done'/);
  assert.match(migration0028, /set status = 'done'[\s\S]*where status = 'success'/i);
@@ -36,7 +38,7 @@ test('retention cleanup only removes conversion PDFs when a source PDF is actual
  assert.match(conversionCleanupBlock, /select\("id, user_id, created_at"\)/);
  assert.match(conversionCleanupBlock, /\.eq\("source_pdf_stored", true\)/);
  assert.doesNotMatch(conversionCleanupBlock, /\.eq\("status"|\.in\("status"|status:\s*"done"|status:\s*"success"|status:\s*"failed"/);
- assert.match(generateRoute, /source_pdf_stored: false/);
+ assert.match(migration0031, /p_currency, false, v_type/);
  assert.match(migration0029, /source_pdf_stored boolean not null default true/);
  assert.match(migration0029, /source_pdf_stored[\s\S]*\) values \([\s\S]*false/);
 });
