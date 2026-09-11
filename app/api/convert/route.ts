@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, createServerSupabase } from "../../../lib/supabase-server";
 import { parseInvoicePDF, describeInvoiceParserError, InvoiceParserError, validateParsedInvoiceForConversion } from "../../../lib/invoice-parser";
 import { conversionDraftExpiresAt, parsedInvoiceToDraft, publicDraftPayload } from "../../../lib/conversion-drafts";
+import { documentCreditExhaustedBody } from "../../../lib/document-credit";
 
 export const maxDuration = 60;
 
@@ -104,6 +105,17 @@ export async function POST(request: NextRequest) {
   }
 
   const draft = parsedInvoiceToDraft(parsed);
+  const { data: creditAllowed, error: creditCheckError } = await admin.rpc("can_use_credit", {
+   p_user_id: user.id,
+   p_document_type: "Invoice",
+   p_document_number: draft.invoiceData.invoiceNumber,
+  });
+  if (creditCheckError) {
+   console.error("Document credit check failed", { userId: user.id, error: creditCheckError.message });
+   return NextResponse.json({ error: "Tegoed controleren mislukt" }, { status: 500 });
+  }
+  if (creditAllowed !== true) return NextResponse.json(documentCreditExhaustedBody(), { status: 402 });
+
   const { data: created, error } = await admin
    .from("conversion_drafts")
    .insert({

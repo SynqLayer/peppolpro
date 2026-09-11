@@ -14,8 +14,8 @@ const migration0016 = readFileSync(new URL('../supabase/migrations/0016_send_cre
 const migration0019 = readFileSync(new URL('../supabase/migrations/0019_idempotent_send_credit_grants.sql', import.meta.url), 'utf8');
 const migration0021 = readFileSync(new URL('../supabase/migrations/0021_lock_down_security_definer_rpcs.sql', import.meta.url), 'utf8');
 const migration0022 = readFileSync(new URL('../supabase/migrations/0022_release_ubl_credit.sql', import.meta.url), 'utf8');
-const migration0029 = readFileSync(new URL('../supabase/migrations/0029_conversion_drafts_confirm_flow.sql', import.meta.url), 'utf8');
 const migration0030 = readFileSync(new URL('../supabase/migrations/0030_billing_address_validation_and_atomic_invoice_rpc.sql', import.meta.url), 'utf8');
+const migration0031 = readFileSync(new URL('../supabase/migrations/0031_bundle_ubl_generation_credits.sql', import.meta.url), 'utf8');
 const generateRoute = readFileSync(new URL('../app/api/generate/route.ts', import.meta.url), 'utf8');
 const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.meta.url), 'utf8');
 const confirmConvertRoute = readFileSync(new URL('../app/api/convert/confirm/route.ts', import.meta.url), 'utf8');
@@ -25,6 +25,7 @@ const pricingPage = readFileSync(new URL('../app/prijzen/page.tsx', import.meta.
 const upgradePage = readFileSync(new URL('../app/upgrade/page.tsx', import.meta.url), 'utf8');
 const peppolSendPage = readFileSync(new URL('../app/peppol-factuur-versturen/page.tsx', import.meta.url), 'utf8');
 const brevoSource = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
+const documentCredit = readFileSync(new URL('../lib/document-credit.ts', import.meta.url), 'utf8');
 
 test('send credit bundles replace old sending subscriptions in plan source', () => {
  assert.deepEqual(creditBundles.map((bundle) => [bundle.id, bundle.credits, bundle.amount]), [
@@ -89,6 +90,103 @@ test('send credit grant is idempotent when a Mollie webhook retries after partia
  assert.match(migration0019, /grant execute on function public\.grant_send_credit_bundle/);
 });
 
+test('bundle grant atomically grants N send credits and N document credits', () => {
+ const grant = migration0031.match(/create or replace function public\.grant_send_credit_bundle[\s\S]*?\n\$\$;/)?.[0] || '';
+ const generationTrigger = migration0031.match(/create or replace function public\.grant_bundle_ubl_credits_from_purchase[\s\S]*?\n\$\$;/)?.[0] || '';
+ assert.match(grant, /insert into public\.send_credit_purchases[\s\S]*on conflict \(payment_id\) do nothing[\s\S]*returning id into v_purchase_id/);
+ assert.match(grant, /set send_credits = send_credits \+ p_credits/);
+ assert.match(generationTrigger, /insert into public\.bundle_ubl_credit_grants[\s\S]*'bundle_purchase'/);
+ assert.match(generationTrigger, /set credits = credits \+ new\.credits/);
+ assert.match(migration0031, /after insert on public\.send_credit_purchases[\s\S]*grant_bundle_ubl_credits_from_purchase/);
+ assert.match(grant, /security definer[\s\S]*service_role required to grant send credits/);
+});
+
+test('historical bundle backfill is idempotent per paid purchase', () => {
+ assert.match(migration0031, /create table if not exists public\.bundle_ubl_credit_grants/);
+ assert.match(migration0031, /purchase_id uuid primary key references public\.send_credit_purchases\(id\)/);
+ const backfill = migration0031.match(/with claimed as \([\s\S]*?where up\.id = totals\.user_id;/)?.[0] || '';
+ assert.match(backfill, /'bundle_backfill'/);
+ assert.match(backfill, /on conflict \(purchase_id\) do nothing/);
+ assert.match(backfill, /set credits = up\.credits \+ totals\.credits/);
+ assert.match(migration0031, /lock table public\.send_credit_purchases in share row exclusive mode/);
+});
+
+test('document credit consumption is keyed by user, type and normalized number', () => {
+ assert.match(migration0031, /primary key \(user_id, document_type, normalized_document_number\)/);
+ assert.match(migration0031, /document_type text not null check \(document_type in \('Invoice', 'CreditNote'\)\)/);
+ const consume = migration0031.match(/create or replace function public\.use_credit\(\s*p_user_id uuid,\s*p_document_type text[\s\S]*?\n\$\$;/)?.[0] || '';
+ assert.match(consume, /if exists \([\s\S]*ubl_credit_consumptions[\s\S]*return query select true, false/);
+ assert.match(consume, /set credits = credits - 1[\s\S]*credits > 0/);
+ assert.match(consume, /insert into public\.ubl_credit_consumptions/);
+ assert.match(generateRoute, /admin\.rpc\("create_generated_conversion"/);
+ assert.match(generateRoute, /p_document_type: canonicalDocumentType/);
+ assert.match(generateRoute, /p_invoice_number: documentNumber/);
+ assert.match(confirmConvertRoute, /p_document_type: invoiceData\.documentType === "creditNote" \? "CreditNote" : "Invoice"/);
+ assert.match(migration0031, /select \* into v_credit from public\.use_credit\(p_user_id, v_type, p_invoice_number\)/);
+});
+
+test('manual generation debit and conversion insert share one database transaction', () => {
+ const createConversion = migration0031.match(/create or replace function public\.create_generated_conversion\([\s\S]*?\n\$\$;/)?.[0] || '';
+ assert.match(createConversion, /security definer/);
+ assert.match(createConversion, /select \* into v_credit from public\.use_credit/);
+ assert.match(createConversion, /insert into public\.conversions/);
+ assert.match(createConversion, /return query select v_conversion_id, coalesce\(v_credit\.credit_used, false\)/);
+ assert.doesNotMatch(generateRoute, /from\("conversions"\)\.insert|releaseUblCredit|release_ubl_credit/);
+});
+
+test('paid generation records the document key so regeneration stays free after downgrade', () => {
+ const consume = migration0031.match(/create or replace function public\.use_credit\(\s*p_user_id uuid,\s*p_document_type text[\s\S]*?\n\$\$;/)?.[0] || '';
+ assert.match(consume, /if v_plan <> 'free' then[\s\S]*insert into public\.ubl_credit_consumptions[\s\S]*on conflict \(user_id, document_type, normalized_document_number\) do nothing[\s\S]*return query select true, false/);
+});
+
+test('migration remains compatible with the previous deployed generation routes', () => {
+ assert.match(migration0031, /create or replace function public\.use_credit\(p_user_id uuid\)[\s\S]*returns boolean/);
+ assert.match(migration0031, /create or replace function public\.release_ubl_credit\(p_user_id uuid\)/);
+ assert.match(migration0031, /create or replace function public\.confirm_conversion_draft\([\s\S]*p_currency text\s*\)[\s\S]*p_ubl_xml like '%<ubl:CreditNote %'[\s\S]*then 'CreditNote'/);
+ assert.match(migration0031, /before insert on public\.conversions[\s\S]*record_ubl_credit_consumption_from_conversion/);
+ assert.match(migration0031, /new\.ubl_xml like '%<ubl:CreditNote %'[\s\S]*new\.document_type := v_type/);
+ assert.match(migration0031, /revoke all on function public\.use_credit\(uuid\) from public, anon, authenticated, hermes_operator/);
+});
+
+test('zero-credit API contract points to bundles while a bundle grant adds generation credit', () => {
+ assert.match(documentCredit, /Je tegoed voor het aanmaken van documenten is op\. Met een verzendbundel maak en verstuur je weer documenten\./);
+ assert.match(documentCredit, /DOCUMENT_CREDIT_UPGRADE_URL = "\/prijzen"/);
+ assert.match(generateRoute, /documentCreditExhaustedBody\(\)/);
+ assert.match(convertRoute, /admin\.rpc\("can_use_credit"/);
+ assert.match(convertRoute, /documentCreditExhaustedBody\(\)/);
+ assert.match(confirmConvertRoute, /documentCreditExhaustedBody\(\)/);
+ assert.match(migration0031, /set send_credits = send_credits \+ p_credits/);
+ assert.match(migration0031, /set credits = credits \+ new\.credits/);
+});
+
+test('new credit tables and RPCs remain inaccessible to anon and authenticated attackers', () => {
+ for (const table of ['ubl_credit_consumptions', 'bundle_ubl_credit_grants']) {
+  assert.match(migration0031, new RegExp(`revoke all on table public\\.${table} from public, anon, authenticated, hermes_operator`));
+ }
+ for (const fn of [
+  'use_credit\\(uuid, text, text\\)',
+  'can_use_credit\\(uuid, text, text\\)',
+  'create_generated_conversion\\(uuid, text, text, text, text, numeric, text, text, text\\)',
+  'grant_send_credit_bundle\\(uuid, text, integer, numeric, text, timestamptz\\)',
+  'confirm_conversion_draft\\(uuid, uuid, text, text, text, text, text, numeric, text, text, text\\)',
+ ]) {
+  assert.match(migration0031, new RegExp(`revoke all on function public\\.${fn} from public, anon, authenticated, hermes_operator`));
+  assert.match(migration0031, new RegExp(`grant execute on function public\\.${fn} to service_role`));
+ }
+ assert.match(migration0031, /revoke all on function public\.grant_bundle_ubl_credits_from_purchase\(\) from public, anon, authenticated, hermes_operator/);
+ assert.doesNotMatch(migration0031, /grant execute on function public\.grant_bundle_ubl_credits_from_purchase/);
+ assert.doesNotMatch(migration0031, /grant execute on function public\.[^;]+ to (anon|authenticated)/);
+});
+
+test('bundle labels promise matching creation and sending quantities without changing prices', () => {
+ for (const quantity of [10, 25, 50]) assert.match(plans, new RegExp(`${quantity} documenten aanmaken en verzenden`));
+ assert.deepEqual(creditBundles.map((bundle) => [bundle.id, bundle.credits, bundle.amount]), [
+  ['send_credits_10', 10, '9.00'],
+  ['send_credits_25', 25, '19.00'],
+  ['send_credits_50', 50, '34.00'],
+ ]);
+});
+
 test('security-definer credit RPCs are service-role only with defense-in-depth guards', () => {
  for (const fn of [
   'use_credit\\(uuid\\)',
@@ -121,9 +219,8 @@ test('security-definer credit RPCs are service-role only with defense-in-depth g
 
 test('routes call credit RPCs with the service-role admin client after auth', () => {
  assert.match(generateRoute, /createAdminSupabase/);
- assert.match(generateRoute, /admin\.rpc\("use_credit"/);
- assert.match(generateRoute, /admin\.rpc\("release_ubl_credit"/);
- assert.doesNotMatch(generateRoute, /supabase\.rpc\("use_credit"/);
+ assert.match(generateRoute, /admin\.rpc\("create_generated_conversion"/);
+ assert.doesNotMatch(generateRoute, /supabase\.rpc\("create_generated_conversion"/);
  assert.match(convertRoute, /createAdminSupabase/);
  assert.doesNotMatch(convertRoute, /rpc\("use_credit"/);
  assert.doesNotMatch(convertRoute, /rpc\("release_ubl_credit"/);
@@ -171,23 +268,21 @@ test('send route releases reserved credits on provider-side failure paths', () =
 
 
 
-test('UBL credit debit is atomic and retained when only source PDF storage fails', () => {
- assert.match(migration0021, /update public\.user_profiles\s+set credits = credits - 1\s+where id = p_user_id and credits > 0/);
- assert.match(migration0022, /update public\.user_profiles up\s+set credits = up\.credits \+ 1\s+where up\.id = p_user_id\s+returning up\.credits/);
-
- const generateDebitToInsertFailure = generateRoute.match(/admin\.rpc\("use_credit"[\s\S]*?if \(conversionError \|\| !conversion\) \{[\s\S]*?\}/)?.[0] || '';
- assert.match(generateDebitToInsertFailure, /use_credit/);
- assert.match(generateDebitToInsertFailure, /releaseUblCredit\(admin, user\.id\)/);
- assert.match(generateDebitToInsertFailure, /Factuur kon niet worden opgeslagen/);
+test('UBL credit debit and storage are atomic in database RPCs', () => {
+ assert.match(migration0031, /update public\.user_profiles\s+set credits = credits - 1\s+where id = p_user_id and credits > 0/);
+ const atomicCreate = migration0031.match(/create or replace function public\.create_generated_conversion\([\s\S]*?\n\$\$;/)?.[0] || '';
+ assert.match(atomicCreate, /public\.use_credit/);
+ assert.match(atomicCreate, /insert into public\.conversions/);
+ assert.match(generateRoute, /admin\.rpc\("create_generated_conversion"/);
 
  assert.doesNotMatch(convertRoute, /admin\.rpc\("use_credit"|releaseUblCredit\(admin, user\.id\)|from\("conversions"\)\.insert/);
  assert.match(confirmConvertRoute, /validateParsedInvoiceForConversion\(invoiceData\)/);
  assert.match(confirmConvertRoute, /admin\.rpc\("confirm_conversion_draft"/);
- assert.match(migration0029, /set credits = credits - 1/);
- assert.match(migration0029, /insert into public\.conversions/);
- assert.match(migration0029, /'done'/);
- assert.match(migration0029, /for update/);
- assert.match(migration0029, /return query select v_draft\.conversion_id, true, false/);
+ assert.match(migration0031, /select \* into v_credit from public\.use_credit/);
+ assert.match(migration0031, /insert into public\.conversions/);
+ assert.match(migration0031, /'done'/);
+ assert.match(migration0031, /for update/);
+ assert.match(migration0031, /return query select v_draft\.conversion_id, true, false/);
  assert.doesNotMatch(`${generateRoute}\n${convertRoute}\n${confirmConvertRoute}`, /credits\s*=\s*credits\s*-\s*1/);
 });
 

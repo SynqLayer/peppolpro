@@ -3,11 +3,7 @@ import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server
 import { generateUBL, InvoiceData } from "@/lib/ubl-generator";
 import { validateInvoiceData } from "@/lib/ubl-validator";
 import { parseUblSummary, summarizeInvoiceData } from "@/lib/ubl-summary";
-
-async function releaseUblCredit(admin: ReturnType<typeof createAdminSupabase>, userId: string) {
- const { data } = await admin.rpc("release_ubl_credit", { p_user_id: userId }).maybeSingle<{ credits: number }>();
- return data || null;
-}
+import { documentCreditExhaustedBody } from "@/lib/document-credit";
 
 export async function POST(req: NextRequest) {
  try {
@@ -31,52 +27,31 @@ export async function POST(req: NextRequest) {
  const xml = generateUBL(invoiceData);
  const summary = parseUblSummary(xml);
  const fallbackSummary = summarizeInvoiceData(invoiceData);
-
- const { data: profile } = await supabase
- .from("user_profiles")
- .select("credits, plan")
- .eq("id", user.id)
- .single();
-
- if (profile?.plan === "free" && (profile?.credits ?? 0) <= 0) {
- return NextResponse.json(
- { error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." },
- { status: 402 }
- );
- }
-
- let ublCreditDebited = false;
  const admin = createAdminSupabase();
- if (profile?.plan === "free") {
- const { data: creditUsed, error: creditError } = await admin.rpc("use_credit", { p_user_id: user.id });
- if (creditError || creditUsed !== true) {
- return NextResponse.json(
- { error: "Je gratis UBL-generaties zijn op. Neem contact op via info@synqlayer.com, dan kijken we mee." },
- { status: 402 }
- );
+ const canonicalDocumentType = documentType === "creditNote" ? "CreditNote" : "Invoice";
+ const documentNumber = summary.invoiceNumber || fallbackSummary.invoiceNumber || invoiceData.invoiceNumber;
+ const { data: creationResult, error: creationError } = await admin.rpc("create_generated_conversion", {
+  p_user_id: user.id,
+  p_filename: `peppolpro-${invoiceData.invoiceNumber}.xml`,
+  p_ubl_xml: xml,
+  p_customer_name: summary.customerName || fallbackSummary.customerName,
+  p_customer_email: invoiceData.customerEmail.trim(),
+  p_total_amount: summary.totalAmount ?? fallbackSummary.totalAmount,
+  p_invoice_number: documentNumber,
+  p_currency: summary.currency || fallbackSummary.currency,
+  p_document_type: canonicalDocumentType,
+ });
+ if (creationError) {
+  if (creationError.message?.includes("insufficient_credits")) {
+   return NextResponse.json(documentCreditExhaustedBody(), { status: 402 });
+  }
+  console.error("Atomic document generation failed", { userId: user.id, documentType: canonicalDocumentType, error: creationError.message });
+  return NextResponse.json({ error: "Factuur kon niet worden opgeslagen" }, { status: 500 });
  }
- ublCreditDebited = true;
- }
+ const creation = Array.isArray(creationResult) ? creationResult[0] : creationResult;
+ if (!creation?.conversion_id) return NextResponse.json({ error: "Factuur kon niet worden opgeslagen" }, { status: 500 });
 
- const { data: conversion, error: conversionError } = await admin.from("conversions").insert({
-  user_id: user.id,
-  filename: `peppolpro-${invoiceData.invoiceNumber}.xml`,
-  status: "done",
-  ubl_xml: xml,
-  customer_name: summary.customerName || fallbackSummary.customerName,
-  customer_email: invoiceData.customerEmail.trim(),
-  total_amount: summary.totalAmount ?? fallbackSummary.totalAmount,
-  invoice_number: summary.invoiceNumber || fallbackSummary.invoiceNumber,
-  currency: summary.currency || fallbackSummary.currency,
-  source_pdf_stored: false,
-  }).select("id").single();
-
- if (conversionError || !conversion) {
-   if (ublCreditDebited) await releaseUblCredit(admin, user.id);
-    return NextResponse.json({ error: "Factuur kon niet worden opgeslagen" }, { status: 500 });
- }
-
- return NextResponse.json({ xml, conversionId: conversion.id, totalAmount: summary.totalAmount ?? fallbackSummary.totalAmount, currency: summary.currency || fallbackSummary.currency });
+ return NextResponse.json({ xml, conversionId: creation.conversion_id, totalAmount: summary.totalAmount ?? fallbackSummary.totalAmount, currency: summary.currency || fallbackSummary.currency });
  } catch (err) {
  console.error("Generate error:", err);
  return NextResponse.json({ error: "Generatie mislukt" }, { status: 500 });

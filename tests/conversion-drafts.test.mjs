@@ -8,6 +8,7 @@ const convertRoute = readFileSync(new URL('../app/api/convert/route.ts', import.
 const confirmRoute = readFileSync(new URL('../app/api/convert/confirm/route.ts', import.meta.url), 'utf8');
 const convertPage = readFileSync(new URL('../app/convert/page.tsx', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../supabase/migrations/0029_conversion_drafts_confirm_flow.sql', import.meta.url), 'utf8');
+const migration0031 = readFileSync(new URL('../supabase/migrations/0031_bundle_ubl_generation_credits.sql', import.meta.url), 'utf8');
 const retentionRoute = readFileSync(new URL('../app/api/cron/retention-cleanup/route.ts', import.meta.url), 'utf8');
 
 const parsed = {
@@ -26,6 +27,12 @@ test('PDF parse step creates a conversion draft without charging credit or writi
  assert.doesNotMatch(convertRoute, /generateUBL\(/);
  assert.doesNotMatch(convertRoute, /convert_success/);
  assert.doesNotMatch(convertRoute, /storage\.from\("invoices"\)\.upload/);
+});
+
+test('PDF draft preflight allows a funded account to correct a missing parsed invoice number', () => {
+ const canUseCredit = migration0031.match(/create or replace function public\.can_use_credit\([\s\S]*?\n\$\$;/)?.[0] || '';
+ assert.match(convertRoute, /p_document_number: draft\.invoiceData\.invoiceNumber/);
+ assert.match(canUseCredit, /if v_plan <> 'free' or v_credits > 0 then return true; end if;[\s\S]*if v_number = '' then return false/);
 });
 
 test('cancel keeps a saved draft client-side without hitting the confirm route', () => {
