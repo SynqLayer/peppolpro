@@ -474,11 +474,11 @@ test('monitoring paid plans start a Mollie recurring subscription and invoice fl
  assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
 });
 
-test('invoice route downloads only own stored billing PDFs with generated fallback', () => {
+test('invoice route downloads only own archived billing PDFs without regeneration', () => {
  assert.match(invoiceRoute, /export async function GET/);
  assert.match(invoiceRoute, /eq\("user_id", user\.id\)/);
  assert.match(invoiceRoute, /storage\.from\("invoices"\)\.download/);
- assert.match(invoiceRoute, /generateBillingInvoicePdf/);
+ assert.doesNotMatch(invoiceRoute, /generateBillingInvoicePdf/);
  assert.match(invoiceRoute, /Content-Type": "application\/pdf"/);
  assert.match(invoiceRoute, /"Cache-Control": "no-store"/);
  assert.match(invoicePdfLib, /PDFDocument\.create/);

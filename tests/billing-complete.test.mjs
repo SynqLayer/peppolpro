@@ -26,7 +26,7 @@ test('credit bundle invoices describe the purchased bundle size', () => {
  assert.match(invoicePdf, /Dit bedrag is reeds voldaan\. U hoeft niets te betalen\./);
  assert.doesNotMatch(invoicePdf, /server-side bewaard volgens de wettelijke bewaartermijn/);
  assert.match(billingLib, /payments\(mollie_payment_id, plan, credits\)/);
- assert.match(invoiceRoute, /payments\(plan, credits\)/);
+ assert.doesNotMatch(invoiceRoute, /payments\(/);
 });
 
 test('billing email failures are explicit and invoices track Brevo delivery status', () => {
