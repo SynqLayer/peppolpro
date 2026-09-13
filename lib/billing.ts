@@ -206,6 +206,7 @@ export async function ensurePaymentInvoice({
  .select("id, invoice_number, email_status")
  .eq("payment_id", paymentRow.id)
  .neq("invoice_kind", "credit")
+ .is("payment_adjustment_key", null)
  .maybeSingle();
  if (existingError) throw existingError;
  if (existing) {

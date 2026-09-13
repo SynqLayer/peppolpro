@@ -46,6 +46,13 @@ export async function POST(request: NextRequest) {
    return NextResponse.json({ error: "Bestand mag maximaal 10MB zijn" }, { status: 400 });
   }
 
+  const { data: budget, error: budgetError } = await admin.rpc("claim_request_budget", {
+   p_kind: "parse", p_subject: user.id, p_user_id: user.id,
+  });
+  if (budgetError || !budget) return NextResponse.json({ error: "Factuurherkenning is tijdelijk niet beschikbaar." }, { status: 503 });
+  if (budget === "no_credit") return NextResponse.json(documentCreditExhaustedBody(), { status: 402 });
+  if (budget !== "allowed") return NextResponse.json({ error: "De limiet voor factuurherkenning is bereikt. Probeer het later opnieuw of gebruik Nieuwe factuur." }, { status: 429 });
+
   const filename = file.name;
   const arrayBuffer = await file.arrayBuffer();
   const base64 = Buffer.from(arrayBuffer).toString("base64");

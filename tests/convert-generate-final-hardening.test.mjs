@@ -94,6 +94,6 @@ test('Mollie webhook passes service-role client into billing invoice creation', 
   assert.match(mollieWebhook, /function createAdminClient\(\)[\s\S]*SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(mollieWebhook, /const supabase = createAdminClient\(\)/);
   assert.match(mollieWebhook, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription/);
-  assert.match(mollieWebhook, /await ensureCreditInvoice\(\{ supabase, payment, paymentRow, subscription/);
-  assert.match(mollieWebhook, /await ensureCreditInvoice\(\{ supabase, payment, paymentRow, subscription: null \}\)/);
+  assert.match(mollieWebhook, /supabase\.rpc\("apply_mollie_payment_adjustments"/);
+  assert.match(mollieWebhook, /await sendAdjustmentInvoices\(supabase, paymentRow\.id\)/);
 });

@@ -372,9 +372,9 @@ test('mollie webhook handles subscription renewals, grace period, cancellation a
  assert.match(mollieWebhookRoute, /subscription_status: "active"/);
  assert.match(mollieWebhookRoute, /GRACE_DAYS/);
  assert.match(mollieWebhookRoute, /current_period_end: addDays\(new Date\(\), GRACE_DAYS\)/);
- assert.match(mollieWebhookRoute, /payment\.status === "refunded" \|\| payment\.status === "charged_back"/);
+ assert.match(mollieWebhookRoute, /getPaymentAdjustments\(payment\.id\)/);
  assert.match(mollieWebhookRoute, /cancelKnownSubscription/);
- assert.match(mollieWebhookRoute, /setFree\(supabase, userId, "canceled"\)/);
+ assert.match(mollieWebhookRoute, /current\?\.last_payment_id === payment\.id/);
  assert.match(mollieWebhookRoute, /subscription\.status === "canceled" \|\| subscription\.status === "suspended"/);
 });
 
@@ -413,7 +413,7 @@ test('paid subscription payments create invoices and refunds create separate cre
  assert.match(billingLib, /invoiceKind: "credit"/);
  assert.match(billingLib, /original_invoice_number/);
  assert.match(mollieWebhookRoute, /ensurePaymentInvoice/);
- assert.match(mollieWebhookRoute, /ensureCreditInvoice/);
+ assert.match(mollieWebhookRoute, /apply_mollie_payment_adjustments/);
 });
 
 test('paid and credit billing invoices are emailed with generated PDF attachments', () => {
@@ -427,7 +427,7 @@ test('paid and credit billing invoices are emailed with generated PDF attachment
  assert.match(billingLib, /await sendBillingInvoiceEmail\(supabase, invoice\.id\)/);
  assert.match(billingLib, /await sendBillingInvoiceEmail\(supabase, creditInvoice\.id\)/);
  assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
- assert.match(mollieWebhookRoute, /await ensureCreditInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
+ assert.match(mollieWebhookRoute, /await sendAdjustmentInvoices\(supabase, paymentRow\.id\)/);
 });
 
 test('monitoring paid plans start a Mollie recurring subscription and invoice flow while credit bundles stay one-off', () => {
@@ -523,10 +523,10 @@ test('Recommand send route refuses duplicate voided targets before provider call
  assert.match(recommandRoute, /function isVoidedDuplicate/);
  assert.match(recommandRoute, /recommand_status === "duplicate_voided"/);
  assert.match(recommandRoute, /if \(isVoidedDuplicate\(existing\)\) return jsonError\("Deze factuur is gemarkeerd als dubbel\/voided/);
- assert.match(recommandRoute, /rpc\("claim_recommand_send_target"/);
+ assert.match(recommandRoute, /rpc\("claim_recommand_send_with_credit"/);
  assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
  assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('fromUbl = buildRecommandPayloadFromUbl'));
- assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const reserved = await reserveSendCredit'));
+ assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const claim = await claimTargetForSending'));
 });
 
 test('dashboard keeps Peppol Inbox notice only in action points without upgrade plan button', () => {
@@ -553,7 +553,7 @@ test('Recommand integration verifies recipients before send, gates plan limit, a
  assert.match(recommandRoute, /recommand_company_id, recommand_verified/);
  assert.match(recommandRoute, /profile\.recommand_company_id/);
  assert.doesNotMatch(recommandRoute, /process\.env\.RECOMMAND_COMPANY_ID/);
- assert.match(recommandRoute, /rpc\("reserve_send_credit"/);
+ assert.match(recommandRoute, /rpc\("claim_recommand_send_with_credit"/);
  assert.match(recommandRoute, /sent_via_recommand_at/);
  assert.match(recommandRoute, /Je hebt geen geldig verzendtegoed/);
  assert.match(recommandRoute, /verifyRecipient\(recipient\)/);

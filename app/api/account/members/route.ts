@@ -51,6 +51,11 @@ export async function PATCH(req: NextRequest) {
  const supabase = await createServerSupabase();
  const { data: { user } } = await supabase.auth.getUser();
  if (!user?.email) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+ // Auto-confirmed legacy identities have no proof that a confirmation was sent.
+ if (!user.email_confirmed_at || !user.confirmation_sent_at ||
+     Date.parse(user.email_confirmed_at) < Date.parse(user.confirmation_sent_at)) {
+  return NextResponse.json({ error: "Bevestig eerst je e-mailadres voordat je een teamuitnodiging accepteert." }, { status: 403 });
+ }
  const body = await req.json().catch(() => ({}));
  const id = clean(body.id);
  if (!id) return NextResponse.json({ error: "Invite-id ontbreekt" }, { status: 400 });
@@ -69,6 +74,8 @@ export async function PATCH(req: NextRequest) {
  .from("account_members")
  .update({ member_user_id: user.id, accepted_at: new Date().toISOString(), status: "accepted" })
  .eq("id", id)
+ .eq("status", "pending")
+ .is("accepted_at", null)
  .select(memberColumns)
  .single();
  if (error) return NextResponse.json({ error: "Uitnodiging accepteren mislukt" }, { status: 500 });

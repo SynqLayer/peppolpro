@@ -87,7 +87,7 @@ test('send route checks consistency before target claim, provider calls or credi
  assert.match(sendRoute, /validateStoredInvoiceConsistency\(existing\.total_amount, existing\.ubl_xml\)/);
  const beforeConsistency = sendRoute.match(/const existing = await fetchTarget[\s\S]*?const consistency = validateStoredInvoiceConsistency/)?.[0] || '';
  assert.match(beforeConsistency, /hasCompletedSend\(existing\)/);
- const consistencyBeforeCredit = sendRoute.match(/const consistency = validateStoredInvoiceConsistency[\s\S]*?const reserved = await reserveSendCredit/)?.[0] || '';
+ const consistencyBeforeCredit = sendRoute.match(/const consistency = validateStoredInvoiceConsistency[\s\S]*?const claim = await claimTargetForSending/)?.[0] || '';
  assert.match(consistencyBeforeCredit, /return jsonError\(consistency\.error, 409\)/);
  assert.doesNotMatch(consistencyBeforeCredit, /reserveSendCredit\(|sendDocument\(|verifyRecipient\(/);
 });

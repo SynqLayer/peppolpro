@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
  .select("id, identifier_type, identifier_value, label, status, last_checked_at, created_at")
  .single();
 
- if (error) return NextResponse.json({ error: "Target kon niet worden toegevoegd" }, { status: 500 });
+ if (error) return NextResponse.json({ error: error.code === "42501" ? "Je abonnement of targetlimiet staat deze toevoeging niet toe." : "Target kon niet worden toegevoegd" }, { status: error.code === "42501" ? 403 : 500 });
  return NextResponse.json({ target: data });
  } catch (err) {
  const message = err instanceof Error ? err.message : "Onbekende fout";

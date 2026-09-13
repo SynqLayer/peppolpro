@@ -41,6 +41,9 @@ type TargetRow = {
 type ClaimRow = TargetRow & {
  claimed?: boolean | null;
  claim_action?: string | null;
+ reservation_id: string;
+ claim_token: string;
+ send_credits: number;
 };
 
 type CreditRow = {
@@ -54,7 +57,6 @@ const CONVERSION_TARGET_SELECT = "id, user_id, ubl_xml, total_amount, recommand_
 const INVOICE_TARGET_SELECT = "id, user_id, ubl_xml, total_incl, recommand_document_id, recommand_status, recommand_claimed_at, sent_via_recommand_at";
 const PROCESSING_WAIT_ATTEMPTS = 20;
 const PROCESSING_WAIT_MS = 1000;
-const RECOMMAND_SEND_STALE_AFTER_MINUTES = 10;
 
 function jsonError(message: string, status: number, extra: Record<string, unknown> = {}) {
  return NextResponse.json({ success: false, error: message, ...extra }, { status });
@@ -150,45 +152,23 @@ async function waitForCompletedSend(supabase: Awaited<ReturnType<typeof createSe
 
 async function claimTargetForSending(supabase: ReturnType<typeof createAdminSupabase>, table: "conversions" | "invoices", targetId: string, userId: string) {
  const { data, error } = await supabase
-  .rpc("claim_recommand_send_target", {
+  .rpc("claim_recommand_send_with_credit", {
    p_target_table: table,
    p_target_id: targetId,
    p_user_id: userId,
-   p_stale_after_minutes: RECOMMAND_SEND_STALE_AFTER_MINUTES,
   })
   .maybeSingle<ClaimRow>();
- if (error) throw error;
- if (!data || data.claimed !== true) return null;
- return data;
-}
-
-async function resetSendingClaim(supabase: ReturnType<typeof createAdminSupabase>, table: "conversions" | "invoices", targetId: string, userId: string) {
- const { error } = await supabase
-  .from(table)
-  .update({ recommand_status: null, recommand_claimed_at: null })
-  .eq("id", targetId)
-  .eq("user_id", userId)
-  .eq("recommand_status", "sending")
-  .is("recommand_document_id", null)
-  .is("sent_via_recommand_at", null);
- if (error) throw error;
-}
-
-async function reserveSendCredit(supabase: ReturnType<typeof createAdminSupabase>, userId: string) {
- const { data, error } = await supabase
-  .rpc("reserve_send_credit", { p_user_id: userId })
-  .maybeSingle<CreditRow>();
  if (error) throw error;
  if (!data) return null;
  return data;
 }
 
-async function releaseSendCredit(supabase: ReturnType<typeof createAdminSupabase>, userId: string) {
- const { data, error } = await supabase
-  .rpc("release_send_credit", { p_user_id: userId })
-  .maybeSingle<CreditRow>();
- if (error) throw error;
- return data || null;
+async function releaseSendCredit(supabase: ReturnType<typeof createAdminSupabase>, userId: string, claim: ClaimRow) {
+ const { data, error } = await supabase.rpc("release_recommand_reservation", {
+  p_user_id: userId, p_reservation_id: claim.reservation_id, p_claim_token: claim.claim_token,
+ }).maybeSingle<CreditRow>();
+ if (error || !data) throw error || new Error("Creditvrijgave kon niet worden bevestigd");
+ return data;
 }
 
 async function refundUblGenerationCreditAfterFailure(
@@ -327,23 +307,24 @@ export async function POST(request: NextRequest) {
  }
 
  const claim = await claimTargetForSending(admin, targetTable, targetId, user.id);
- if (!claim) {
+ if (claim?.claim_action === "no_credit") return jsonError("Je hebt geen geldig verzendtegoed. Koop een verzendbundel om via Peppol te verzenden.", 402, { upgradeUrl: "/upgrade", remainingCredits: 0 });
+ if (claim?.claim_action === "duplicate_document") return jsonError("Dit document is al verzonden. Open het oorspronkelijke document voor de afleverstatus.", 409);
+ if (claim?.claim_action === "manual_reconciliation") return unknownSendOutcomeResponse();
+ if (!claim?.claimed) {
   const completed = await waitForCompletedSend(supabase, targetTable, targetId, user.id);
   if (completed) return existingSendResponse(completed);
   return inProgressSendResponse();
  }
 
- const reserved = await reserveSendCredit(admin, user.id);
- if (!reserved) {
-  await resetSendingClaim(admin, targetTable, targetId, user.id);
-  return jsonError("Je hebt geen geldig verzendtegoed. Koop een verzendbundel om via Peppol te verzenden.", 402, { upgradeUrl: "/upgrade", remainingCredits: 0 });
- }
+ // Claim and reservation are committed together; a pre-submission retry reuses
+ // the reservation. Once submission starts, automatic reclaims are forbidden.
+ const reserved = { send_credits: claim.send_credits };
 
  let releasedCredit: CreditRow | null = null;
  let creditReleased = false;
  const releaseAfterFailure = async () => {
   if (!creditReleased) {
-   releasedCredit = await releaseSendCredit(admin, user.id);
+   releasedCredit = await releaseSendCredit(admin, user.id, claim);
    creditReleased = true;
   }
   return releasedCredit;
@@ -367,7 +348,7 @@ export async function POST(request: NextRequest) {
     recommand_status: "sent",
     recommand_claimed_at: null,
     sent_via_recommand_at: recoveredAt,
-   }).eq("id", targetId).eq("user_id", user.id).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
+   }).eq("id", targetId).eq("user_id", user.id).eq("recommand_claimed_at", claim.recommand_claimed_at).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
    if (!recoveryError) {
     return existingSendResponse({
      ...existing,
@@ -383,7 +364,7 @@ export async function POST(request: NextRequest) {
    recommand_raw_response: lastSendRaw
     ? { error: "provider_outcome_unknown", send: lastSendRaw }
     : { error: "provider_outcome_unknown" },
-  }).eq("id", targetId).eq("user_id", user.id).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
+  }).eq("id", targetId).eq("user_id", user.id).eq("recommand_claimed_at", claim.recommand_claimed_at).eq("recommand_status", "sending").is("recommand_document_id", null).is("sent_via_recommand_at", null);
   if (unknownUpdateError) console.error("Recommand unknown-outcome update failed");
   return unknownSendOutcomeResponse(reserved.send_credits);
  };
@@ -398,7 +379,7 @@ export async function POST(request: NextRequest) {
     recommand_status: "recipient_not_found",
     recommand_claimed_at: null,
    recommand_raw_response: { verify: verify.raw },
-   }).eq("id", targetId).eq("user_id", user.id);
+   }).eq("id", targetId).eq("user_id", user.id).eq("recommand_claimed_at", claim.recommand_claimed_at);
    if (updateError) throw updateError;
    return jsonError("Ontvanger is niet gevonden op het Peppol-netwerk. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
@@ -414,11 +395,15 @@ export async function POST(request: NextRequest) {
     recommand_status: "invoice_not_supported",
     recommand_claimed_at: null,
    recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw },
-   }).eq("id", targetId).eq("user_id", user.id);
+   }).eq("id", targetId).eq("user_id", user.id).eq("recommand_claimed_at", claim.recommand_claimed_at);
    if (updateError) throw updateError;
    return jsonError("Ontvanger ondersteunt dit Peppol-documenttype niet. Verzenden is geblokkeerd.", 422, { remainingCredits: released?.send_credits });
   }
 
+  const { data: canSubmit, error: submitError } = await admin.rpc("begin_recommand_submission", {
+   p_user_id: user.id, p_reservation_id: claim.reservation_id, p_claim_token: claim.claim_token,
+  });
+  if (submitError || canSubmit !== true) return unknownSendOutcomeResponse(reserved.send_credits);
   const payload = { recipient, documentType, document };
   const send = await sendDocument(companyId, payload, () => { sendAttempted = true; });
   lastSendRaw = send.raw;
@@ -440,7 +425,7 @@ export async function POST(request: NextRequest) {
     recommand_claimed_at: null,
     recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw },
     sent_via_recommand_at: null,
-   }).eq("id", targetId).eq("user_id", user.id);
+   }).eq("id", targetId).eq("user_id", user.id).eq("recommand_claimed_at", claim.recommand_claimed_at);
    if (updateError) throw updateError;
    const released = await releaseAfterFailure();
    return jsonError("Recommand heeft het document niet geaccepteerd. Controleer de factuurgegevens en probeer opnieuw.", 502, { remainingCredits: released?.send_credits });
@@ -463,7 +448,7 @@ export async function POST(request: NextRequest) {
    recommand_claimed_at: null,
    recommand_raw_response: { verify: verify.raw, verifyDocumentSupport: support.raw, send: send.raw, documents: status },
    sent_via_recommand_at: sentAt,
-  }).eq("id", targetId).eq("user_id", user.id);
+  }).eq("id", targetId).eq("user_id", user.id).eq("recommand_claimed_at", claim.recommand_claimed_at);
   if (updateError) throw updateError;
 
   return NextResponse.json({ success: true, documentId: acceptedDocumentId, status: recommandStatus, sentAt, remainingCredits: reserved.send_credits });
@@ -478,7 +463,7 @@ export async function POST(request: NextRequest) {
     recommand_status: "sent",
     recommand_claimed_at: null,
     sent_via_recommand_at: acceptedAt,
-   }).eq("id", targetId).eq("user_id", user.id);
+   }).eq("id", targetId).eq("user_id", user.id).eq("recommand_claimed_at", claim.recommand_claimed_at);
    if (acceptedUpdateError) console.error("Recommand accepted-send recovery update failed");
    return NextResponse.json({
     success: true,
@@ -495,7 +480,7 @@ export async function POST(request: NextRequest) {
    recommand_status: "send_failed",
    recommand_claimed_at: null,
   recommand_raw_response: { error: error instanceof Error ? error.message : "Onbekende Recommand-fout" },
-  }).eq("id", targetId).eq("user_id", user.id);
+  }).eq("id", targetId).eq("user_id", user.id).eq("recommand_claimed_at", claim.recommand_claimed_at);
   if (updateError) console.error("Recommand failure update error:", updateError);
   return jsonError("Recommand verzenden is mislukt. Probeer het later opnieuw.", 502, { remainingCredits: released?.send_credits });
  }

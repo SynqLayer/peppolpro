@@ -167,8 +167,8 @@ test('send route trusts stored UBL for document type and preserves protected cre
  assert.doesNotMatch(sendRoute, /documentType\s*=\s*input\./);
 
  const consistency = sendRoute.indexOf('validateStoredInvoiceConsistency');
- const claim = sendRoute.indexOf('claimTargetForSending', consistency);
- const reserve = sendRoute.indexOf('reserveSendCredit', claim);
+ const claim = sendRoute.indexOf('const claim = await claimTargetForSending', consistency);
+ const reserve = sendRoute.indexOf('const reserved =', claim);
  const verifySupport = sendRoute.indexOf('verifyRecipientSupports', reserve);
  const send = sendRoute.indexOf('sendDocument', verifySupport);
  assert.ok(consistency >= 0 && claim > consistency && reserve > claim && verifySupport > reserve && send > verifySupport);
@@ -178,7 +178,7 @@ test('send route trusts stored UBL for document type and preserves protected cre
  assert.match(sendRoute, /if \(sendOutcome === "safe_to_release"\)/);
  assert.match(sendRoute, /if \(!creditReleased\)[\s\S]*releaseSendCredit/);
  assert.match(sendRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
- assert.match(sendRoute, /if \(!claim\)[\s\S]*waitForCompletedSend/);
+ assert.match(sendRoute, /if \(!claim\?\.claimed\)[\s\S]*waitForCompletedSend/);
 });
 
 test('provider acceptance never releases credit when status lookup or persistence fails', () => {

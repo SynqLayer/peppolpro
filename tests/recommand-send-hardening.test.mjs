@@ -8,9 +8,9 @@ const nieuwPage = readFileSync(new URL('../app/nieuw/page.tsx', import.meta.url)
 const migration0025 = readFileSync(new URL('../supabase/migrations/0025_recommand_stale_send_claim.sql', import.meta.url), 'utf8');
 
 test('Recommand send claim can reclaim stale sending rows but not fresh sending rows', () => {
-  assert.match(route, /const RECOMMAND_SEND_STALE_AFTER_MINUTES = 10/);
-  assert.match(route, /rpc\("claim_recommand_send_target"/);
-  assert.match(route, /p_stale_after_minutes: RECOMMAND_SEND_STALE_AFTER_MINUTES/);
+  assert.match(route, /rpc\("begin_recommand_submission"/);
+  assert.match(route, /rpc\("claim_recommand_send_with_credit"/);
+  assert.match(route, /p_user_id: userId/);
   assert.match(route, /recommand_claimed_at/);
   assert.match(route, /const CONVERSION_TARGET_SELECT/);
   assert.match(route, /const INVOICE_TARGET_SELECT/);
