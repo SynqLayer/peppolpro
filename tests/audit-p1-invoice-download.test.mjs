@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import * as crypto from 'node:crypto';
 import ts from 'typescript';
 
 const source = readFileSync(new URL('../app/api/invoices/[invoiceId]/route.ts', import.meta.url), 'utf8');
@@ -17,6 +18,7 @@ function route({ user = { id: 'owner' }, invoice = { id, pdf_path: 'private/arch
  const exports = {};
  class NextResponse extends Response { static json(body, init) { return Response.json(body, init); } }
  vm.runInNewContext(compiled, { exports, Buffer, require(name) {
+  if (name === 'node:crypto') return crypto;
   if (name === 'next/server') return { NextResponse };
   if (name === '@/lib/supabase-server') return {
    createServerSupabase: async () => ({ auth: { getUser: async () => ({ data: { user } }) }, from: () => query }),

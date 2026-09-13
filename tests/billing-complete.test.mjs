@@ -14,7 +14,7 @@ const addressValidation = readFileSync(new URL('../lib/address-validation.ts', i
 
 test('billing profile selects use columns that exist on user_profiles', () => {
  const billingAndInvoiceSelects = `${billingLib}\n${invoiceRoute}`;
- assert.match(billingAndInvoiceSelects, /select\("company_name, email, address, postal_code, city, country, btw_nr"\)/);
+ assert.match(billingAndInvoiceSelects, /billing_snapshot/);
  assert.doesNotMatch(billingAndInvoiceSelects, /full_name|btw_number/);
 });
 

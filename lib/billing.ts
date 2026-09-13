@@ -3,6 +3,7 @@ import { MolliePayment } from "@/lib/mollie";
 import { getCreditBundle, getPlan } from "@/lib/plans";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { generateBillingInvoicePdf } from "@/lib/invoice-pdf";
+import { pdfHash, preserveArchivedPdf, verifyInvoiceRetention } from "@/lib/billing-archive";
 
 type AdminClient = SupabaseClient;
 
@@ -38,6 +39,16 @@ type BillingInvoiceForEmail = {
  total_incl?: number | string | null;
  pdf_path?: string | null;
  admin_pdf_path?: string | null;
+ pdf_sha256?: string | null;
+ admin_pdf_sha256?: string | null;
+ pdf_stored_at?: string | null;
+ pdf_retention_until?: string | null;
+ billing_snapshot?: {
+  customer: UserProfileForEmail | null;
+  payment: { mollie_payment_id?: string | null; plan?: string | null; credits?: number | string | null } | null;
+  supplier: { name?: string | null; address?: string | null; postal_code?: string | null; city?: string | null; country?: string | null; vat_id?: string | null; kvk?: string | null } | null;
+  provenance: string;
+ } | null;
  paid_at?: string | null;
  delivered_at?: string | null;
  payment_method?: string | null;
@@ -102,32 +113,32 @@ function billingPdfPath(invoice: BillingInvoiceForEmail, admin = false) {
 async function storeBillingInvoicePdfs(supabase: AdminClient, invoiceId: string) {
  const { data: invoice, error: invoiceError } = await supabase
  .from("invoices")
- .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, admin_pdf_path, paid_at, delivered_at, payment_method, email_status, brevo_message_id, email_error, payments(mollie_payment_id, plan, credits)")
+ .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, admin_pdf_path, pdf_sha256, admin_pdf_sha256, pdf_stored_at, pdf_retention_until, billing_snapshot, paid_at, delivered_at, payment_method, email_status, brevo_message_id, email_error, payments(mollie_payment_id, plan, credits)")
  .eq("id", invoiceId)
  .single<BillingInvoiceForEmail>();
  if (invoiceError || !invoice) throw invoiceError || new Error("Factuur niet gevonden voor PDF opslag");
 
- const { data: profile } = await supabase
- .from("user_profiles")
- .select("company_name, email, address, postal_code, city, country, btw_nr")
- .eq("id", invoice.user_id)
- .maybeSingle<UserProfileForEmail>();
- const fullInvoice = { ...invoice, user_profiles: profile || null };
- const customerPdf = await generateBillingInvoicePdf(fullInvoice);
- const adminPdf = await generateBillingInvoicePdf({ ...fullInvoice, adminCopy: true, molliePaymentId: invoice.payments?.mollie_payment_id || null });
+ await verifyInvoiceRetention(supabase, invoice.invoice_date, invoice.pdf_retention_until);
+ const snapshot = invoice.billing_snapshot;
+ if (!snapshot) throw new Error("Factuursnapshot ontbreekt");
+ if (snapshot.provenance !== "at_issuance" && (!invoice.pdf_path || !invoice.admin_pdf_path)) {
+  throw new Error("Historisch factuurarchief ontbreekt; handmatig herstel vereist");
+ }
+ const fullInvoice = { ...invoice, user_profiles: snapshot.customer, payments: snapshot.payment, supplier: snapshot.supplier };
  const pdfPath = invoice.pdf_path || billingPdfPath(invoice);
  const adminPdfPath = invoice.admin_pdf_path || billingPdfPath(invoice, true);
  const bucket = supabase.storage.from("invoices");
- const contentType = "application/pdf";
- const { error: customerError } = await bucket.upload(pdfPath, Buffer.from(customerPdf), { contentType, upsert: true });
- if (customerError) throw customerError;
- const { error: adminError } = await bucket.upload(adminPdfPath, Buffer.from(adminPdf), { contentType, upsert: true });
- if (adminError) throw adminError;
+ const customerPdf = await preserveArchivedPdf({ bucket, path: pdfPath, archived: !!invoice.pdf_path,
+  expectedHash: invoice.pdf_sha256, render: () => generateBillingInvoicePdf(fullInvoice) });
+ const adminPdf = await preserveArchivedPdf({ bucket, path: adminPdfPath, archived: !!invoice.admin_pdf_path,
+  expectedHash: invoice.admin_pdf_sha256,
+  render: () => generateBillingInvoicePdf({ ...fullInvoice, adminCopy: true, molliePaymentId: snapshot.payment?.mollie_payment_id || null }) });
  const { error: updateError } = await supabase.from("invoices").update({
   pdf_path: pdfPath,
   admin_pdf_path: adminPdfPath,
-  pdf_stored_at: new Date().toISOString(),
- }).eq("id", invoiceId);
+  pdf_sha256: pdfHash(customerPdf),
+  admin_pdf_sha256: pdfHash(adminPdf),
+ }).eq("id", invoiceId).select("id").single();
  if (updateError) throw updateError;
  return { pdf: customerPdf, path: pdfPath };
 }
@@ -135,16 +146,12 @@ async function storeBillingInvoicePdfs(supabase: AdminClient, invoiceId: string)
 export async function sendBillingInvoiceEmail(supabase: AdminClient, invoiceId: string) {
  const { data: invoice, error: invoiceError } = await supabase
  .from("invoices")
- .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, paid_at, delivered_at, payment_method, email_status, brevo_message_id, email_error")
+ .select("id, user_id, invoice_number, invoice_kind, original_invoice_number, issued_at, invoice_date, currency, amount, vat_amount, vat_rate, total_excl, total_incl, pdf_path, billing_snapshot, paid_at, delivered_at, payment_method, email_status, brevo_message_id, email_error")
  .eq("id", invoiceId)
  .single<BillingInvoiceForEmail>();
  if (invoiceError || !invoice) throw invoiceError || new Error("Factuur niet gevonden voor e-mail");
 
- const { data: profile } = await supabase
- .from("user_profiles")
- .select("company_name, email, address, postal_code, city, country, btw_nr")
- .eq("id", invoice.user_id)
- .maybeSingle<UserProfileForEmail>();
+ const profile = invoice.billing_snapshot?.customer;
  if (!profile?.email) {
   const message = "Factuurmail geblokkeerd: profiel mist e-mailadres";
   console.error(message, { invoiceId });

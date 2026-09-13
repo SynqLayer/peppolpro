@@ -1,68 +1,54 @@
--- Address validation, legally complete billing PDFs and atomic invoice creation.
--- Additive only: does not reset or renumber invoice_number_sequences.
-
-alter table public.user_profiles
- add column if not exists postal_code text,
- add column if not exists city text,
- add column if not exists address_verified boolean not null default false,
- add column if not exists address_validation_source text
-  check (address_validation_source in ('pdok','manual')),
- add column if not exists vat_validation_status text not null default 'unchecked'
-  check (vat_validation_status in ('unchecked','valid','invalid')),
- add column if not exists vat_validated_at timestamptz;
-
-create table if not exists public.address_lookup_cache (
- lookup_key text primary key,
- street text not null,
- house_number text not null,
- postal_code text not null,
- city text not null,
- country text not null default 'NL',
- raw jsonb,
- created_at timestamptz not null default now(),
- updated_at timestamptz not null default now()
-);
-
-alter table public.address_lookup_cache enable row level security;
-revoke all on table public.address_lookup_cache from anon, authenticated;
-grant all on table public.address_lookup_cache to service_role;
-
-alter table public.payments
- add column if not exists mollie_mode text check (mollie_mode in ('live','test'));
+-- P1-02 ADDITIVE: deploy before application changes. Existing writers still work.
+-- Inclusive last retention date for PeppolPro billing invoices (calendar financial year).
+create or replace function public.invoice_retention_until(invoice_date date)
+returns date language sql immutable strict parallel safe set search_path = pg_catalog as $$
+ select (date_trunc('year', invoice_date::timestamp) + interval '8 years' - interval '1 day')::date;
+$$;
+revoke all on function public.invoice_retention_until(date) from public, anon, authenticated, hermes_operator;
+grant execute on function public.invoice_retention_until(date) to authenticated, service_role;
 
 alter table public.invoices
- add column if not exists payment_method text,
- add column if not exists paid_at timestamptz,
- add column if not exists delivered_at date,
- add column if not exists pdf_path text,
- add column if not exists admin_pdf_path text,
- add column if not exists pdf_stored_at timestamptz,
- add column if not exists pdf_retention_until timestamptz,
- add column if not exists legal_supplier_name text,
- add column if not exists legal_supplier_address text,
- add column if not exists legal_supplier_postal_code text,
- add column if not exists legal_supplier_city text,
- add column if not exists legal_supplier_country text,
- add column if not exists legal_supplier_vat_id text,
- add column if not exists legal_supplier_kvk text,
- add column if not exists email_status text not null default 'pending'
-  check (email_status in ('pending','accepted','delivered','failed')),
- add column if not exists brevo_message_id text,
- add column if not exists email_accepted_at timestamptz,
- add column if not exists email_delivered_at timestamptz,
- add column if not exists email_error text;
+ add column billing_snapshot jsonb,
+ add column pdf_sha256 text check (pdf_sha256 ~ '^[0-9a-f]{64}$'),
+ add column admin_pdf_sha256 text check (admin_pdf_sha256 ~ '^[0-9a-f]{64}$');
 
-revoke all on table public.user_profiles from anon, authenticated;
-grant select on table public.user_profiles to authenticated;
-grant all on table public.user_profiles to service_role;
+create or replace function public.capture_billing_invoice_snapshot()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_customer jsonb; v_payment jsonb;
+begin
+ if new.invoice_kind not in ('subscription','credits','credit') then return new; end if;
+ select jsonb_build_object('company_name',company_name,'email',email,'address',address,
+  'postal_code',postal_code,'city',city,'country',country,'btw_nr',btw_nr)
+ into v_customer from public.user_profiles where id = new.user_id;
+ select jsonb_build_object('mollie_payment_id',mollie_payment_id,'plan',plan,'credits',credits)
+ into v_payment from public.payments where id = new.payment_id;
+ new.billing_snapshot := jsonb_build_object('customer',v_customer,'payment',v_payment,
+  'captured_at',now(),'provenance','at_issuance',
+  'supplier',jsonb_build_object('name',new.legal_supplier_name,'address',new.legal_supplier_address,
+   'postal_code',new.legal_supplier_postal_code,'city',new.legal_supplier_city,
+   'country',new.legal_supplier_country,'vat_id',new.legal_supplier_vat_id,'kvk',new.legal_supplier_kvk));
+ new.pdf_retention_until := public.invoice_retention_until(new.invoice_date)::timestamp at time zone 'UTC';
+ return new;
+end;
+$$;
+revoke all on function public.capture_billing_invoice_snapshot() from public, anon, authenticated, hermes_operator;
+create trigger capture_billing_invoice_snapshot before insert on public.invoices
+ for each row execute function public.capture_billing_invoice_snapshot();
 
-update public.user_profiles
-set address_validation_source = 'manual'
-where address_validation_source is null
- and nullif(trim(coalesce(address, '')), '') is not null
- and nullif(trim(coalesce(postal_code, '')), '') is not null
- and nullif(trim(coalesce(city, '')), '') is not null;
+-- Historical PDFs remain the original evidence. Current profile fields are labelled
+-- explicitly as a later capture; they are never used to regenerate an old PDF.
+update public.invoices i set billing_snapshot = jsonb_build_object(
+ 'customer',(select jsonb_build_object('company_name',p.company_name,'email',p.email,'address',p.address,
+  'postal_code',p.postal_code,'city',p.city,'country',p.country,'btw_nr',p.btw_nr) from public.user_profiles p where p.id=i.user_id),
+ 'payment',(select jsonb_build_object('mollie_payment_id',p.mollie_payment_id,'plan',p.plan,'credits',p.credits) from public.payments p where p.id=i.payment_id),
+ 'supplier',jsonb_build_object('name',i.legal_supplier_name,'address',i.legal_supplier_address,
+  'postal_code',i.legal_supplier_postal_code,'city',i.legal_supplier_city,'country',i.legal_supplier_country,
+  'vat_id',i.legal_supplier_vat_id,'kvk',i.legal_supplier_kvk),
+ 'captured_at',now(),'provenance','legacy_capture_preserve_existing_pdf'),
+ pdf_retention_until = public.invoice_retention_until(i.invoice_date)::timestamp at time zone 'UTC'
+where i.invoice_kind in ('subscription','credits','credit') and i.billing_snapshot is null;
 
+-- Replace the current RPC so even its input value uses the shared function.
 create or replace function public.create_billing_invoice_for_payment(
  p_payment_id uuid,
  p_invoice_kind text default null,

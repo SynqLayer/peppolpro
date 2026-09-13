@@ -15,6 +15,7 @@ type InvoicePdfInput = {
  paid_at?: string | null;
  delivered_at?: string | null;
  payment_method?: string | null;
+ supplier?: { name?: string | null; address?: string | null; postal_code?: string | null; city?: string | null; country?: string | null; vat_id?: string | null; kvk?: string | null } | null;
  adminCopy?: boolean;
  molliePaymentId?: string | null;
  payments?: {
@@ -69,9 +70,9 @@ export async function generateBillingInvoicePdf(invoice: InvoicePdfInput) {
  const totalExcl = invoice.total_excl ?? (Number(totalIncl) - Number(vat));
 
  page.drawText(invoice.invoice_kind === "credit" ? "Creditfactuur" : "Factuur", { x: 48, y: 780, size: 28, font: bold, color: dark });
- page.drawText("SynqLayer", { x: 48, y: 750, size: 12, font: bold, color: dark });
- page.drawText("De Akker 39, 2743 DR Waddinxveen", { x: 48, y: 733, size: 10, font, color: muted });
- page.drawText("Btw-identificatienummer NL005450830B62 | KvK 42041391", { x: 48, y: 718, size: 10, font, color: muted });
+ page.drawText(invoice.supplier?.name || "SynqLayer", { x: 48, y: 750, size: 12, font: bold, color: dark });
+ page.drawText(invoice.supplier ? [invoice.supplier.address, invoice.supplier.postal_code, invoice.supplier.city].filter(Boolean).join(" ") : "De Akker 39, 2743 DR Waddinxveen", { x: 48, y: 733, size: 10, font, color: muted });
+ page.drawText(invoice.supplier ? `Btw-identificatienummer ${invoice.supplier.vat_id || "-"} | KvK ${invoice.supplier.kvk || "-"}` : "Btw-identificatienummer NL005450830B62 | KvK 42041391", { x: 48, y: 718, size: 10, font, color: muted });
  page.drawRectangle({ x: 48, y: 704, width: 500, height: 2, color: accent });
 
  const rows: Array<[string, string]> = [

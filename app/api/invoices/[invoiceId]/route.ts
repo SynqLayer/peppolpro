@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, createAdminSupabase } from "@/lib/supabase-server";
 
@@ -17,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ inv
   // The session client proves ownership without embedding the protected payments table.
   const { data: invoice, error } = await supabase
    .from("invoices")
-   .select("id, user_id, invoice_number, pdf_path")
+   .select("id, user_id, invoice_number, pdf_path, pdf_sha256")
    .eq("id", invoiceId)
    .eq("user_id", user.id)
    .maybeSingle();
@@ -30,8 +31,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ inv
   const admin = createAdminSupabase();
   const { data: stored, error: storageError } = await admin.storage.from("invoices").download(invoice.pdf_path);
   if (storageError || !stored) return failure("Factuurarchief kon niet worden opgehaald", 503);
+  const bytes = Buffer.from(await stored.arrayBuffer());
+  if (invoice.pdf_sha256 && createHash("sha256").update(bytes).digest("hex") !== invoice.pdf_sha256) {
+   return failure("Factuurarchief integriteitscontrole mislukt", 503);
+  }
   const filename = `${String(invoice.invoice_number || "factuur").replace(/[^a-zA-Z0-9_.-]/g, "_")}.pdf`;
-  return new NextResponse(Buffer.from(await stored.arrayBuffer()), {
+  return new NextResponse(bytes, {
    status: 200,
    headers: {
     "Content-Type": "application/pdf",
