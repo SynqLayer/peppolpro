@@ -1,22 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import { setTimeout } from 'node:timers/promises';
+import { withPostgres } from './helpers/postgres.mjs';
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
 const migration = (suffix) => read('supabase/migrations/' + readdirSync(new URL('supabase/migrations/', root)).find(name => name.endsWith(suffix)));
 
-test('P1-02 PostgreSQL preserves snapshots and billing metadata through account deletion', { timeout: 90000 }, async () => {
- const name = `peppolpro-p1-billing-test-${process.pid}`;
- const docker = (args, options = {}) => execFileSync('docker', args, { encoding: 'utf8', stdio: ['pipe','pipe','pipe'], timeout: 60000, ...options });
- docker(['run','--detach','--rm','--name',name,'--network','none','--tmpfs','/var/lib/postgresql/data','--env','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17']);
- try {
-  let ready = false;
-  for (let i = 0; i < 100; i++) {
-   try { docker(['exec',name,'pg_isready','-U','postgres']); ready = true; break; } catch { await setTimeout(100); }
-  }
-  assert.ok(ready, 'isolated PostgreSQL must become ready');
+test('P1-02 PostgreSQL preserves snapshots and billing metadata through account deletion', { timeout: 300000 }, async () => {
+ await withPostgres('billing', async (db) => {
   const fixture = read('tests/fixtures/p1-billing-schema.sql');
   const checks = `
 do $$
@@ -99,12 +90,10 @@ end $$;
 select 'ACCOUNT_DELETION_METADATA_PRESERVED_PASS';
 select 'P1-02 archive SQL assertions passed';
 `;
-  const output = docker(['exec','-i',name,'psql','-X','-U','postgres','-v','ON_ERROR_STOP=1'], {
-   input: fixture + migration('_audit_p1_billing_archive_additive.sql') + migration('_audit_p1_billing_archive_restrictive.sql') + checks,
-  });
+  const output = await db.query(fixture + migration('_audit_p1_billing_archive_additive.sql') + migration('_audit_p1_billing_archive_restrictive.sql') + checks);
   for (const marker of ['EXACT_DATE_FIXTURES_PASS','FINANCIAL_IMMUTABILITY_PRIVILEGED_AND_AUTHENTICATED_PASS','ACCOUNT_DELETION_METADATA_PRESERVED_PASS','P1-02 archive SQL assertions passed']) {
    assert.ok(output.includes(marker), marker);
    console.log(marker);
   }
- } finally { docker(['stop','--time','1',name]); }
+ });
 });
