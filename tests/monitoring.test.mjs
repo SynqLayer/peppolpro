@@ -69,16 +69,44 @@ const privacyPageSource = readFileSync(new URL('../app/privacy/page.tsx', import
 const peppolSendPage = readFileSync(new URL('../app/peppol-factuur-versturen/page.tsx', import.meta.url), 'utf8');
 const brevoSource = readFileSync(new URL('../lib/brevo.ts', import.meta.url), 'utf8');
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-const packageLock = readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8');
+const packageLock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8'));
 
 
-test('npm audit overrides pin brace-expansion and js-yaml to patched versions', () => {
- assert.equal(packageJson.overrides['js-yaml'], '4.3.1');
- assert.equal(packageJson.overrides['minimatch@3.1.5']['brace-expansion'], '1.1.18');
- assert.equal(packageJson.overrides['minimatch@10.2.5']['brace-expansion'], '5.0.9');
- assert.match(packageLock, /"node_modules\/brace-expansion"[\s\S]*"version": "5\.0\.9"/);
- assert.match(packageLock, /"node_modules\/minimatch\/node_modules\/brace-expansion"[\s\S]*"version": "1\.1\.18"/);
- assert.match(packageLock, /"node_modules\/js-yaml"[\s\S]*"version": "4\.3\.1"/);
+// Keep the supply-chain pin contract introduced in f153f79. Reviewed package.json
+// pins are authoritative; a changed lock resolution must still fail this test.
+test('lockfile resolutions match the reviewed exact dependency overrides', () => {
+ const packages = packageLock.packages;
+ const entries = Object.entries(packages);
+ const isExact = (value) => typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value);
+ const matchesName = (path, name) => path === `node_modules/${name}` || path.endsWith(`/node_modules/${name}`);
+ for (const [selector, override] of Object.entries(packageJson.overrides)) {
+  if (isExact(override)) {
+   const matches = entries.filter(([path]) => matchesName(path, selector));
+   assert.ok(matches.length, `missing overridden dependency ${selector}`);
+   for (const [path, entry] of matches) assert.equal(entry.version, override, path);
+  } else if (typeof override === 'object') {
+   const separator = selector.lastIndexOf('@');
+   const name = selector.slice(0, separator);
+   const version = selector.slice(separator + 1);
+   const parents = entries.filter(([path, entry]) => matchesName(path, name) && entry.version === version);
+   assert.ok(parents.length, `missing scoped override parent ${selector}`);
+   for (const [dependency, expected] of Object.entries(override)) {
+    assert.ok(isExact(expected), `scoped security override ${dependency} must remain an exact pin`);
+    for (const [parentPath] of parents) {
+     let scope = parentPath;
+     let resolved;
+     while (!resolved) {
+      resolved = packages[`${scope ? scope + '/' : ''}node_modules/${dependency}`];
+      if (!scope) break;
+      const boundary = scope.lastIndexOf('/node_modules/');
+      scope = boundary < 0 ? '' : scope.slice(0, boundary);
+     }
+     assert.ok(resolved, `missing ${dependency} for ${parentPath}`);
+     assert.equal(resolved.version, expected, `${parentPath} -> ${dependency}`);
+    }
+   }
+  }
+ }
 });
 
 
