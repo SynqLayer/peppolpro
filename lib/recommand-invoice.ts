@@ -1,4 +1,5 @@
 import type { InvoiceData } from "./ubl-generator";
+import { requireString, validateRecommandLines, validateRecommandParty } from "./recommand-validation.ts";
 
 export type RecommandInvoiceLine = {
  name: string;
@@ -12,6 +13,7 @@ export type RecommandInvoiceDocument = {
  invoiceNumber: string;
  issueDate: string;
  dueDate: string;
+ buyerReference: string;
  note?: string;
  buyer: {
   vatNumber: string;
@@ -83,6 +85,7 @@ export function validateRecommandInvoiceData(data: InvoiceData): string[] {
   ["Klant: plaats ontbreekt", data.customerCity],
   ["Klant: land ontbreekt", data.customerCountry],
   ["Klant: BTW-nummer ontbreekt", data.customerVatNr],
+  ["Klantreferentie ontbreekt", data.buyerReference],
   ["Factuurnummer ontbreekt", data.invoiceNumber],
   ["Factuurdatum ontbreekt", data.invoiceDate],
   ["Vervaldatum ontbreekt", data.dueDate],
@@ -119,6 +122,7 @@ export function buildRecommandInvoiceDocument(data: InvoiceData): RecommandInvoi
   invoiceNumber: clean(data.invoiceNumber),
   issueDate: clean(data.invoiceDate),
   dueDate: clean(data.dueDate),
+  buyerReference: clean(data.buyerReference),
   note: "Factuur verzonden via PeppolPro.",
   seller: {
    vatNumber: normalizeIdentifier(clean(data.supplierVatNr)),
@@ -150,10 +154,6 @@ export function buildRecommandInvoiceDocument(data: InvoiceData): RecommandInvoi
  };
 }
 
-function requireString(obj: StringRecord, key: string, label: string, errors: string[]) {
- if (typeof obj[key] !== "string" || !obj[key].trim()) errors.push(`${label} ontbreekt`);
-}
-
 export function validateRecommandInvoiceDocument(value: unknown): string[] {
  const errors: string[] = [];
  if (!value || typeof value !== "object" || Array.isArray(value)) return ["Documentpayload ontbreekt"];
@@ -161,27 +161,22 @@ export function validateRecommandInvoiceDocument(value: unknown): string[] {
  requireString(document, "invoiceNumber", "Factuurnummer", errors);
  requireString(document, "issueDate", "Factuurdatum", errors);
  requireString(document, "dueDate", "Vervaldatum", errors);
+ requireString(document, "buyerReference", "Klantreferentie", errors);
 
- for (const [key, label] of [["seller", "Leverancier"], ["buyer", "Klant"]] as const) {
-  const party = document[key];
-  if (!party || typeof party !== "object" || Array.isArray(party)) {
-   errors.push(`${label}: gegevens ontbreken`);
-   continue;
-  }
-  const partyObj = party as StringRecord;
-  requireString(partyObj, "name", `${label}: naam`, errors);
-  requireString(partyObj, "street", `${label}: adres`, errors);
-  requireString(partyObj, "postalZone", `${label}: postcode`, errors);
-  requireString(partyObj, "city", `${label}: plaats`, errors);
-  requireString(partyObj, "country", `${label}: land`, errors);
-  requireString(partyObj, "vatNumber", `${label}: BTW-nummer`, errors);
- }
+ validateRecommandParty(document.seller, "Leverancier", false, errors);
+ validateRecommandParty(document.buyer, "Klant", false, errors);
 
  if (!Array.isArray(document.paymentMeans) || document.paymentMeans.length === 0) {
   errors.push("Leverancier: IBAN ontbreekt");
+ } else {
+  document.paymentMeans.forEach((paymentMeans, index) => {
+   if (!paymentMeans || typeof paymentMeans !== "object" || Array.isArray(paymentMeans)) {
+    errors.push(`Betaalwijze ${index + 1}: gegevens ontbreken`);
+   } else {
+    requireString(paymentMeans as StringRecord, "iban", `Betaalwijze ${index + 1}: IBAN`, errors);
+   }
+  });
  }
- if (!Array.isArray(document.lines) || document.lines.length === 0) {
-  errors.push("Minimaal één factuurregel vereist");
- }
+ validateRecommandLines(document.lines, errors);
  return errors;
 }

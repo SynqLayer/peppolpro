@@ -188,7 +188,7 @@ test('provider acceptance never releases credit when status lookup or persistenc
  assert.match(sendRoute, /sendOutcome = classifySendResult\(send\)/);
  assert.match(sendRoute, /existing\.recommand_status === "sending"[\s\S]*findOutgoingDocument/);
  assert.ok(sendRoute.indexOf('findOutgoingDocument', sendRoute.indexOf('export async function POST')) < sendRoute.indexOf('claimTargetForSending', sendRoute.indexOf('export async function POST')));
- const catchBlock = sendRoute.match(/\} catch \(error\) \{[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
+ const catchBlock = sendRoute.match(/\} catch \(error\) \{\s*const sendException[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
  assert.match(catchBlock, /sendException === "provider_accepted"/);
  assert.ok(catchBlock.indexOf('sendException === "provider_accepted"') < catchBlock.indexOf('releaseAfterFailure()'));
 });
@@ -243,7 +243,7 @@ test('unknown outcomes reconcile without releasing credit or automatic resend', 
  assert.match(sendRoute, /sendDocument\([^;]*\(\) => \{ sendAttempted = true; \}\)/);
  assert.match(recommandClient, /onRequestStarted\?\.\(\);[\s\S]*await fetch/);
  assert.match(sendRoute, /function unknownSendOutcomeResponse[\s\S]*status: 409/);
- const catchBlock = sendRoute.match(/\} catch \(error\) \{[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
+ const catchBlock = sendRoute.match(/\} catch \(error\) \{\s*const sendException[\s\S]*?return jsonError\("Recommand verzenden is mislukt/)?.[0] || '';
  assert.match(catchBlock, /sendException === "provider_outcome_unknown"/);
  assert.match(catchBlock, /return reconcileUnknownSendOutcome\(\)/);
  const reconcileBlock = sendRoute.match(/const reconcileUnknownSendOutcome = async \(\) => \{[\s\S]*?return unknownSendOutcomeResponse\(reserved\.send_credits\);[\s\S]*?\};/)?.[0] || '';

@@ -236,7 +236,7 @@ test('send route is idempotent for already-sent targets before validation, provi
  assert.match(recommandRoute, /function existingSendResponse/);
  assert.match(recommandRoute, /function hasCompletedSend/);
  assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
- const beforeRecipientValidation = recommandRoute.match(/const existing = await fetchTarget[\s\S]*?const fromUbl = buildRecommandPayloadFromUbl/)?.[0] || '';
+ const beforeRecipientValidation = recommandRoute.match(/const existing = await fetchTarget[\s\S]*?fromUbl = buildRecommandPayloadFromUbl/)?.[0] || '';
  assert.match(beforeRecipientValidation, /hasCompletedSend\(existing\)/);
  assert.doesNotMatch(beforeRecipientValidation, /sendDocument\(|reserve_send_credit|verifyRecipient\(/);
 });

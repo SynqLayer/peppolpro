@@ -1,4 +1,5 @@
 import type { RecommandInvoiceLine } from "./recommand-invoice";
+import { requireString, validateRecommandLines, validateRecommandParty } from "./recommand-validation.ts";
 
 export type RecommandParty = {
  vatNumber: string;
@@ -14,7 +15,7 @@ export type RecommandParty = {
 export type RecommandCreditNoteDocument = {
  creditNoteNumber: string;
  issueDate: string;
- buyerReference?: string;
+ buyerReference: string;
  note?: string;
  invoiceReferences: Array<{ id: string; issueDate?: string }>;
  seller: RecommandParty;
@@ -24,16 +25,13 @@ export type RecommandCreditNoteDocument = {
 
 type StringRecord = Record<string, unknown>;
 
-function requireString(obj: StringRecord, key: string, label: string, errors: string[]) {
- if (typeof obj[key] !== "string" || !obj[key].trim()) errors.push(`${label} ontbreekt`);
-}
-
 export function validateRecommandCreditNoteDocument(value: unknown): string[] {
  const errors: string[] = [];
  if (!value || typeof value !== "object" || Array.isArray(value)) return ["Documentpayload ontbreekt"];
  const document = value as StringRecord;
  requireString(document, "creditNoteNumber", "Creditfactuurnummer", errors);
  requireString(document, "issueDate", "Creditfactuurdatum", errors);
+ requireString(document, "buyerReference", "Klantreferentie", errors);
 
  if (Array.isArray(document.invoiceReferences) && document.invoiceReferences.length > 0) {
   const reference = document.invoiceReferences[0];
@@ -44,23 +42,8 @@ export function validateRecommandCreditNoteDocument(value: unknown): string[] {
   }
  }
 
- for (const [key, label] of [["seller", "Leverancier"], ["buyer", "Klant"]] as const) {
-  const party = document[key];
-  if (!party || typeof party !== "object" || Array.isArray(party)) {
-   errors.push(`${label}: gegevens ontbreken`);
-   continue;
-  }
-  const partyObj = party as StringRecord;
-  requireString(partyObj, "name", `${label}: naam`, errors);
-  requireString(partyObj, "street", `${label}: adres`, errors);
-  requireString(partyObj, "postalZone", `${label}: postcode`, errors);
-  requireString(partyObj, "city", `${label}: plaats`, errors);
-  requireString(partyObj, "country", `${label}: land`, errors);
-  requireString(partyObj, "vatNumber", `${label}: BTW-nummer`, errors);
- }
-
- if (!Array.isArray(document.lines) || document.lines.length === 0) {
-  errors.push("Minimaal één creditfactuurregel vereist");
- }
+ validateRecommandParty(document.seller, "Leverancier", true, errors);
+ validateRecommandParty(document.buyer, "Klant", true, errors);
+ validateRecommandLines(document.lines, errors);
  return errors;
 }
