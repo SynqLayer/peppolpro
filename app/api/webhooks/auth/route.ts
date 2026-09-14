@@ -4,7 +4,12 @@ import { sendWelcomeEmail } from "@/lib/brevo";
 
 export async function POST(req: NextRequest) {
  try {
- const payload = await req.json();
+ let payload: { type?: string; record?: { id?: string; email?: string } };
+ try {
+  payload = await req.json();
+ } catch {
+  return NextResponse.json({ error: "Ongeldige JSON-body" }, { status: 400 });
+ }
  const { type, record } = payload;
  if (type !== "INSERT" || !record?.email) return NextResponse.json({ ok: true });
 
