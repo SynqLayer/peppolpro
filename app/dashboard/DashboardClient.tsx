@@ -8,6 +8,7 @@ import { C } from "@/lib/constants";
 import { buildInvoicePreviewFromPayload, validateStoredInvoiceConsistency, type InvoicePreview } from "@/lib/invoice-preview";
 import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
 import { InvoiceConfirmation } from "@/app/components/InvoiceConfirmation";
+import { isSuperseded, supersededDetail, SUPERSEDED_DOWNLOAD_LABEL, SUPERSEDED_SEND_BLOCKED_MESSAGE, SUPERSEDED_STATUS } from "@/lib/superseded";
 
 export type Profile = {
  email?: string | null;
@@ -49,6 +50,10 @@ export type Conversion = {
  recommand_status?: string | null;
  verified_recipient?: boolean | null;
  sent_via_recommand_at?: string | null;
+ superseded_by_conversion_id?: string | null;
+ superseded_at?: string | null;
+ superseded_reason?: string | null;
+ superseded_by_label?: string | null;
 };
 
 export type InboxMessage = {
@@ -154,12 +159,13 @@ const statusMap: Record<string, { label: string; bg: string; color: string; bord
  failed: { label: "Verzenden mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
  error: { label: "Mislukt", bg: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "rgba(239,68,68,0.24)", group: "mislukt" },
  duplicate_voided: { label: "Vervallen (dubbel)", bg: "rgba(148,163,184,0.10)", color: "#94a3b8", border: "rgba(148,163,184,0.18)", group: "gearchiveerd" },
+ superseded: { label: "Achterhaald", bg: "rgba(148,163,184,0.10)", color: "#94a3b8", border: "rgba(148,163,184,0.18)", group: "gearchiveerd" },
 };
 
 const generatedStatuses = ["done"];
 const openStatuses = ["draft", "concept", "processing", "sent", "delivered"];
 const failedStatuses = ["failed", "error", "mislukt", "send_failed", "recipient_not_found", "invoice_not_supported", "verzendfout"];
-const archivedStatuses = ["duplicate_voided"];
+const archivedStatuses = ["duplicate_voided", "superseded"];
 
 const numberValue = (value?: number | string | null) => {
  if (typeof value === "number") return value;
@@ -181,7 +187,7 @@ const normalizeStatus = (status?: string | null) => {
  return statusMap[key] ? key : "draft";
 };
 
-const effectiveStatus = (conversion: Conversion) => conversion.recommand_status || (conversion.ubl_xml ? "done" : conversion.status);
+const effectiveStatus = (conversion: Conversion) => isSuperseded(conversion) ? SUPERSEDED_STATUS : conversion.recommand_status || (conversion.ubl_xml ? "done" : conversion.status);
 const statusGroup = (status?: string | null) => statusMap[normalizeStatus(status)].group;
 const isGenerated = (status?: string | null) => generatedStatuses.includes((status || "").toLowerCase());
 const isFailed = (status?: string | null) => failedStatuses.includes((status || "").toLowerCase());
@@ -189,9 +195,10 @@ const isDraft = (status?: string | null) => ["draft", "concept"].includes((statu
 const isOpen = (status?: string | null) => openStatuses.includes((status || "").toLowerCase());
 const isArchived = (status?: string | null) => archivedStatuses.includes((status || "").toLowerCase());
 const canSendConversion = (conversion: Conversion) => {
+ if (isSuperseded(conversion)) return false;
  const status = (conversion.recommand_status || "").toLowerCase();
  const failed = failedStatuses.includes(status);
- return Boolean(conversion.id && conversion.ubl_xml && (failed || !conversion.recommand_document_id) && !["sent", "delivered", "as4_received", "sending", "send_outcome_unknown", "duplicate_voided"].includes(status));
+ return Boolean(conversion.id && conversion.ubl_xml && (failed || !conversion.recommand_document_id) && !["sent", "delivered", "as4_received", "sending", "send_outcome_unknown", "duplicate_voided", SUPERSEDED_STATUS].includes(status));
 };
 
 const failureReason = (status?: string | null) => {
@@ -226,7 +233,9 @@ function StatusBadge({ conversion }: { conversion: Conversion }) {
  const status = effectiveStatus(conversion);
  const item = statusMap[normalizeStatus(status)];
  const reason = isFailed(status) ? failureReason(status) : null;
- const detail = status === "as4_received" && conversion.sent_via_recommand_at
+ const detail = isSuperseded(conversion)
+  ? supersededDetail(conversion)
+  : status === "as4_received" && conversion.sent_via_recommand_at
   ? `Ontvangstbevestiging op ${formatDate(conversion.sent_via_recommand_at)}`
   : reason;
  return (
@@ -439,6 +448,10 @@ export default function DashboardClient({
 
  async function handleDashboardSend(conversion: Conversion) {
  if (!conversion.id || !conversion.ubl_xml) return;
+ if (isSuperseded(conversion)) {
+  setSendActionStatus((current) => ({ ...current, [conversion.id as string]: SUPERSEDED_SEND_BLOCKED_MESSAGE }));
+  return;
+ }
  if (!hasActiveSendCredits) {
   setSendActionStatus((current) => ({ ...current, [conversion.id as string]: "Geen actief verzendtegoed. Koop een verzendbundel via /prijzen." }));
   return;
@@ -816,7 +829,7 @@ export default function DashboardClient({
  <td><StatusBadge conversion={conversion} /></td>
  <td>
  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-{conversion.ubl_xml ? <button type="button" onClick={() => prepareConversionAction("download", conversion, invoiceNumber)} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}>Download XML</button> : <span className="action-muted">Geen XML</span>}
+{isSuperseded(conversion) ? <span className="action-muted">{SUPERSEDED_DOWNLOAD_LABEL}</span> : conversion.ubl_xml ? <button type="button" onClick={() => prepareConversionAction("download", conversion, invoiceNumber)} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer" }}>Download XML</button> : <span className="action-muted">Geen XML</span>}
  <Link href="/convert" className="action-link">Nieuwe PDF</Link>
  {canSendConversion(conversion) ? (
  <button type="button" onClick={() => prepareConversionAction("send", conversion, invoiceNumber)} disabled={sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified} className="action-link" style={{ background: "transparent", border: 0, padding: 0, cursor: sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified ? "not-allowed" : "pointer", opacity: sendingConversionId === conversion.id || !hasActiveSendCredits || !recommandVerified ? 0.55 : 1 }}>{sendingConversionId === conversion.id ? "Verzenden..." : "Verzenden"}</button>

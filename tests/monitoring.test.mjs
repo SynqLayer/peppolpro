@@ -508,7 +508,7 @@ assert.match(dashboard, /Download XML/);
 
 test('duplicate voided conversions are archived out of active dashboard metrics and lists', () => {
  assert.match(dashboard, /duplicate_voided: \{ label: "Vervallen \(dubbel\)"/);
- assert.match(dashboard, /const archivedStatuses = \["duplicate_voided"\]/);
+ assert.match(dashboard, /const archivedStatuses = \["duplicate_voided", "superseded"\]/);
  assert.match(dashboard, /const isArchived = \(status\?: string \| null\) => archivedStatuses\.includes/);
  assert.match(dashboard, /const activeConversions = useMemo\(\(\) => localConversions\.filter\(\(conversion\) => !isArchived\(effectiveStatus\(conversion\)\)\)/);
  assert.match(dashboard, /activeConversions\.reduce\(\(sum, conversion\) => sum \+ \(isOpen\(effectiveStatus\(conversion\)\)/);

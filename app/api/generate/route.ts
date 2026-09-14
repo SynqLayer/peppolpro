@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, createAuthenticatedSupabase } from "@/lib/supabase-server";
 import { generateUBL, InvoiceData } from "@/lib/ubl-generator";
 import { validateInvoiceData } from "@/lib/ubl-validator";
 import { parseUblSummary, summarizeInvoiceData } from "@/lib/ubl-summary";
@@ -7,8 +7,8 @@ import { documentCreditExhaustedBody } from "@/lib/document-credit";
 
 export async function POST(req: NextRequest) {
  try {
- const supabase = await createServerSupabase();
- const { data: { user } } = await supabase.auth.getUser();
+ // één herkansing met verse sessie: een onleesbare sessiecookie mag geen 401 worden
+ const { user } = await createAuthenticatedSupabase();
  if (!user) {
  return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
  }

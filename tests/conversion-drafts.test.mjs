@@ -72,7 +72,7 @@ test('double confirm is idempotent in the database function and logs success onl
  assert.match(migration, /for update/);
  assert.match(migration, /if v_draft\.status = 'confirmed' and v_draft\.conversion_id is not null then/);
  assert.match(migration, /return query select v_draft\.conversion_id, true, false/);
- assert.match(confirmRoute, /row\.already_confirmed === true[\s\S]*\.from\("conversions"\)[\s\S]*\.select\("ubl_xml, total_amount, currency"\)/);
+ assert.match(confirmRoute, /row\.already_confirmed === true[\s\S]*\.from\("conversions"\)[\s\S]*\.select\("ubl_xml, total_amount, currency, superseded_by_conversion_id"\)/);
  assert.match(confirmRoute, /xml: responseXml/);
  assert.match(migration, /'done'/);
  assert.match(migration, /set credits = credits - 1/);

@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { redirect } from "next/navigation";
+import { isSuperseded, supersededDetail } from "@/lib/superseded";
 import DashboardClient, { ApiKeyRecord, BillingInvoice, Conversion, MonitoringEvent, MonitoringTarget, Profile, SubscriptionState, TeamMember, WebhookConfig } from "./DashboardClient";
 
 export default async function DashboardPage({
@@ -25,7 +26,7 @@ export default async function DashboardPage({
 
  const { data: conversionsData, error: conversionsError } = await supabase
  .from("conversions")
- .select("id, filename, source_pdf_filename, created_at, status, ubl_xml, customer_name, total_amount, invoice_number, currency, recommand_document_id, recommand_status, verified_recipient, sent_via_recommand_at")
+ .select("id, filename, source_pdf_filename, created_at, status, ubl_xml, customer_name, total_amount, invoice_number, currency, recommand_document_id, recommand_status, verified_recipient, sent_via_recommand_at, superseded_by_conversion_id, superseded_at, superseded_reason")
  .eq("user_id", user.id)
  .order("created_at", { ascending: false })
  .limit(100);
@@ -92,11 +93,33 @@ export default async function DashboardPage({
 
  const effectiveProfile = monitoringAccess.ok && profile ? { ...profile, plan: monitoringAccess.entitlement.plan.id } : profile;
 
+ // Achterhaalde rijen: het oude bestand gaat niet mee naar de browser en krijgt een
+ // verwijzing naar de leidende versie, zodat de klant het niet elders kan aanleveren.
+ const supersededReferenceIds = Array.from(new Set((conversionsData || [])
+  .map((row) => row.superseded_by_conversion_id)
+  .filter((value): value is string => typeof value === "string" && value.length > 0)));
+ const { data: supersededReferences } = supersededReferenceIds.length
+  ? await supabase
+   .from("conversions")
+   .select("id, document_type, invoice_number")
+   .in("id", supersededReferenceIds)
+  : { data: [] as Array<{ id: string; document_type: string | null; invoice_number: string | null }> };
+ const supersededLabels = new Map<string, string>((supersededReferences || []).map((reference) => [
+  reference.id,
+  `${reference.document_type === "CreditNote" ? "creditnota" : "factuur"} ${reference.invoice_number || reference.id.slice(0, 8)}`,
+ ]));
+ const conversions = (conversionsData || []).map((row) => {
+  if (!isSuperseded(row)) return row as Conversion;
+  const label = row.superseded_by_conversion_id ? supersededLabels.get(row.superseded_by_conversion_id) || null : null;
+  const supersededRow = { ...row, ubl_xml: null, superseded_by_label: label };
+  return { ...supersededRow, superseded_reason: supersededDetail(supersededRow) } as Conversion;
+ });
+
  return (
  <DashboardClient
  user={{ id: user.id, email: user.email || "" }}
  profile={effectiveProfile}
- conversions={(conversionsData || []) as Conversion[]}
+ conversions={conversions}
  conversionsError={conversionsErrorMessage}
   monitoringTargets={(monitoringTargetsData || []) as MonitoringTarget[]}
  monitoringEvents={(monitoringEventsData || []) as MonitoringEvent[]}
