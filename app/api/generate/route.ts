@@ -12,7 +12,12 @@ export async function POST(req: NextRequest) {
  if (!user) {
  return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
  }
- const invoiceData = await req.json() as InvoiceData;
+ let invoiceData: InvoiceData;
+ try {
+  invoiceData = await req.json() as InvoiceData;
+ } catch {
+  return NextResponse.json({ error: "Ongeldige JSON-body" }, { status: 400 });
+ }
  const documentType = invoiceData.documentType || "invoice";
  if (documentType !== "invoice" && documentType !== "creditNote") {
  return NextResponse.json({ error: "Ongeldig documenttype" }, { status: 400 });

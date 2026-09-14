@@ -168,7 +168,12 @@ export async function POST(req: NextRequest) {
  let eventKey: string | null = null;
  let paymentId: string | null = null;
  try {
-  const body = await req.formData();
+  let body: FormData;
+  try {
+   body = await req.formData();
+  } catch {
+   return NextResponse.json({ ok: false, error: "Ongeldige webhook-body" }, { status: 400 });
+  }
   paymentId = body.get("id") as string | null;
   if (!paymentId) return NextResponse.json({ ok: false }, { status: 400 });
 
