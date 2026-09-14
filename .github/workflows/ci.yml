@@ -22,6 +22,11 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Migratiedrift
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/check-migration-drift.mjs
+
       - name: Lint
         run: npm run lint
 
