@@ -8,19 +8,29 @@ import { mollieWebhookEventKey, normalizePaymentAdjustments } from '../lib/molli
 
 const run = promisify(execFile);
 const container = `peppolpro-audit-tests-${process.pid}`;
-const args = ['exec','-i',container,'psql','-U','postgres','-X','-qAt','-v','ON_ERROR_STOP=1'];
+// Eigen netwerknamespace (--network none), dus deze poort is daar vrij. We praten via TCP en niet
+// via de Unix-socket: tijdens initdb start de image een tijdelijke server die alleen op de socket
+// luistert en daarna weer stopt. Een socket-check is dus te vroeg groen, en in CI viel psql
+// daardoor om met "No such file or directory".
+const port = String(20000 + (process.pid % 20000));
+const args = ['exec','-i',container,'psql','-h','127.0.0.1','-p',port,'-U','postgres','-X','-qAt','-v','ON_ERROR_STOP=1'];
 const sql = (text) => execFileSync('docker',args,{input:text,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
 const service = "select set_config('request.jwt.claim.role','service_role',false);\n";
 const uid = '00000000-0000-4000-8000-000000000001';
 const other = '00000000-0000-4000-8000-000000000002';
 
 before(async () => {
- execFileSync('docker',['run','-d','--name',container,'--network','none','-e','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17'],{stdio:'pipe'});
- let ready=false;
- for(let n=0;n<40;n++) {
-  try { execFileSync('docker',['exec',container,'pg_isready','-U','postgres'],{stdio:'pipe'});ready=true;break; } catch { await delay(250); }
+ execFileSync('docker',['run','-d','--name',container,'--network','none','-e','POSTGRES_HOST_AUTH_METHOD=trust','postgres:17','-p',port],{stdio:'pipe'});
+ let ready=false,lastError;
+ const deadline=Date.now()+90000;
+ while(Date.now()<deadline) {
+  try {
+   execFileSync('docker',['exec',container,'pg_isready','-h','127.0.0.1','-p',port,'-U','postgres'],{stdio:'pipe'});
+   if(sql('select 1')==='1'){ready=true;break;}
+  } catch(error){lastError=error;}
+  await delay(250);
  }
- assert.ok(ready,'isolated PostgreSQL must start');
+ assert.ok(ready,`isolated PostgreSQL must start: ${lastError?.message||''}`);
  // Minimal pre-audit schema fixture. Assertions execute real PostgreSQL functions,
  // ACLs, row locks and triggers; no credentials, network or customer records.
  sql(`create role anon; create role authenticated; create role hermes_operator; create role service_role bypassrls;
