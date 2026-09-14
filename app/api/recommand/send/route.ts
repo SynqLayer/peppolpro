@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, createServerSupabase } from "@/lib/supabase-server";
+import { createAdminSupabase, createAuthenticatedSupabase, createServerSupabase } from "@/lib/supabase-server";
 import { findOutgoingDocument, getDocumentStatus, sendDocument, verifyRecipient, verifyRecipientSupportsCreditNote, verifyRecipientSupportsInvoice } from "@/lib/recommand";
 import type { RecommandRawResponse } from "@/lib/recommand";
 import { validateRecommandCreditNoteDocument } from "@/lib/recommand-credit-note";
@@ -7,6 +7,7 @@ import { validateRecommandInvoiceDocument } from "@/lib/recommand-invoice";
 import { buildRecommandPayloadFromUbl } from "@/lib/ubl-to-recommand";
 import { validateStoredInvoiceConsistency } from "@/lib/invoice-preview";
 import { classifySendException, classifySendResult, type SendOutcomeDisposition } from "@/lib/recommand-send-outcome";
+import { isSuperseded, SUPERSEDED_SEND_BLOCKED_MESSAGE } from "@/lib/superseded";
 
 export const maxDuration = 60;
 
@@ -34,6 +35,7 @@ type TargetRow = {
  recommand_status?: string | null;
  recommand_claimed_at?: string | null;
  sent_via_recommand_at?: string | null;
+ superseded_by_conversion_id?: string | null;
 };
 
 type ClaimRow = TargetRow & {
@@ -48,7 +50,7 @@ type CreditRow = {
 
 type UblRefundReason = "recommand_pre_send_validation_failed" | "recommand_provider_rejected";
 
-const CONVERSION_TARGET_SELECT = "id, user_id, ubl_xml, total_amount, recommand_document_id, recommand_status, recommand_claimed_at, sent_via_recommand_at";
+const CONVERSION_TARGET_SELECT = "id, user_id, ubl_xml, total_amount, recommand_document_id, recommand_status, recommand_claimed_at, sent_via_recommand_at, superseded_by_conversion_id";
 const INVOICE_TARGET_SELECT = "id, user_id, ubl_xml, total_incl, recommand_document_id, recommand_status, recommand_claimed_at, sent_via_recommand_at";
 const PROCESSING_WAIT_ATTEMPTS = 20;
 const PROCESSING_WAIT_MS = 1000;
@@ -226,9 +228,9 @@ async function getDocumentStatusBestEffort(documentId: string) {
 }
 
 export async function POST(request: NextRequest) {
- const supabase = await createServerSupabase();
+ // één herkansing met verse sessie: een onleesbare sessiecookie mag geen 401 worden
+ const { supabase, user } = await createAuthenticatedSupabase();
  const admin = createAdminSupabase();
- const { data: { user } } = await supabase.auth.getUser();
  if (!user) return jsonError("Niet ingelogd", 401);
 
  let body: unknown;
@@ -248,6 +250,7 @@ export async function POST(request: NextRequest) {
  const existing = await fetchTarget(supabase, targetTable, targetId, user.id);
  if (!existing) return jsonError("Factuur niet gevonden", 404);
  if (isVoidedDuplicate(existing)) return jsonError("Deze factuur is gemarkeerd als dubbel/voided en kan niet via Peppol worden verzonden.", 409);
+ if (isSuperseded(existing)) return jsonError(SUPERSEDED_SEND_BLOCKED_MESSAGE, 409);
  if (hasCompletedSend(existing)) return existingSendResponse(existing);
  const consistency = validateStoredInvoiceConsistency(existing.total_amount, existing.ubl_xml);
  if (!consistency.ok) {

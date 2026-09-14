@@ -4,6 +4,7 @@ import { validateParsedInvoiceForConversion } from "@/lib/conversion-drafts";
 import { generateUBL, InvoiceData } from "@/lib/ubl-generator";
 import { parseUblSummary, summarizeInvoiceData } from "@/lib/ubl-summary";
 import { documentCreditExhaustedBody } from "@/lib/document-credit";
+import { SUPERSEDED_DOWNLOAD_BLOCKED_MESSAGE } from "@/lib/superseded";
 
 export async function POST(req: NextRequest) {
  try {
@@ -65,12 +66,15 @@ export async function POST(req: NextRequest) {
   if (row.already_confirmed === true) {
    const { data: existingConversion, error: existingError } = await admin
     .from("conversions")
-    .select("ubl_xml, total_amount, currency")
+    .select("ubl_xml, total_amount, currency, superseded_by_conversion_id")
     .eq("id", row.conversion_id)
     .eq("user_id", user.id)
     .single();
    if (existingError || !existingConversion?.ubl_xml) {
     return NextResponse.json({ error: "Bestaande conversie kon niet worden opgehaald" }, { status: 500 });
+   }
+   if (existingConversion.superseded_by_conversion_id) {
+    return NextResponse.json({ error: SUPERSEDED_DOWNLOAD_BLOCKED_MESSAGE }, { status: 409 });
    }
    responseXml = existingConversion.ubl_xml;
   }

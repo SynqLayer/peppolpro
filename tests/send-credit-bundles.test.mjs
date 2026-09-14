@@ -315,7 +315,7 @@ test('dashboard renders a per-invoice send action and removes the old new-invoic
 });
 
 test('dashboard status prefers Recommand delivery state and only labels AS4 receipt as delivered', () => {
- assert.match(dashboard, /const effectiveStatus = \(conversion: Conversion\) => conversion\.recommand_status \|\| \(conversion\.ubl_xml \? "done" : conversion\.status\)/);
+ assert.match(dashboard, /const effectiveStatus = \(conversion: Conversion\) => isSuperseded\(conversion\) \? SUPERSEDED_STATUS : conversion\.recommand_status \|\| \(conversion\.ubl_xml \? "done" : conversion\.status\)/);
  assert.match(dashboard, /as4_received: \{ label: "Afgeleverd"/);
  assert.match(dashboard, /Ontvangstbevestiging op/);
  assert.match(dashboard, /send_failed: \{ label: "Verzenden mislukt"/);
@@ -324,7 +324,7 @@ test('dashboard status prefers Recommand delivery state and only labels AS4 rece
  assert.doesNotMatch(dashboard, /responseReason/);
  assert.match(dashboard, /duplicate_voided: \{ label: "Vervallen \(dubbel\)"/);
  assert.match(dashboard, /send_outcome_unknown: \{ label: "Uitkomst verzending onbekend"/);
- assert.match(dashboard, /\["sent", "delivered", "as4_received", "sending", "send_outcome_unknown", "duplicate_voided"\]/);
+ assert.match(dashboard, /\["sent", "delivered", "as4_received", "sending", "send_outcome_unknown", "duplicate_voided", SUPERSEDED_STATUS\]/);
  assert.doesNotMatch(dashboard, /delivered: \{ label: "Afgeleverd"/);
  assert.match(dashboard, /<StatusBadge conversion=\{conversion\} \/>/);
  assert.doesNotMatch(dashboard, /<StatusBadge status=\{conversion\.status\} \/>/);
