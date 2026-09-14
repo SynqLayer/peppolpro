@@ -1,6 +1,7 @@
 import type { RecommandInvoiceDocument } from "./recommand-invoice";
 import type { RecommandCreditNoteDocument, RecommandParty } from "./recommand-credit-note";
 import { payableAmountFromUbl } from "./ubl-amounts.ts";
+import { identifierWithScheme, isRecommandEnterpriseNumberScheme } from "./enterprise-number-scheme.ts";
 
 export type RecommandInvoicePayloadFromUbl = {
  recipient: string;
@@ -66,13 +67,27 @@ function fixedDecimal(value: string) {
 
 type BaseParty = Omit<RecommandParty, "enterpriseNumber" | "enterpriseNumberScheme">;
 
-function party(sectionXml: string): BaseParty;
-function party(sectionXml: string, includeEnterpriseIdentifiers: true): RecommandParty;
-function party(sectionXml: string, includeEnterpriseIdentifiers = false): BaseParty | RecommandParty {
+function enterpriseIdentifier(partyXml: string, label: string) {
+ const legalEntity = tagValueAndAttribute(section(partyXml, "PartyLegalEntity"), "CompanyID", "schemeID");
+ const partyIdentification = tagValueAndAttribute(section(partyXml, "PartyIdentification"), "ID", "schemeID");
+ const endpoint = tagValueAndAttribute(partyXml, "EndpointID", "schemeID");
+ for (const candidate of [legalEntity, partyIdentification, endpoint]) {
+  if (candidate.value && isRecommandEnterpriseNumberScheme(candidate.attributeValue)) {
+   return { value: candidate.value, scheme: candidate.attributeValue };
+  }
+ }
+ for (const candidate of [legalEntity, partyIdentification, endpoint]) {
+  const derived = identifierWithScheme(candidate.value);
+  if (derived && isRecommandEnterpriseNumberScheme(derived.scheme)) return derived;
+ }
+ throw new Error(`${label}: ondernemingsnummerschema ontbreekt of wordt niet door Recommand ondersteund`);
+}
+
+function party(sectionXml: string, label: string): BaseParty;
+function party(sectionXml: string, label: string, includeEnterpriseIdentifiers: true): RecommandParty;
+function party(sectionXml: string, label: string, includeEnterpriseIdentifiers = false): BaseParty | RecommandParty {
  const partyXml = section(sectionXml, "Party");
  const postal = section(partyXml, "PostalAddress");
- const legalEntity = section(partyXml, "PartyLegalEntity");
- const enterprise = tagValueAndAttribute(legalEntity, "CompanyID", "schemeID");
  const baseParty = {
   vatNumber: firstTag(section(partyXml, "PartyTaxScheme"), "CompanyID"),
   name: firstTag(partyXml, "RegistrationName") || firstTag(section(partyXml, "PartyName"), "Name"),
@@ -81,10 +96,12 @@ function party(sectionXml: string, includeEnterpriseIdentifiers = false): BasePa
   postalZone: firstTag(postal, "PostalZone"),
   country: firstTag(section(postal, "Country"), "IdentificationCode"),
  };
+ if (!includeEnterpriseIdentifiers) return baseParty;
+ const enterprise = enterpriseIdentifier(partyXml, label);
  return includeEnterpriseIdentifiers ? {
   ...baseParty,
   enterpriseNumber: enterprise.value,
-  enterpriseNumberScheme: enterprise.attributeValue,
+  enterpriseNumberScheme: enterprise.scheme,
  } : baseParty;
 }
 
@@ -114,8 +131,8 @@ export function buildRecommandPayloadFromUbl(ublXml: string): RecommandPayloadFr
  const payableAmount = payableAmountFromUbl(ublXml);
  const common = {
   issueDate: firstTag(ublXml, "IssueDate"),
-  seller: party(supplierSection),
-  buyer: party(customerSection),
+  seller: party(supplierSection, "Leverancier"),
+  buyer: party(customerSection, "Klant"),
  };
  const isCreditNote = /<(?:[A-Za-z0-9_-]+:)?CreditNote\b/i.test(ublXml)
   && !/<(?:[A-Za-z0-9_-]+:)?Invoice\b/i.test(ublXml);
@@ -127,14 +144,14 @@ export function buildRecommandPayloadFromUbl(ublXml: string): RecommandPayloadFr
   const document: RecommandCreditNoteDocument = {
    creditNoteNumber: firstTag(ublXml, "ID"),
    issueDate: common.issueDate,
-   buyerReference: firstTag(ublXml, "BuyerReference") || undefined,
+   buyerReference: firstTag(ublXml, "BuyerReference"),
    note: "Creditfactuur verzonden via PeppolPro.",
    invoiceReferences: originalInvoiceId ? [{
     id: originalInvoiceId,
     ...(originalIssueDate ? { issueDate: originalIssueDate } : {}),
    }] : [],
-   seller: party(supplierSection, true),
-   buyer: party(customerSection, true),
+   seller: party(supplierSection, "Leverancier", true),
+   buyer: party(customerSection, "Klant", true),
    lines: linesFromUbl(ublXml, "CreditNoteLine", "CreditedQuantity"),
   };
   return { recipient, documentType: "creditNote", document, currency, payableAmount };
@@ -144,6 +161,7 @@ export function buildRecommandPayloadFromUbl(ublXml: string): RecommandPayloadFr
   invoiceNumber: firstTag(ublXml, "ID"),
   issueDate: common.issueDate,
   dueDate: firstTag(ublXml, "DueDate"),
+  buyerReference: firstTag(ublXml, "BuyerReference"),
   note: "Factuur verzonden via PeppolPro.",
   seller: common.seller,
   buyer: common.buyer,

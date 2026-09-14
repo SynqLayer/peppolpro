@@ -46,6 +46,8 @@ type CreditRow = {
  send_credits_expires_at?: string | null;
 };
 
+type UblRefundReason = "recommand_pre_send_validation_failed" | "recommand_provider_rejected";
+
 const CONVERSION_TARGET_SELECT = "id, user_id, ubl_xml, total_amount, recommand_document_id, recommand_status, recommand_claimed_at, sent_via_recommand_at";
 const INVOICE_TARGET_SELECT = "id, user_id, ubl_xml, total_incl, recommand_document_id, recommand_status, recommand_claimed_at, sent_via_recommand_at";
 const PROCESSING_WAIT_ATTEMPTS = 20;
@@ -187,6 +189,20 @@ async function releaseSendCredit(supabase: ReturnType<typeof createAdminSupabase
  return data || null;
 }
 
+async function refundUblGenerationCreditAfterFailure(
+ supabase: ReturnType<typeof createAdminSupabase>,
+ table: "conversions" | "invoices",
+ targetId: string,
+ reason: UblRefundReason,
+) {
+ if (table !== "conversions") return null;
+ const { data, error } = await supabase
+  .rpc("release_failed_send_ubl_credit", { p_conversion_id: targetId, p_reason: reason })
+  .maybeSingle<{ applied: boolean; credits: number }>();
+ if (error) throw error;
+ return data || null;
+}
+
 function hasAs4Receipt(value: unknown): boolean {
  if (!value) return false;
  if (typeof value === "string") return value.includes("eb:SignalMessage") || value.includes("eb:Receipt");
@@ -234,18 +250,35 @@ export async function POST(request: NextRequest) {
  if (isVoidedDuplicate(existing)) return jsonError("Deze factuur is gemarkeerd als dubbel/voided en kan niet via Peppol worden verzonden.", 409);
  if (hasCompletedSend(existing)) return existingSendResponse(existing);
  const consistency = validateStoredInvoiceConsistency(existing.total_amount, existing.ubl_xml);
- if (!consistency.ok) return jsonError(consistency.error, 409);
+ if (!consistency.ok) {
+  await refundUblGenerationCreditAfterFailure(admin, targetTable, targetId, "recommand_pre_send_validation_failed");
+  return jsonError(consistency.error, 409);
+ }
 
- if (!existing.ubl_xml) return jsonError("Opgeslagen UBL ontbreekt; genereer het document opnieuw voordat je verzendt.", 409);
- const fromUbl = buildRecommandPayloadFromUbl(existing.ubl_xml);
+ if (!existing.ubl_xml) {
+  await refundUblGenerationCreditAfterFailure(admin, targetTable, targetId, "recommand_pre_send_validation_failed");
+  return jsonError("Opgeslagen UBL ontbreekt; genereer het document opnieuw voordat je verzendt.", 409);
+ }
+ let fromUbl: ReturnType<typeof buildRecommandPayloadFromUbl>;
+ try {
+  fromUbl = buildRecommandPayloadFromUbl(existing.ubl_xml);
+ } catch (error) {
+  await refundUblGenerationCreditAfterFailure(admin, targetTable, targetId, "recommand_pre_send_validation_failed");
+  const message = error instanceof Error ? error.message : "Verplichte Peppol-identificatie ontbreekt";
+  return jsonError(`Verzenden is geblokkeerd: ${message}. Pas de bedrijfsgegevens aan en genereer het document opnieuw.`, 400);
+ }
  const recipient = normalizePeppolId(fromUbl.recipient);
  const document = fromUbl.document;
  const documentType = fromUbl.documentType;
- if (!recipient) return jsonError("Ontvanger-Peppol-ID ontbreekt", 400);
+ if (!recipient) {
+  await refundUblGenerationCreditAfterFailure(admin, targetTable, targetId, "recommand_pre_send_validation_failed");
+  return jsonError("Ontvanger-Peppol-ID ontbreekt", 400);
+ }
  const documentErrors = documentType === "creditNote"
   ? validateRecommandCreditNoteDocument(document)
   : validateRecommandInvoiceDocument(document);
  if (documentErrors.length > 0) {
+  await refundUblGenerationCreditAfterFailure(admin, targetTable, targetId, "recommand_pre_send_validation_failed");
   return jsonError("Verzenden is geblokkeerd: vul de ontbrekende factuurgegevens aan en probeer opnieuw.", 400, { errors: documentErrors });
  }
 
@@ -355,7 +388,8 @@ export async function POST(request: NextRequest) {
  try {
   const verify = await verifyRecipient(recipient);
   if (!verify.isValid) {
-   const released = await releaseAfterFailure();
+    await refundUblGenerationCreditAfterFailure(admin, targetTable, targetId, "recommand_pre_send_validation_failed");
+    const released = await releaseAfterFailure();
    const { error: updateError } = await admin.from(targetTable).update({
     verified_recipient: false,
     recommand_status: "recipient_not_found",
@@ -370,6 +404,7 @@ export async function POST(request: NextRequest) {
    ? await verifyRecipientSupportsCreditNote(recipient)
    : await verifyRecipientSupportsInvoice(recipient);
   if (!support.isValid) {
+   await refundUblGenerationCreditAfterFailure(admin, targetTable, targetId, "recommand_pre_send_validation_failed");
    const released = await releaseAfterFailure();
    const { error: updateError } = await admin.from(targetTable).update({
     verified_recipient: true,
@@ -385,6 +420,10 @@ export async function POST(request: NextRequest) {
   const send = await sendDocument(companyId, payload, () => { sendAttempted = true; });
   lastSendRaw = send.raw;
   sendOutcome = classifySendResult(send);
+
+   if (send.raw.status >= 400 && send.raw.status <= 599) {
+    await refundUblGenerationCreditAfterFailure(admin, targetTable, targetId, "recommand_provider_rejected");
+   }
 
   if (sendOutcome === "provider_outcome_unknown") {
    return reconcileUnknownSendOutcome();
@@ -448,6 +487,7 @@ export async function POST(request: NextRequest) {
    }, { status: 202 });
   }
   const released = await releaseAfterFailure();
+  await refundUblGenerationCreditAfterFailure(admin, targetTable, targetId, "recommand_provider_rejected");
   const { error: updateError } = await admin.from(targetTable).update({
    recommand_status: "send_failed",
    recommand_claimed_at: null,

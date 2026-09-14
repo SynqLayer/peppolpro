@@ -1,3 +1,5 @@
+import { identifierWithScheme } from "./enterprise-number-scheme.ts";
+
 export interface InvoiceLine {
  id: string;
  description: string;
@@ -49,32 +51,10 @@ const PEPPOL_SCHEME_COUNTRIES: Record<string, string> = {
  "9925": "BE", // Belgian VAT, with BE prefix
 };
 
-function cleanIdentifier(value: string | null | undefined): string {
- return (value || "").trim().toUpperCase().replace(/\s+/g, "");
-}
-
-function splitPeppolPrefix(value: string) {
- const match = value.match(/^(\d{4}):(.*)$/);
- return match ? { scheme: match[1], value: match[2].trim().toUpperCase().replace(/\s+/g, "") } : null;
-}
-
-function inferScheme(value: string, fallbackCountry: string): string {
- const prefixed = splitPeppolPrefix(value);
- if (prefixed?.scheme) return prefixed.scheme;
- const normalized = cleanIdentifier(value);
- if (/^BE\d{10}$/.test(normalized)) return "9925";
- if (/^NL[A-Z0-9]+$/.test(normalized)) return "9944";
- if (/^\d{20}$/.test(normalized)) return "0190";
- if (/^\d{10}$/.test(normalized)) return "0208";
- if (/^\d{8}$/.test(normalized)) return "0106";
- return fallbackCountry?.toUpperCase() === "BE" ? "0208" : "0106";
-}
-
-function endpointFrom(value: string, fallbackCountry: string): Endpoint {
- const prefixed = splitPeppolPrefix(value);
- const scheme = inferScheme(value, fallbackCountry);
- const endpointValue = prefixed ? prefixed.value : cleanIdentifier(value);
- return { scheme, value: endpointValue, country: PEPPOL_SCHEME_COUNTRIES[scheme] || null };
+function endpointFrom(value: string, label: string): Endpoint {
+ const identifier = identifierWithScheme(value);
+ if (!identifier) throw new Error(`${label}: identificatieschema kan niet veilig worden afgeleid`);
+ return { ...identifier, country: PEPPOL_SCHEME_COUNTRIES[identifier.scheme] || null };
 }
 
 function firstFilled(...values: Array<string | null | undefined>) {
@@ -109,8 +89,10 @@ export function generateUBL(d: InvoiceData): string {
  vatGroups[line.vatPct].tax += line.lineVat;
  });
 
- const supplierEndpoint = endpointFrom(firstFilled(d.supplierPeppolId, d.supplierKvkKbo, d.supplierVatNr), d.supplierCountry);
- const customerEndpoint = endpointFrom(firstFilled(d.customerPeppolId, d.customerKvkKbo, d.customerVatNr), d.customerCountry);
+ const supplierEndpoint = endpointFrom(firstFilled(d.supplierPeppolId, d.supplierKvkKbo, d.supplierVatNr), "Leverancier");
+ const customerEndpoint = endpointFrom(firstFilled(d.customerPeppolId, d.customerKvkKbo, d.customerVatNr), "Klant");
+ const supplierLegalEntity = endpointFrom(firstFilled(d.supplierKvkKbo, d.supplierPeppolId, d.supplierVatNr), "Leverancier");
+ const customerLegalEntity = endpointFrom(firstFilled(d.customerKvkKbo, d.customerPeppolId, d.customerVatNr), "Klant");
  const supCountry = supplierEndpoint.country || d.supplierCountry;
  const cusCountry = customerEndpoint.country || d.customerCountry;
 
@@ -183,7 +165,7 @@ export function generateUBL(d: InvoiceData): string {
  </cac:PartyTaxScheme>
  <cac:PartyLegalEntity>
  <cbc:RegistrationName>${escapeXml(d.supplierName)}</cbc:RegistrationName>
- <cbc:CompanyID${isCreditNote ? ` schemeID="${inferScheme(d.supplierKvkKbo, d.supplierCountry)}"` : ""}>${escapeXml(d.supplierKvkKbo)}</cbc:CompanyID>
+ <cbc:CompanyID schemeID="${supplierLegalEntity.scheme}">${escapeXml(supplierLegalEntity.value)}</cbc:CompanyID>
  </cac:PartyLegalEntity>
  </cac:Party>
  </cac:AccountingSupplierParty>
@@ -203,7 +185,7 @@ export function generateUBL(d: InvoiceData): string {
  </cac:PartyTaxScheme>
  <cac:PartyLegalEntity>
  <cbc:RegistrationName>${escapeXml(d.customerName)}</cbc:RegistrationName>
- ${d.customerKvkKbo ? `<cbc:CompanyID${isCreditNote ? ` schemeID="${inferScheme(d.customerKvkKbo, d.customerCountry)}"` : ""}>${escapeXml(d.customerKvkKbo)}</cbc:CompanyID>` : ""}
+ <cbc:CompanyID schemeID="${customerLegalEntity.scheme}">${escapeXml(customerLegalEntity.value)}</cbc:CompanyID>
  </cac:PartyLegalEntity>
  </cac:Party>
  </cac:AccountingCustomerParty>
