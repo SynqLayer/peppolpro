@@ -64,5 +64,9 @@ Vóór de reparatie is de volledige tabel gedumpt naar een bestand buiten de rep
 
 ## Controle
 
-`scripts/check-migration-drift.mjs` vergelijkt de repo met de geregistreerde productiehistorie en
-faalt bij drift. Draai hem in CI en voor elke release.
+`scripts/check-migration-drift.mjs` vergelijkt de repo met de geregistreerde productiehistorie.
+De controle leest productie **live** via de Management API en heeft daarvoor
+`SUPABASE_ACCESS_TOKEN` nodig (in CI als repository-secret). Er is geen handmatig manifest meer.
+
+Zonder token stopt de controle met exitcode 2: er is dan niets vergeleken, dus een groen vinkje
+zou onterecht zijn. Draai hem in CI en voor elke release.
