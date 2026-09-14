@@ -80,7 +80,7 @@ test('P0-04: a lost submission claim never calls the provider or releases anothe
  };
  const publicClient={auth:{getUser:async()=>({data:{user:{id:'user'}}})},from:(table)=>chain({data:table==='user_profiles'?{recommand_company_id:'company',recommand_verified:true}:target,error:null})};
  const route=loadRoute('app/api/recommand/send/route.ts',{
-  '@/lib/supabase-server':{createServerSupabase:async()=>publicClient,createAdminSupabase:()=>({rpc:(name)=>{
+  '@/lib/supabase-server':{createServerSupabase:async()=>publicClient,createAuthenticatedSupabase:async()=>({user:{id:'user'},supabase:publicClient}),createAdminSupabase:()=>({rpc:(name)=>{
    if(name==='claim_recommand_send_with_credit') return chain({data:{claimed:true,claim_action:'claimed',reservation_id:'reservation',claim_token:'token',send_credits:2},error:null});
    if(name==='begin_recommand_submission') return Promise.resolve({data:false,error:null});
    if(name==='release_recommand_reservation') released=true;
@@ -92,6 +92,7 @@ test('P0-04: a lost submission claim never calls the provider or releases anothe
   '@/lib/ubl-to-recommand':{buildRecommandPayloadFromUbl:()=>({recipient:'0106:12345678',documentType:'invoice',document:{invoiceNumber:'INV-1'}})},
   '@/lib/invoice-preview':{validateStoredInvoiceConsistency:()=>({ok:true})},
   '@/lib/recommand-send-outcome':{},
+  '@/lib/superseded':{isSuperseded:()=>false,SUPERSEDED_SEND_BLOCKED_MESSAGE:'Deze factuur is achterhaald.'},
  });
  const result=await route.POST({json:async()=>({conversionId:'target'})});
  assert.equal(result.status,409);
