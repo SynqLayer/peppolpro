@@ -1,0 +1,175 @@
+{
+ "project": "nqnznblztvbhwzcmdqga",
+ "note": "Manifest van de geregistreerde productiehistorie. Werk dit bij na elke toegepaste migratie.",
+ "dumped_at": "2026-09-14T09:05:39Z",
+ "versions": [
+  {
+   "version": "0001",
+   "name": "init"
+  },
+  {
+   "version": "0002",
+   "name": "conversion_denormalized_fields"
+  },
+  {
+   "version": "0003",
+   "name": "monitoring_tier"
+  },
+  {
+   "version": "0004",
+   "name": "monitoring_accountant_tier"
+  },
+  {
+   "version": "0005",
+   "name": "monitoring_integrations_and_team"
+  },
+  {
+   "version": "0006",
+   "name": "retention_cleanup"
+  },
+  {
+   "version": "0007",
+   "name": "mollie_subscriptions"
+  },
+  {
+   "version": "0008",
+   "name": "billing_invoices_webhook_events"
+  },
+  {
+   "version": "0009",
+   "name": "payments_mollie_payment_id_unique_constraint"
+  },
+  {
+   "version": "0010",
+   "name": "rls_invoice_number_sequences"
+  },
+  {
+   "version": "0011",
+   "name": "recommand_delivery_fields"
+  },
+  {
+   "version": "0012",
+   "name": "conversion_customer_email"
+  },
+  {
+   "version": "0013",
+   "name": "conversion_pdf_retention"
+  },
+  {
+   "version": "0014",
+   "name": "recommand_company_verification"
+  },
+  {
+   "version": "0015",
+   "name": "sending_plans_and_recommand_profile_fields"
+  },
+  {
+   "version": "0016",
+   "name": "send_credit_bundles"
+  },
+  {
+   "version": "0017",
+   "name": "atomic_send_credit_reservation"
+  },
+  {
+   "version": "0018",
+   "name": "webhook_robustness_and_grants"
+  },
+  {
+   "version": "0019",
+   "name": "idempotent_send_credit_grants"
+  },
+  {
+   "version": "0020",
+   "name": "harden_billing_table_grants"
+  },
+  {
+   "version": "0021",
+   "name": "lock_down_security_definer_rpcs"
+  },
+  {
+   "version": "0022",
+   "name": "release_ubl_credit"
+  },
+  {
+   "version": "0023",
+   "name": "harden_client_table_privileges"
+  },
+  {
+   "version": "0024",
+   "name": "account_members_service_role_writes"
+  },
+  {
+   "version": "0025",
+   "name": "recommand_stale_send_claim"
+  },
+  {
+   "version": "0026",
+   "name": "recommand_failed_document_retry"
+  },
+  {
+   "version": "0027",
+   "name": "user_profiles_is_admin"
+  },
+  {
+   "version": "0028",
+   "name": "normalize_conversion_status"
+  },
+  {
+   "version": "0029",
+   "name": "conversion_drafts_confirm_flow"
+  },
+  {
+   "version": "0030",
+   "name": "billing_address_validation_and_atomic_invoice_rpc"
+  },
+  {
+   "version": "0031",
+   "name": "bundle_ubl_generation_credits"
+  },
+  {
+   "version": "0032",
+   "name": "red_goodwill_send_credits"
+  },
+  {
+   "version": "0033",
+   "name": "general_goodwill_send_credits"
+  },
+  {
+   "version": "0034",
+   "name": "idempotent_failed_send_ubl_refunds"
+  },
+  {
+   "version": "0035",
+   "name": "conversion_supersede"
+  },
+  {
+   "version": "20260908115647",
+   "name": "reset_invoice_numbering_2026"
+  },
+  {
+   "version": "20260908125414",
+   "name": "set_red_productions_address"
+  },
+  {
+   "version": "20260908163021",
+   "name": "billing_address_validation_and_atomic_invoice_rpc"
+  },
+  {
+   "version": "20260908163043",
+   "name": "create_billing_invoice_for_payment_rpc"
+  },
+  {
+   "version": "20260908172749",
+   "name": "retry_inv_2026_00001_mail_event"
+  },
+  {
+   "version": "20260908172921",
+   "name": "create_private_invoices_storage_bucket"
+  },
+  {
+   "version": "20260908180450",
+   "name": "retry_inv_2026_00001_after_synqlayer_domain_auth"
+  }
+ ]
+}
