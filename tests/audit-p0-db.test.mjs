@@ -4,6 +4,7 @@ import { execFileSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFileSync, readdirSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
+import { mollieWebhookEventKey, normalizePaymentAdjustments } from '../lib/mollie-adjustments.ts';
 
 const run = promisify(execFile);
 const container = `peppolpro-audit-tests-${process.pid}`;
@@ -54,8 +55,21 @@ before(async () => {
  sql(readFileSync(new URL('./fixtures/audit-billing-baseline.sql',import.meta.url),'utf8'));
  const adjustmentMigration = readdirSync(new URL('../supabase/migrations/',import.meta.url)).find(n=>n.endsWith('_audit_p0_payment_adjustments.sql'));
  sql(readFileSync(new URL(`../supabase/migrations/${adjustmentMigration}`,import.meta.url),'utf8'));
-
-
+ sql(`create table public.webhook_events(
+  id uuid primary key default gen_random_uuid(),
+  event_key text not null unique,
+  mollie_payment_id text,
+  payment_status text,
+  status text not null default 'processing',
+  error_message text,
+  received_at timestamptz not null default now(),
+  processed_at timestamptz
+ );`);
+ const hardeningMigration=readFileSync(new URL('../supabase/migrations/0021_lock_down_security_definer_rpcs.sql',import.meta.url),'utf8');
+ const claimStart=hardeningMigration.indexOf('create or replace function public.claim_mollie_webhook_event(');
+ const claimEnd=hardeningMigration.indexOf('create or replace function public.next_billing_invoice_number()',claimStart);
+ if(claimStart<0 || claimEnd<0) throw new Error('claim_mollie_webhook_event migration body unavailable');
+ sql(hardeningMigration.slice(claimStart,claimEnd));
 });
 after(() => { execFileSync('docker',['rm','-f',container],{stdio:'pipe'}); });
 
@@ -154,4 +168,37 @@ test('P0-03: a chargeback reversal restores only the previously reversed rights 
  assert.equal(sql(`select credits||','||send_credits from public.user_profiles where id='${buyer}'`),'10,10');
  assert.equal(sql(`select count(*) from public.invoices where payment_id='${payment}'`),'3');
  assert.equal(sql(`select sum(amount) from public.invoices where payment_id='${payment}'`),'9.00');
+});
+
+test('P0-03: Mollie event claims separate adjustments, deduplicate retries and reclaim stale processing', () => {
+ const claim=(eventKey,paymentId='tr_Fixture',status='paid')=>JSON.parse(sql(service+`select row_to_json(r) from public.claim_mollie_webhook_event('${eventKey}','${paymentId}','${status}','2 minutes') r`).split('\n').at(-1));
+ const baseKey=mollieWebhookEventKey('tr_Fixture','paid',[]);
+ assert.equal(claim(baseKey).action,'claimed');
+ sql(`update public.webhook_events set status='processed',processed_at=now() where event_key='${baseKey}'`);
+ assert.equal(claim(baseKey).action,'processed_duplicate');
+ assert.equal(sql(`select count(*) from public.webhook_events where event_key='${baseKey}'`),'1');
+
+ const refund=normalizePaymentAdjustments('tr_Fixture',[{id:'re_First',paymentId:'tr_Fixture',status:'refunded',amount:{currency:'EUR',value:'4.50'}}],[]);
+ const chargeback=normalizePaymentAdjustments('tr_Fixture',[],[{id:'chb_First',paymentId:'tr_Fixture',amount:{currency:'EUR',value:'4.50'}}]);
+ const refundKey=mollieWebhookEventKey('tr_Fixture','paid',refund);
+ const chargebackKey=mollieWebhookEventKey('tr_Fixture','paid',chargeback);
+ assert.notEqual(refundKey,baseKey);
+ assert.notEqual(chargebackKey,baseKey);
+ assert.notEqual(refundKey,chargebackKey);
+ assert.equal(claim(refundKey).action,'claimed');
+ assert.equal(claim(chargebackKey).action,'claimed');
+
+ const retryRows=normalizePaymentAdjustments('tr_Retry',[{id:'re_Retry',paymentId:'tr_Retry',status:'refunded',amount:{currency:'EUR',value:'1.00'}}],[]);
+ const retryKey=mollieWebhookEventKey('tr_Retry','paid',retryRows);
+ const duplicateRetryKey=mollieWebhookEventKey('tr_Retry','paid',[...retryRows,...retryRows]);
+ assert.equal(duplicateRetryKey,retryKey);
+ assert.equal(claim(retryKey,'tr_Retry').action,'claimed');
+ assert.equal(claim(duplicateRetryKey,'tr_Retry').action,'processing_duplicate');
+ assert.equal(sql(`select count(*) from public.webhook_events where event_key='${retryKey}'`),'1');
+
+ const staleKey=mollieWebhookEventKey('tr_Stale','paid',[]);
+ assert.equal(claim(staleKey,'tr_Stale').action,'claimed');
+ sql(`update public.webhook_events set received_at=now()-interval '3 minutes',error_message='fixture',processed_at=now() where event_key='${staleKey}'`);
+ assert.equal(claim(staleKey,'tr_Stale').action,'reclaimed');
+ assert.equal(sql(`select status||','||(error_message is null)||','||(processed_at is null) from public.webhook_events where event_key='${staleKey}'`),'processing,true,true');
 });
