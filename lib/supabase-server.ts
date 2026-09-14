@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { withAuthRetry } from "./auth-session.ts";
+import { readableCookiesOnly } from "./auth-cookie-guard.ts";
 
 export async function createServerSupabase() {
  const cookieStore = await cookies();
@@ -10,9 +11,11 @@ export async function createServerSupabase() {
  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
  {
  cookies: {
- getAll() {
- return cookieStore.getAll();
- },
+  getAll() {
+   // Onleesbare sessiecookies laten we weg: de decoder van @supabase/ssr gooit anders een
+   // fout die de route als 500 laat eindigen in plaats van een nette "niet ingelogd".
+   return readableCookiesOnly(cookieStore.getAll());
+  },
  setAll(cookiesToSet) {
  try {
  cookiesToSet.forEach(({ name, value, options }) =>
