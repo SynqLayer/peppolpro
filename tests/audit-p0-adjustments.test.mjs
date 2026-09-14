@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { amountInCents, normalizePaymentAdjustments, adjustmentEventSuffix } from '../lib/mollie-adjustments.ts';
+import { amountInCents, normalizePaymentAdjustments, adjustmentEventSuffix, mollieWebhookEventKey } from '../lib/mollie-adjustments.ts';
 
 test('P0-03: completed refund objects change the event identity even while payment status stays paid',()=>{
  const refund={id:'re_Fixture',paymentId:'tr_Fixture',status:'refunded',amount:{currency:'EUR',value:'4.50'}};
@@ -19,4 +19,19 @@ test('P0-03: chargebacks and their reversal have separate idempotency keys and s
   {key:'chargeback:chb_Test',kind:'chargeback',cents:900},
   {key:'chargeback:chb_Test:reversed',kind:'chargeback_reversed',cents:-900},
  ]);
+});
+
+test('P0-03: adjustment event identity is canonical across order, object shape and exact retries',()=>{
+ const refund={key:'refund:re_First',kind:'refund',cents:450};
+ const chargeback={key:'chargeback:chb_First',kind:'chargeback',cents:450};
+ const reorderedRefund={cents:450,kind:'refund',key:'refund:re_First'};
+ const expected=adjustmentEventSuffix([refund,chargeback]);
+
+ assert.equal(adjustmentEventSuffix([chargeback,refund]),expected);
+ assert.equal(adjustmentEventSuffix([reorderedRefund,chargeback]),expected);
+ assert.equal(adjustmentEventSuffix([refund,refund,chargeback]),expected);
+ assert.notEqual(adjustmentEventSuffix([refund]),adjustmentEventSuffix([chargeback]));
+ assert.equal(adjustmentEventSuffix([]),'');
+ assert.equal(mollieWebhookEventKey('tr_Fixture','paid',[]),'tr_Fixture:paid');
+ assert.equal(mollieWebhookEventKey('tr_Fixture','paid',[refund]),mollieWebhookEventKey('tr_Fixture','paid',[reorderedRefund]));
 });

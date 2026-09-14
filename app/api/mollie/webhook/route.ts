@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { ensurePaymentInvoice, sendBillingInvoiceEmail } from "@/lib/billing";
-import { getPaymentAdjustments, adjustmentEventSuffix, type PaymentAdjustment } from "@/lib/mollie-adjustments";
+import { getPaymentAdjustments, mollieWebhookEventKey, type PaymentAdjustment } from "@/lib/mollie-adjustments";
 import { cancelSubscription, createSubscription, getPayment, getSubscription, MolliePayment, MollieSubscription } from "@/lib/mollie";
 import { getCreditBundle, getPlan } from "@/lib/plans";
 
@@ -50,7 +50,7 @@ async function markWebhook(supabase: ReturnType<typeof createAdminClient>, event
 }
 
 async function startWebhook(supabase: ReturnType<typeof createAdminClient>, payment: MolliePayment, adjustments: PaymentAdjustment[]) {
- const eventKey = `${payment.id}:${payment.status}${adjustmentEventSuffix(adjustments)}`;
+ const eventKey = mollieWebhookEventKey(payment.id, payment.status, adjustments);
  const { data, error } = await supabase
   .rpc("claim_mollie_webhook_event", {
    p_event_key: eventKey,

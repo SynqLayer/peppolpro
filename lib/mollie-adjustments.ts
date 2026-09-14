@@ -28,14 +28,19 @@ export function normalizePaymentAdjustments(paymentId: string, refunds: Provider
   if (unique.has(row.key) && unique.get(row.key)?.cents!==row.cents) throw new Error("Conflicting provider adjustment");
   unique.set(row.key,row);
  }
- return [...unique.values()].sort((a,b)=>a.key.localeCompare(b.key));
+ return [...unique.values()].sort((a,b)=>a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 }
 
 export function adjustmentEventSuffix(rows: PaymentAdjustment[]): string {
- return rows.length ? `:${createHash("sha256").update(JSON.stringify(rows)).digest("hex")}` : "";
+ const identities=[...new Set(rows.map(({key,kind,cents})=>JSON.stringify([key,kind,cents])))].sort();
+ return identities.length ? `:${createHash("sha256").update(JSON.stringify(identities)).digest("hex")}` : "";
 }
 
-interface AdjustmentPage {
+export function mollieWebhookEventKey(paymentId: string, paymentStatus: string, rows: PaymentAdjustment[]): string {
+ return `${paymentId}:${paymentStatus}${adjustmentEventSuffix(rows)}`;
+}
+
+interface AdjustmentPaginationResponse {
  _embedded?: {
   refunds?: ProviderAdjustment[];
   chargebacks?: ProviderAdjustment[];
@@ -48,7 +53,7 @@ export async function getPaymentAdjustments(paymentId: string): Promise<PaymentA
  const key=process.env.MOLLIE_API_KEY;
  if (!key) throw new Error("MOLLIE_API_KEY ontbreekt");
  const origin="https://api.mollie.com";
- const list=async (kind:"refunds"|"chargebacks"): Promise<ProviderAdjustment[]>=>{
+ async function list(kind:"refunds"|"chargebacks"): Promise<ProviderAdjustment[]> {
   const path=`/v2/payments/${paymentId}/${kind}`;
   let url: string | null=`${origin}${path}?limit=250`;
   const rows: ProviderAdjustment[]=[];
@@ -57,7 +62,7 @@ export async function getPaymentAdjustments(paymentId: string): Promise<PaymentA
    if(parsed.origin!==origin || parsed.pathname!==path) throw new Error("Unexpected provider pagination URL");
    const response: Response=await fetch(url,{headers:{Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(10_000),cache:"no-store",redirect:"error"});
    if(!response.ok) throw new Error(`Mollie ${kind} lookup failed (${response.status})`);
-   const body: AdjustmentPage=await response.json();
+   const body: AdjustmentPaginationResponse=await response.json();
    const items=body._embedded?.[kind];
    if(!Array.isArray(items)) throw new Error("Incomplete provider adjustment response");
    rows.push(...items);
@@ -65,7 +70,7 @@ export async function getPaymentAdjustments(paymentId: string): Promise<PaymentA
   }
   if(url) throw new Error("Provider adjustment pagination limit reached");
   return rows;
- };
+ }
  const [refunds,chargebacks]=await Promise.all([list("refunds"),list("chargebacks")]);
  return normalizePaymentAdjustments(paymentId,refunds,chargebacks);
 }
