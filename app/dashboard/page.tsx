@@ -29,6 +29,14 @@ export default async function DashboardPage({
  .eq("user_id", user.id)
  .order("created_at", { ascending: false })
  .limit(100);
+ if (conversionsError) {
+  console.error("Dashboard conversions query failed", {
+   code: conversionsError.code,
+   message: conversionsError.message,
+   details: conversionsError.details,
+   hint: conversionsError.hint,
+  });
+ }
  const conversionsErrorMessage = conversionsError
  ? "Factuurhistorie kon niet worden geladen. Probeer opnieuw of neem contact op met support."
  : null;

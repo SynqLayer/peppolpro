@@ -679,6 +679,12 @@ test('Recommand verification webhook marks matching company verified on valid ve
 
 test('dashboard does not silently hide invoices when conversion query fails', () => {
  assert.match(dashboardPage, /error: conversionsError/);
+ assert.match(dashboardPage, /if \(conversionsError\) \{/);
+ assert.match(dashboardPage, /console\.error\("Dashboard conversions query failed", \{/);
+ assert.match(dashboardPage, /code: conversionsError\.code/);
+ assert.match(dashboardPage, /message: conversionsError\.message/);
+ assert.match(dashboardPage, /details: conversionsError\.details/);
+ assert.match(dashboardPage, /hint: conversionsError\.hint/);
  assert.match(dashboardPage, /conversionsErrorMessage/);
  assert.match(dashboardPage, /Factuurhistorie kon niet worden geladen/);
  assert.match(dashboardPage, /conversionsError=\{conversionsErrorMessage\}/);
