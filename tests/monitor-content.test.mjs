@@ -71,6 +71,8 @@ test('monitor CTAs use PeppolPro upgrade auth flow', () => {
 test('root sitemap and robots expose monitor routes via monitor route config', () => {
   assert.match(sitemap, /monitorRoutes/);
   assert.match(sitemap, /"\/peppol-factuur-versturen"/);
+  assert.match(sitemap, /"\/cookiebeleid"/);
+  assert.match(sitemap, /"\/annuleren-terugbetaling"/);
   assert.match(site, /"\/monitor\/privacyverklaring"/);
   assert.match(site, /"\/monitor\/klanten-controleren-op-peppol"/);
   assert.match(robots, /sitemap\.xml/);
@@ -128,19 +130,26 @@ test('commercial Peppol copy requires verification and an active send bundle bef
   assert.doesNotMatch(combined, /Verzenden én ontvangen via Peppol|Bulk verzenden|Klant ontvangt direct|3 Peppol-verzendingen/);
 });
 
-test('legal pages describe starter credits and subprocessors consistently', () => {
-  assert.match(voorwaardenPage, /Gratis accounts ontvangen eenmalig 3 credits bij registratie/);
-  assert.doesNotMatch(voorwaardenPage, /3 credits per maand|3 gratis UBL-generaties bij registratie/);
-  assert.match(privacyPage, /Brevo \(transactionele e-mail, verwerkt naam en e-mailadres\)/);
-  assert.match(privacyPage, /Recommand \(Peppol access point, voor het registreren van je bedrijf op het Peppol-netwerk en het verzenden van facturen\)/);
-  assert.match(privacyPage, /externe identiteitscontrole van Recommand; dat verloopt volledig buiten PeppolPro om, en wij ontvangen of bewaren zelf geen kopie van dat identiteitsbewijs/);
-  assert.match(avgGdprPage, /Google \(Gemini AI, voor factuurverwerking\) — verwerking onder Google&apos;s standaard AVG-voorwaarden en modelcontracten/);
-  assert.doesNotMatch(avgGdprPage, /Google Cloud \(Gemini AI\) — EU data residency/);
-  assert.match(avgGdprPage, /Brevo — Transactionele e-mail, verwerkt naam en e-mailadres/);
-  assert.match(avgGdprPage, /PDOK\/BAG Locatieserver — Adresvalidatie voor Nederlandse adressen/);
-  assert.match(avgGdprPage, /EU VIES — BTW-nummercontrole via de Europese Commissie/);
-  assert.match(avgGdprPage, /Recommand — Peppol access point, voor het registreren van je bedrijf op het Peppol-netwerk en het verzenden van facturen/);
-  assert.match(avgGdprPage, /Laatst bijgewerkt: 8 september 2026/);
-  assert.doesNotMatch(`${privacyPage}\n${avgGdprPage}`, /bewaren zelf een kopie van dat identiteitsbewijs|slaan identiteitsdocumenten op|bewaren identiteitsdocumenten/);
-  assert.match(privacyPage, /Conversions en invoices, waaronder UBL, bedragen, klantgegevens en het e-mailadres van de ontvanger, bewaren wij zolang je account actief is, tenzij je een factuur zelf verwijdert\./);
+test('legal pages describe current credits, providers, retention and rights without unsupported guarantees', () => {
+  assert.match(voorwaardenPage, /eenmalige UBL-starttegoed/);
+  assert.match(voorwaardenPage, /Verzendbundels zijn eenmalige aankopen/);
+  assert.match(voorwaardenPage, /12 maanden geldig/);
+  assert.match(voorwaardenPage, /externe Peppol-serviceprovider/);
+  assert.match(privacyPage, /Brevo — transactionele e-mail/);
+  assert.match(privacyPage, /Recommand — Peppol-serviceprovider/);
+  assert.match(privacyPage, /externe identiteitscontrole/);
+  assert.match(privacyPage, /ontvangt of bewaart zelf geen kopie van het identiteitsbewijs/);
+  assert.match(privacyPage, /geüploade PDF-bestanden maximaal 14 dagen/);
+  assert.match(privacyPage, /\/privacy\/verwijderen/);
+  assert.match(avgGdprPage, /Google — Gemini voor AI-ondersteunde factuurverwerking/);
+  assert.match(avgGdprPage, /Laatst bijgewerkt: 17 september 2026/);
+  assert.doesNotMatch(`${privacyPage}\n${avgGdprPage}`, /AVG\/GDPR compliant|ISO 27001 certificering in Q3 2026|uitsluitend binnen de EU verwerkt/i);
+});
+
+test('monitor copy reflects current 2030 policy decision and Directory limitations', () => {
+  const content = `${monitorPage}\n${existingNestedPages.join('\n')}\n${checkTool}`;
+  assert.doesNotMatch(content, /in consultatie \/ nog niet definitief/i);
+  assert.match(content, /1 juli 2030/);
+  assert.match(content, /11 september 2026/);
+  assert.match(content, /niet iedere geregistreerde ontvanger/i);
 });
