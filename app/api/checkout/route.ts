@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { createCustomer, createPayment } from "@/lib/mollie";
 import { getCheckoutProduct, isCreditBundle, isMonitoringPlan } from "@/lib/plans";
+import { CHECKOUT_TERMS_VERSION } from "@/lib/checkout-intent";
 
 function createAdminClient() {
  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,16 +18,22 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
 
-  let plan: string | undefined;
+  let body: { plan?: string; confirmPurchase?: boolean; termsVersion?: string };
   try {
-   ({ plan } = await req.json() as { plan?: string });
+   body = await req.json() as { plan?: string; confirmPurchase?: boolean; termsVersion?: string };
   } catch {
    return NextResponse.json({ error: "Ongeldige JSON-body" }, { status: 400 });
   }
+  const { plan, confirmPurchase, termsVersion } = body;
+  if (confirmPurchase !== true || termsVersion !== CHECKOUT_TERMS_VERSION) {
+   return NextResponse.json({ error: "Bevestig de aankoop en actuele voorwaarden vóór betaling" }, { status: 422 });
+  }
+
   const product = getCheckoutProduct(plan);
   if (!product.paid) return NextResponse.json({ error: "Ongeldig plan of bundel" }, { status: 400 });
   if (product.available === false) return NextResponse.json({ error: "Dit product is binnenkort beschikbaar" }, { status: 400 });
 
+  const confirmedAt = new Date().toISOString();
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://peppolpro.nl";
   const admin = createAdminClient();
   const { data: profile, error: profileError } = await admin
@@ -37,17 +44,20 @@ export async function POST(req: NextRequest) {
   if (profileError) throw profileError;
 
   if (isCreditBundle(product.id)) {
+   const paymentMetadata = {
+    user_id: user.id,
+    plan: product.id,
+    bundle_id: product.id,
+    purchase_type: "send_credit_bundle",
+    purchase_confirmed_at: confirmedAt,
+    terms_version: CHECKOUT_TERMS_VERSION,
+   };
    const payment = await createPayment({
     amount: product.amount,
     description: product.checkoutDescription,
     redirectUrl: `${baseUrl}/upgrade/success`,
     webhookUrl: `${baseUrl}/api/mollie/webhook`,
-    metadata: {
-     user_id: user.id,
-     plan: product.id,
-     bundle_id: product.id,
-     purchase_type: "send_credit_bundle",
-    },
+    metadata: paymentMetadata,
    });
 
    if (!payment.id || !payment._links?.checkout?.href) {
@@ -65,7 +75,7 @@ export async function POST(req: NextRequest) {
     status: payment.status || "open",
     sequence_type: "oneoff",
     plan: product.id,
-   metadata: payment.metadata || { plan: product.id, purchase_type: "send_credit_bundle" },
+    metadata: payment.metadata || paymentMetadata,
    }, { onConflict: "mollie_payment_id" });
    if (paymentError) throw paymentError;
 
@@ -86,6 +96,14 @@ export async function POST(req: NextRequest) {
    customerId = customer.id;
   }
 
+  const paymentMetadata = {
+   user_id: user.id,
+   plan: product.id,
+   purchase_type: "monitoring_subscription",
+   subscription_flow: "recurring_first_payment",
+   purchase_confirmed_at: confirmedAt,
+   terms_version: CHECKOUT_TERMS_VERSION,
+  };
   const payment = await createPayment({
    amount: product.amount,
    description: product.checkoutDescription,
@@ -93,12 +111,7 @@ export async function POST(req: NextRequest) {
    webhookUrl: `${baseUrl}/api/mollie/webhook`,
    customerId,
    sequenceType: "first",
-   metadata: {
-    user_id: user.id,
-    plan: product.id,
-    purchase_type: "monitoring_subscription",
-    subscription_flow: "recurring_first_payment",
-   },
+   metadata: paymentMetadata,
   });
 
   if (!payment.id || !payment._links?.checkout?.href) {
@@ -116,7 +129,7 @@ export async function POST(req: NextRequest) {
    status: payment.status || "open",
    sequence_type: "first",
    plan: product.id,
-   metadata: payment.metadata || { plan: product.id },
+   metadata: payment.metadata || paymentMetadata,
   }, { onConflict: "mollie_payment_id" });
   if (paymentError) throw paymentError;
 
