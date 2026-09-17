@@ -135,11 +135,11 @@ test('legal pages describe current credits, providers, retention and rights with
   assert.match(voorwaardenPage, /Verzendbundels zijn eenmalige aankopen/);
   assert.match(voorwaardenPage, /12 maanden geldig/);
   assert.match(voorwaardenPage, /externe Peppol-serviceprovider/);
-  assert.match(privacyPage, /Brevo — transactionele e-mail/);
-  assert.match(privacyPage, /Recommand — Peppol-serviceprovider/);
+  assert.match(privacyPage, /Brevo.*transactionele e-mail/);
+  assert.match(privacyPage, /Recommand.*Peppol-serviceprovider/);
   assert.match(privacyPage, /externe identiteitscontrole/);
   assert.match(privacyPage, /ontvangt of bewaart zelf geen kopie van het identiteitsbewijs/);
-  assert.match(privacyPage, /geüploade PDF-bestanden maximaal 14 dagen/);
+  assert.match(privacyPage, /geüploade PDF-bestanden: maximaal 14 dagen/i);
   assert.match(privacyPage, /\/privacy\/verwijderen/);
   assert.match(avgGdprPage, /Google — Gemini voor AI-ondersteunde factuurverwerking/);
   assert.match(avgGdprPage, /Laatst bijgewerkt: 17 september 2026/);
