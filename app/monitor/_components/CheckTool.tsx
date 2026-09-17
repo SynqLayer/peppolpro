@@ -47,22 +47,25 @@ export function CheckTool() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Bijv. 76440656 of Gemeente Rotterdam"
+            required
+            maxLength={160}
             className="min-h-14 flex-1 rounded-2xl border border-slate-300 bg-white px-5 text-base outline-none ring-blue-200 transition focus:border-blue-600 focus:ring-4"
           />
           <button type="submit" disabled={loading} className="min-h-14 rounded-2xl bg-blue-700 px-6 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-400">
             {loading ? "Bezig..." : "Check Peppol"}
           </button>
         </form>
-        {error && <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-medium text-red-700">{error}</p>}
+        {error && <p role="alert" className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-medium text-red-700">{error}</p>}
 
         {!result && <p className="mt-6 text-slate-600">Nog geen zoekopdracht uitgevoerd.</p>}
         {result && (
-          <div className="mt-6 space-y-5">
+          <div className="mt-6 space-y-5" aria-live="polite">
             <div className={`rounded-2xl p-5 ${result.found ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-900"}`}>
               <p className="text-sm font-semibold uppercase tracking-wide">{result.found ? "Gevonden" : "Niet gevonden"}</p>
               <p className="mt-2 text-lg font-bold">
-                {result.found ? "Dit bedrijf heeft ten minste één vermelding in de Peppol Directory." : "Geen Peppol-vermelding gevonden voor deze zoekopdracht."}
+                {result.found ? "Dit bedrijf heeft ten minste één gepubliceerde vermelding in de Peppol Directory." : "Geen gepubliceerde Peppol-vermelding gevonden voor deze zoekopdracht."}
               </p>
+              {!result.found && <p className="mt-2 text-sm leading-6">Dit is geen bewijs dat de organisatie niet op Peppol kan ontvangen. Niet iedere geregistreerde ontvanger hoeft in de Directory gepubliceerd te zijn.</p>}
             </div>
             {result.peppolIds.length > 0 && (
               <div>
@@ -93,7 +96,7 @@ export function CheckTool() {
 
       <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-bold text-slate-950">Verplicht-indicatie</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-600">Geen juridisch advies. Het Nederlandse mandaat is in consultatie / nog niet definitief. ViDA 2030 is relevant voor EU-ontwikkelingen bij grensoverschrijdende B2B.</p>
+        <p className="mt-3 text-sm leading-6 text-slate-600">Geen juridisch advies. Nederland heeft op kabinetsniveau gekozen voor verplichte e-facturatie per 1 juli 2030 voor nationale en internationale B2B-transacties; het nationale wetsvoorstel en de uitvoeringsdetails worden nog uitgewerkt.</p>
         <div className="mt-5 space-y-3">
           <label className="flex gap-3 rounded-2xl border border-slate-200 p-4 text-sm text-slate-700">
             <input type="checkbox" checked={suppliesGovernment} onChange={(event) => setSuppliesGovernment(event.target.checked)} />
