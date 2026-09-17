@@ -6,6 +6,7 @@ import { FormEvent, Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase-client";
 import { C } from "@/lib/constants";
 import {
+ CHECKOUT_TERMS_VERSION,
  appendCheckoutIntent,
  checkoutIntentCookieValue,
  checkoutResumePath,
@@ -29,10 +30,10 @@ function RegisterContent() {
  const [email, setEmail] = useState("");
  const [password, setPassword] = useState("");
  const [confirmPassword, setConfirmPassword] = useState("");
+ const [termsAccepted, setTermsAccepted] = useState(false);
  const [loading, setLoading] = useState(false);
  const [sent, setSent] = useState(false);
  const [error, setError] = useState("");
-
 
  const handleRegister = async (event: FormEvent) => {
  event.preventDefault();
@@ -45,12 +46,25 @@ function RegisterContent() {
  setError("De wachtwoorden komen niet overeen.");
  return;
  }
+ if (!termsAccepted) {
+ setError("Bevestig eerst de zakelijke gebruiks- en voorwaardenverklaring.");
+ return;
+ }
 
+ const acceptedAt = new Date().toISOString();
  setLoading(true);
  const { data, error } = await supabase.auth.signUp({
  email,
  password,
- options: { emailRedirectTo: checkoutPlan ? appendCheckoutIntent(`${window.location.origin}/api/auth/callback`, checkoutPlan) : `${window.location.origin}/api/auth/callback?redirect=/onboarding` },
+ options: {
+  emailRedirectTo: checkoutPlan ? appendCheckoutIntent(`${window.location.origin}/api/auth/callback`, checkoutPlan) : `${window.location.origin}/api/auth/callback?redirect=/onboarding`,
+  data: {
+   business_use_confirmed: true,
+   age_18_plus_confirmed: true,
+   terms_version: CHECKOUT_TERMS_VERSION,
+   terms_accepted_at: acceptedAt,
+  },
+ },
  });
  setLoading(false);
 
@@ -77,15 +91,15 @@ function RegisterContent() {
  };
 
  return (
- <main style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", padding: 20 }}>
- <section style={{ width: "100%", maxWidth: 430, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 34, backdropFilter: "blur(20px)", boxShadow: "0 18px 60px rgba(0,0,0,0.28)" }}>
+ <main style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "ui-sans-serif, system-ui, sans-serif", padding: 20 }}>
+ <section style={{ width: "100%", maxWidth: 460, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 34, backdropFilter: "blur(20px)", boxShadow: "0 18px 60px rgba(0,0,0,0.28)" }}>
  <div style={{ textAlign: "center", marginBottom: 28 }}>
  <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 16, textDecoration: "none" }}>
  <span style={{ width: 36, height: 36, borderRadius: 8, background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16, fontWeight: 900 }}>P</span>
  <span style={{ fontSize: 20, fontWeight: 900, color: C.white }}>Peppol<span style={{ color: C.blue }}>Pro</span></span>
  </Link>
- <h1 style={{ fontSize: 24, fontWeight: 900, color: C.white, margin: 0 }}>Account maken</h1>
- <p style={{ fontSize: 14, color: C.dim, margin: "8px 0 0" }}>Maak een account met e-mail en wachtwoord.</p>
+ <h1 style={{ fontSize: 24, fontWeight: 900, color: C.white, margin: 0 }}>Zakelijk account maken</h1>
+ <p style={{ fontSize: 14, color: C.dim, margin: "8px 0 0", lineHeight: 1.6 }}>PeppolPro is bedoeld voor ondernemers en organisaties. Je moet 18+ zijn en bevoegd zijn voor de organisatie te handelen.</p>
  </div>
 
  {sent ? (
@@ -97,26 +111,33 @@ function RegisterContent() {
  ) : (
  <form onSubmit={handleRegister} style={{ display: "grid", gap: 12 }}>
  <div>
- <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>E-mail</label>
- <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="jouw@email.nl" required style={inputStyle} />
+ <label htmlFor="register-email" style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>E-mail</label>
+ <input id="register-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="jouw@bedrijf.nl" autoComplete="email" required style={inputStyle} />
  </div>
  <div>
- <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>Wachtwoord</label>
- <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} style={inputStyle} />
+ <label htmlFor="register-password" style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>Wachtwoord</label>
+ <input id="register-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" required minLength={8} style={inputStyle} />
  </div>
  <div>
- <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>Bevestig wachtwoord</label>
- <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required minLength={8} style={inputStyle} />
+ <label htmlFor="register-password-confirm" style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>Bevestig wachtwoord</label>
+ <input id="register-password-confirm" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" required minLength={8} style={inputStyle} />
  </div>
- {error && <p style={{ fontSize: 13, color: "#f87171", margin: 0 }}>{error}</p>}
- <button type="submit" disabled={loading} style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, color: "#fff", fontSize: 14, fontWeight: 900, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", opacity: loading ? 0.72 : 1 }}>
+
+ <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 4, padding: 14, border: `1px solid ${C.border}`, borderRadius: 8, color: "#cbd5e1", fontSize: 12, lineHeight: 1.6 }}>
+  <input type="checkbox" required checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} style={{ marginTop: 3, width: 17, height: 17 }} />
+  <span>Ik ben 18 jaar of ouder, gebruik PeppolPro zakelijk en ben bevoegd voor de onderneming/organisatie te handelen. Ik ga akkoord met de <Link href="/voorwaarden" target="_blank" style={{ color: "#93c5fd" }}>algemene voorwaarden</Link> en heb de <Link href="/privacy" target="_blank" style={{ color: "#93c5fd" }}>privacyverklaring</Link> gelezen.</span>
+ </label>
+
+ {error && <p role="alert" style={{ fontSize: 13, color: "#f87171", margin: 0 }}>{error}</p>}
+ <button type="submit" disabled={loading || !termsAccepted} style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, color: "#fff", fontSize: 14, fontWeight: 900, cursor: loading || !termsAccepted ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: loading || !termsAccepted ? 0.62 : 1 }}>
  {loading ? "Account maken..." : "Account maken"}
  </button>
+ <p style={{ fontSize: 11, color: C.gray, lineHeight: 1.6, margin: 0 }}>We gebruiken registratiegegevens voor accountbeheer, beveiliging en de dienstverlening; niet om je automatisch voor marketing in te schrijven.</p>
  </form>
  )}
 
  <div style={{ marginTop: 24, textAlign: "center" }}>
- <p style={{ fontSize: 12, color: `${C.dim}88`, margin: 0 }}>
+ <p style={{ fontSize: 12, color: C.gray, margin: 0 }}>
  Al een account?{" "}
  <Link href={loginHref} style={{ color: C.blue, textDecoration: "none", fontWeight: 800 }}>Log in</Link>
  </p>
