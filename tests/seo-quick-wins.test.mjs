@@ -24,15 +24,17 @@ test('/prijzen owns Peppol cost and pricing intent', () => {
   assert.match(pricing, /title: "Peppol prijzen en kosten"/);
   assert.match(pricing, /description: "Bekijk de actuele PeppolPro-prijzen/);
   assert.match(pricing, /alternates:\s*\{ canonical: "\/prijzen" \}/);
+  assert.match(pricing, /incl\. btw/);
   assert.match(sitemap, /"\/prijzen"/);
   assert.equal(count(homepage, 'href: "/prijzen"'), 1);
 });
 
-test('/monitor metadata owns Peppol checker intent without changing the page H1', () => {
+test('/monitor metadata owns Peppol checker intent with precise Directory H1', () => {
   assert.match(monitor, /title: "Peppol checker \| Gratis Peppol ID opzoeken"/);
   assert.match(monitor, /description: "Gebruik de gratis Peppol checker/);
   assert.match(monitor, /path: "\/monitor"/);
-  assert.match(monitor, />Check of een NL-bedrijf vindbaar is op Peppol\.<\/h1>/);
+  assert.match(monitor, />Check of een NL-bedrijf gepubliceerd is in de Peppol Directory\.<\/h1>/);
+  assert.match(monitor, /niet-gevonden resultaat bewijst dus niet/i);
 });
 
 test('/monitor related links strengthen both protected destination pages', () => {
@@ -49,6 +51,7 @@ test('/monitor/over-ons has about intent and a contextual checker link', () => {
   assert.match(about, /description: "Lees wie PeppolPro Monitor bouwt/);
   assert.match(about, /<Link href="\/monitor">Peppol checker<\/Link>/);
   assert.match(about, /title="Peppol-Check is een SynqLayer-tool"/);
+  assert.match(about, /11 september 2026/);
 });
 
 test('Monitor functionality contract remains intact', () => {
