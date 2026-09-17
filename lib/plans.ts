@@ -151,7 +151,6 @@ export const CREDIT_BUNDLES: Record<CreditBundleId, CreditBundleConfig> = {
   available: true,
   credits: 25,
   validMonths: 12,
-  badge: "Populair",
  },
  send_credits_50: {
   id: "send_credits_50",
