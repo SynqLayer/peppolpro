@@ -52,13 +52,13 @@ jobs:
         shell: bash
         run: |
           set +e
-          npm test 2>&1 | tee /tmp/peppolpro-test.log
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            failures=$(grep -E -A18 -B4 'not ok|AssertionError|ERR_ASSERTION|failureType|error:' /tmp/peppolpro-test.log | tail -n 240 || true)
-            echo "::group::Concise test failures"
+          npm test > /tmp/peppolpro-test.log 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            tail -n 12 /tmp/peppolpro-test.log
+          else
+            failures=$(grep -E -A20 -B5 'not ok|AssertionError|ERR_ASSERTION|failureType|error:' /tmp/peppolpro-test.log | tail -n 260 || true)
             printf '%s\n' "$failures"
-            echo "::endgroup::"
             {
               echo '## Test failures'
               echo '```text'
