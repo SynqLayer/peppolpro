@@ -1,12 +1,12 @@
 # PeppolPro compliance / UX audit — 17 september 2026
 
-Scope: publieke website, registratie, checkout, privacy/juridische informatie, marketingclaims, cookies/tracking, derde partijen en basistoegankelijkheid. Geen productie-infrastructuur of database is gewijzigd.
+Scope: publieke website, registratie, checkout, privacy/juridische informatie, marketingclaims, cookies/tracking, derde partijen, basistoegankelijkheid en CI-signalen. Geen productie-infrastructuur of database is gewijzigd.
 
 ## Samenvatting
 
-De audit vond vooral risico's in **absolute productclaims**, **verouderde e-facturatieregels**, **een checkout die te snel doorstuurde naar Mollie**, ontbrekende juridische self-servicepagina's en onvoldoende specifieke AVG-informatie. De meeste direct in code oplosbare punten zijn in deze branch aangepast.
+De audit vond vooral risico's in **absolute productclaims**, **verouderde e-facturatieregels**, **een checkout die te snel doorstuurde naar Mollie**, ontbrekende juridische self-servicepagina's en onvoldoende specifieke AVG-informatie. De direct in code oplosbare punten zijn in deze branch aangepast.
 
-Drie operationele/architectuurpunten blijven bewust open en worden als GitHub-issue bijgehouden: internationale btw-behandeling in de eigen PeppolPro-verkoopfacturen, contractuele/privacy-verificatie van leveranciers en een geverifieerd publiek telefoonnummer.
+Tijdens CI kwamen daarnaast twee bestaande repo-/productierisico's naar voren: drie toegepaste Supabase-migraties ontbreken in Git en `npm ci` rapporteert 4 dependency findings (1 moderate, 2 high, 1 critical). Deze zijn bewust niet weggepoetst of automatisch gefixt; ze staan als aparte P1-issues open.
 
 ## 20-punts audit
 
@@ -79,6 +79,20 @@ Artikel 12 AVG bepaalt in beginsel een reactietermijn van één maand voor verzo
 
 Bron: https://eur-lex.europa.eu/eli/reg/2016/679/oj
 
+### CI / productiedatabase-drift
+
+De productiedatabase rapporteert 45 toegepaste Supabase-migraties terwijl `main` 42 migratiebestanden bevat. De volgende drie toegepaste versies ontbreken in Git:
+
+- `20260913200523 audit_p0_wallet_and_access`
+- `20260913201349 audit_p0_send_reservations`
+- `20260913201818 audit_p0_payment_adjustments`
+
+De exacte SQL kon niet betrouwbaar uit de huidige Git-historie worden teruggevonden. Daarom zijn **geen lege of gereconstrueerde placeholdermigraties** toegevoegd. Issue #86 beschrijft de veilige herstelroute.
+
+### Dependency security
+
+`npm ci` rapporteerde in GitHub Actions op 17 september 2026 4 dependency findings: 1 moderate, 2 high en 1 critical. Dit wordt niet blind met `npm audit fix --force` opgelost. Issue #87 vraagt om advisory/CVE-triage, exploitability-check en minimaal veilige upgrades met volledige regressietests.
+
 ## Derden / SDK-overzicht
 
 | Dienst | Functie in PeppolPro | Privacy/compliance aandachtspunt |
@@ -93,9 +107,15 @@ Bron: https://eur-lex.europa.eu/eli/reg/2016/679/oj
 
 ## Open risico's vóór bredere commerciële uitrol
 
-1. **P1 — internationale btw-behandeling:** eigen PeppolPro billing-RPC's rekenen momenteel de btw uit met `1.21` / 21% als default. Dit moet vóór verkoop aan verschillende klanttypes/landen juridisch/fiscaal worden gemodelleerd (o.a. mogelijke verlegging B2B EU).
-2. **P2 — leverancierscontracten/privacy:** code toont welke providers technisch worden gebruikt, maar niet of actuele DPA's, SCC's, subprocessorafspraken en gewenste dataregio's contractueel zijn vastgelegd.
-3. **P2 — publiek telefoonnummer:** geen geverifieerd SynqLayer/PeppolPro-nummer in de repo gevonden; daarom is bewust geen nummer verzonnen.
+1. **P1 — internationale btw-behandeling (#82):** eigen PeppolPro billing-RPC's rekenen momenteel de btw uit met `1.21` / 21% als default. Dit moet vóór verkoop aan verschillende klanttypes/landen juridisch/fiscaal worden gemodelleerd, inclusief mogelijke btw-verlegging bij EU-B2B.
+2. **P1 — database migration drift (#86):** drie op productie toegepaste Supabase-migraties ontbreken in Git. Eerst exacte historische SQL terugvinden en reconciliëren; geen placeholders gebruiken.
+3. **P1 — dependency security (#87):** triage de 1 critical, 2 high en 1 moderate npm findings en patch zo klein mogelijk met volledige regressiecontrole.
+4. **P2 — leverancierscontracten/privacy (#83):** code toont welke providers technisch worden gebruikt, maar niet of actuele DPA's, SCC's, subprocessorafspraken en gewenste dataregio's contractueel zijn vastgelegd.
+5. **P2 — publiek telefoonnummer (#84):** geen geverifieerd SynqLayer/PeppolPro-nummer in de repo gevonden; daarom is bewust geen nummer verzonnen.
+
+## CI-status van deze auditbranch
+
+De CI is opgesplitst zodat bestaande productiedatabase-drift niet verhindert dat de PR-code zelf wordt getest. `migration-drift` blijft strict en rood zolang issue #86 niet is opgelost. De onafhankelijke `checks`-job voert `npm ci`, lint, typecheck, alle tests en een production Next.js build uit. Op de functionele commit vóór deze documentupdate waren lint, typecheck, tests en build volledig groen.
 
 ## Geen productieactie
 
