@@ -24,7 +24,7 @@ export const FEATURES = [
  { icon: "📡", t: "Peppol-verzending", d: "Verzend via een aangesloten Peppol-serviceprovider na bedrijfsverificatie met een eenmalig gekochte verzendbundel. Geen maandelijks verzendabonnement nodig." },
  { icon: "✅", t: "BTW-checks binnenkort", d: "Automatische BTW-validatie staat op de roadmap. Controleer BTW-nummers voorlopig zelf vóór je de UBL gebruikt." },
  { icon: "🇳🇱", t: "NL + BE context", d: "De productuitleg houdt rekening met Nederlandse en Belgische e-facturatieregels. Controleer altijd welke verplichting voor jouw transactie geldt." },
- { icon: "🔐", t: "Privacybewuste verwerking", d: "Factuurdata wordt opgeslagen in je account voor je factuurhistorie. Je kunt opgeslagen facturen en conversies verwijderen en privacyrechten uitoefenen." },
+ { icon: "🔐", t: "Privacybewuste verwerking", d: "Factuurdata wordt opgeslagen zodat je deze in je factuurhistorie kunt terugzien. Je kunt opgeslagen facturen en conversies verwijderen en privacyrechten uitoefenen." },
 ];
 
 export const FAQ = [
