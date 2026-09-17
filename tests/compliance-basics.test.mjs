@@ -116,7 +116,7 @@ test('actuele Peppol- en mandate-copy vervangt consultatie en cross-border fout'
 
 test('contactformulier minimaliseert en legt privacy uit', () => {
   const contact = read('app/contact/page.tsx');
-  assert.match(contact, /maxLength={5000}/);
+  assert.match(contact, /maxLength=\{5000\}/);
   assert.match(contact, /schrijft je niet in voor marketing/);
   assert.match(contact, /href="\/privacy"/);
   assert.doesNotMatch(contact, /meestal binnen 24 uur/i);
