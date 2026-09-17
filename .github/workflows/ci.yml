@@ -49,7 +49,17 @@ jobs:
         run: npm run typecheck
 
       - name: Test
-        run: npm test
+        shell: bash
+        run: |
+          set +e
+          npm test 2>&1 | tee /tmp/peppolpro-test.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Concise test failures"
+            grep -E -A18 -B4 'not ok|AssertionError|ERR_ASSERTION|failureType|error:' /tmp/peppolpro-test.log | tail -n 240 || true
+            echo "::endgroup::"
+          fi
+          exit "$status"
 
       - name: Build
         env:
