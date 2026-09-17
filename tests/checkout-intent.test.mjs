@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+ CHECKOUT_TERMS_VERSION,
  appendCheckoutIntent,
  checkoutIntentCookieValue,
  checkoutLoginPath,
@@ -19,11 +20,13 @@ const registerPage = readFileSync(new URL('../app/register/page.tsx', import.met
 const authConfirmPage = readFileSync(new URL('../app/auth/confirm/page.tsx', import.meta.url), 'utf8');
 const authCallbackRoute = readFileSync(new URL('../app/api/auth/callback/route.ts', import.meta.url), 'utf8');
 const checkoutResumePage = readFileSync(new URL('../app/checkout/resume/page.tsx', import.meta.url), 'utf8');
+const checkoutRoute = readFileSync(new URL('../app/api/checkout/route.ts', import.meta.url), 'utf8');
 
-test('PlanButton stuurt 401 naar login met checkout-intentie', () => {
- assert.equal(checkoutLoginPath('send_credits_10'), '/login?plan=send_credits_10&redirect=checkout');
- assert.match(planButton, /router\.push\(checkoutLoginPath\(plan\)\)/);
- assert.doesNotMatch(planButton, /router\.push\("\/login"\)/);
+test('PlanButton gaat altijd eerst naar expliciete checkout-review', () => {
+ assert.equal(checkoutResumePath('send_credits_10'), '/checkout/resume?plan=send_credits_10');
+ assert.match(planButton, /router\.push\(checkoutResumePath\(plan\)\)/);
+ assert.doesNotMatch(planButton, /fetch\(["']\/api\/checkout/);
+ assert.doesNotMatch(planButton, /router\.push\(checkoutLoginPath\(plan\)\)/);
 });
 
 test('checkout-intentie accepteert alleen betaalde beschikbare plannen', () => {
@@ -45,6 +48,7 @@ test('checkout-intentie whitelist volgt de actuele checkoutProducts-config', () 
   .sort();
  assert.deepEqual(accepted, expected);
  assert.doesNotMatch(readFileSync(new URL('../lib/checkout-intent.ts', import.meta.url), 'utf8'), /verzenden_25|verzenden_100/);
+ assert.equal(CHECKOUT_TERMS_VERSION, '2026.09');
 });
 
 test('checkout-intentie wordt veilig door auth-links en cookies gedragen', () => {
@@ -56,15 +60,17 @@ test('checkout-intentie wordt veilig door auth-links en cookies gedragen', () =>
   appendCheckoutIntent('https://peppolpro.nl/api/auth/callback', 'send_credits_10'),
   'https://peppolpro.nl/api/auth/callback?plan=send_credits_10&redirect=checkout'
  );
+ assert.equal(checkoutLoginPath('send_credits_10'), '/login?plan=send_credits_10&redirect=checkout');
  assert.equal(checkoutResumePath('send_credits_10'), '/checkout/resume?plan=send_credits_10');
  assert.match(checkoutIntentCookieValue('send_credits_10'), /peppolpro_checkout_plan=send_credits_10; Path=\/; Max-Age=3600; SameSite=Lax/);
  assert.match(clearCheckoutIntentCookieValue(), /peppolpro_checkout_plan=; Path=\/; Max-Age=0; SameSite=Lax/);
 });
 
-test('login, magic link, Google, register en callback hervatten checkout-intentie', () => {
+test('login, magic link, Google, register en callback hervatten naar review zonder automatische betaling', () => {
  assert.match(loginPage, /readCheckoutIntentFromSearch/);
- assert.match(loginPage, /fetch\("\/api\/checkout"/);
- assert.match(loginPage, /window\.location\.href = data\.checkoutUrl/);
+ assert.match(loginPage, /router\.push\(checkoutResumePath\(checkoutPlan\)\)/);
+ assert.doesNotMatch(loginPage, /fetch\(["']\/api\/checkout/);
+ assert.doesNotMatch(loginPage, /window\.location\.href = data\.checkoutUrl/);
  assert.match(loginPage, /appendCheckoutIntent\(`\$\{window\.location\.origin\}\/auth\/confirm`, checkoutPlan\)/);
  assert.match(loginPage, /appendCheckoutIntent\(`\$\{window\.location\.origin\}\/api\/auth\/callback`, checkoutPlan\)/);
  assert.match(loginPage, /document\.cookie = checkoutIntentCookieValue\(checkoutPlan\)/);
@@ -73,6 +79,14 @@ test('login, magic link, Google, register en callback hervatten checkout-intenti
  assert.match(authConfirmPage, /checkoutResumePath\(checkoutPlan\)/);
  assert.match(authCallbackRoute, /CHECKOUT_INTENT_COOKIE/);
  assert.match(authCallbackRoute, /checkoutResumePath\(checkoutPlan\)/);
- assert.match(checkoutResumePage, /fetch\("\/api\/checkout"/);
+ assert.match(checkoutResumePage, /confirmPurchase: true/);
+ assert.match(checkoutResumePage, /termsVersion: CHECKOUT_TERMS_VERSION/);
  assert.match(checkoutResumePage, /window\.location\.href = data\.checkoutUrl/);
+});
+
+test('checkout API handhaaft expliciete aankoopbevestiging server-side', () => {
+ assert.match(checkoutRoute, /confirmPurchase !== true/);
+ assert.match(checkoutRoute, /termsVersion !== CHECKOUT_TERMS_VERSION/);
+ assert.match(checkoutRoute, /purchase_confirmed_at: confirmedAt/);
+ assert.match(checkoutRoute, /terms_version: CHECKOUT_TERMS_VERSION/);
 });
