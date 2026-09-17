@@ -35,11 +35,21 @@ export default function PrivacyPage() {
  </ul>
 
  <h2 style={h2}>4. Bewaartermijnen</h2>
- <p style={p}>We bewaren gegevens niet langer dan nodig. De huidige uitgangspunten zijn: accountgegevens zolang het account actief is; geüploade PDF-bestanden maximaal 14 dagen na conversie; PeppolPro-verkoopfacturen en andere fiscaal relevante administratie 7 jaar; monitoring-events maximaal 12 maanden; pending teamuitnodigingen maximaal 30 dagen waarna het e-mailadres uit de uitnodigingsrij wordt verwijderd; beveiligings- en technische logs maximaal 90 dagen. Factuur- en transactiegegevens kunnen langer moeten blijven staan wanneer een wettelijke bewaarplicht, fraudeonderzoek of geschil dat vereist.</p>
+ <p style={p}>We bewaren gegevens niet langer dan nodig. De huidige uitgangspunten zijn:</p>
+ <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
+  <li style={li}>Accountgegevens: zolang het account actief is en daarna alleen voor zover een geldige bewaargond bestaat.</li>
+  <li style={li}>Geüploade PDF-bestanden: maximaal 14 dagen na conversie.</li>
+  <li style={li}>PeppolPro-verkoopfacturen en andere fiscaal relevante administratie: 7 jaar.</li>
+  <li style={li}>Monitoring-events: maximaal 12 maanden.</li>
+  <li style={li}>Team-uitnodigingen: maximaal 30 dagen als ze nog pending zijn; daarna wordt het uitnodigings-e-mailadres uit de uitnodigingsrij verwijderd.</li>
+  <li style={li}>Beveiligings- en technische logs: maximaal 90 dagen, tenzij een incident of onderzoek langer bewaren noodzakelijk maakt.</li>
+ </ul>
+ <p style={p}>Factuur- en transactiegegevens kunnen langer moeten blijven staan wanneer een wettelijke bewaarplicht, fraudeonderzoek of geschil dat vereist.</p>
 
  <h2 style={h2}>5. Dienstverleners en ontvangers</h2>
  <p style={p}>Voor onderdelen van de dienst gebruiken we onder meer Google (Gemini voor AI-ondersteunde factuurverwerking), Supabase (database en authenticatie), Vercel (applicatiehosting), Mollie (betalingen), Brevo (transactionele e-mail), PDOK/BAG (adresvalidatie), EU VIES (btw-nummercontrole) en Recommand (Peppol-serviceprovider voor bedrijfsregistratie en verzending). Deze partijen ontvangen alleen gegevens die nodig zijn voor hun taak of die jij expliciet laat verwerken.</p>
  <p style={p}>Bij het activeren van Peppol-verzending kan een vertegenwoordiger van je bedrijf via Recommand een externe identiteitscontrole doorlopen. PeppolPro ontvangt of bewaart zelf geen kopie van het identiteitsbewijs uit die externe controle.</p>
+ <p style={p}>Als je zelf een webhook-URL instelt voor monitoring, sturen we de bij die webhook behorende statusinformatie op jouw verzoek naar dat door jou gekozen eindpunt. Je bent zelf verantwoordelijk voor de beveiliging, beschikbaarheid en rechtmatigheid van dat externe eindpunt.</p>
 
  <h2 style={h2}>6. Doorgifte buiten de EER</h2>
  <p style={p}>Sommige leveranciers kunnen gegevens buiten de Europese Economische Ruimte verwerken of toegankelijk maken. Als dat gebeurt, gebruiken we een geldige AVG-grondslag voor internationale doorgifte, bijvoorbeeld een adequaatheidsbesluit of passende contractuele waarborgen. De feitelijke verwerkingslocatie kan afhangen van de gekozen dienst, accountconfiguratie en leverancier.</p>
