@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { checkoutLoginPath } from "@/lib/checkout-intent";
+import { checkoutResumePath } from "@/lib/checkout-intent";
 
 export default function PlanButton({
  plan,
@@ -13,34 +12,16 @@ export default function PlanButton({
  label: string;
  style?: React.CSSProperties;
 }) {
- const [loading, setLoading] = useState(false);
  const router = useRouter();
 
- async function handleClick() {
- setLoading(true);
- try {
- const res = await fetch("/api/checkout", {
- method: "POST",
- headers: { "Content-Type": "application/json" },
- body: JSON.stringify({ plan }),
- });
- const data = await res.json();
- if (data.checkoutUrl) {
- window.location.href = data.checkoutUrl;
- } else if (res.status === 401) {
- router.push(checkoutLoginPath(plan));
- } else {
- alert(data.error || "Iets ging mis, probeer opnieuw.");
- }
- } finally {
- setLoading(false);
- }
+ function handleClick() {
+  router.push(checkoutResumePath(plan));
  }
 
  return (
  <button
+ type="button"
  onClick={handleClick}
- disabled={loading}
  style={{
  background: "#6366f1",
  color: "#fff",
@@ -49,13 +30,12 @@ export default function PlanButton({
  borderRadius: 8,
  fontWeight: 600,
  fontSize: 15,
- cursor: loading ? "not-allowed" : "pointer",
- opacity: loading ? 0.7 : 1,
+ cursor: "pointer",
  width: "100%",
  ...style,
  }}
  >
- {loading ? "Doorsturen..." : label}
+ {label}
  </button>
  );
 }

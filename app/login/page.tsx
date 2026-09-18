@@ -8,7 +8,7 @@ import { C } from "@/lib/constants";
 import {
  appendCheckoutIntent,
  checkoutIntentCookieValue,
- clearCheckoutIntentCookieValue,
+ checkoutResumePath,
  readCheckoutIntentFromSearch,
 } from "@/lib/checkout-intent";
 
@@ -36,7 +36,6 @@ function LoginContent() {
  const [sent, setSent] = useState(false);
  const [error, setError] = useState("");
 
-
  const handlePasswordLogin = async (event: FormEvent) => {
  event.preventDefault();
  setLoading(true);
@@ -49,19 +48,8 @@ function LoginContent() {
  }
  if (checkoutPlan) {
  document.cookie = checkoutIntentCookieValue(checkoutPlan);
- const res = await fetch("/api/checkout", {
- method: "POST",
- headers: { "Content-Type": "application/json" },
- body: JSON.stringify({ plan: checkoutPlan }),
- });
- const data = await res.json().catch(() => ({}));
  setLoading(false);
- if (data.checkoutUrl) {
- document.cookie = clearCheckoutIntentCookieValue();
- window.location.href = data.checkoutUrl;
- return;
- }
- setError(data.error || "Ingelogd, maar checkout kon niet worden gestart. Probeer het opnieuw vanaf de prijzenpagina.");
+ router.push(checkoutResumePath(checkoutPlan));
  return;
  }
  setLoading(false);
@@ -112,7 +100,7 @@ function LoginContent() {
  };
 
  return (
- <main style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", padding: 20 }}>
+ <main style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "ui-sans-serif, system-ui, sans-serif", padding: 20 }}>
  <section style={{ width: "100%", maxWidth: 430, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 34, backdropFilter: "blur(20px)", boxShadow: "0 18px 60px rgba(0,0,0,0.28)" }}>
  <div style={{ textAlign: "center", marginBottom: 28 }}>
  <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 16, textDecoration: "none" }}>
@@ -127,17 +115,17 @@ function LoginContent() {
  <div style={{ textAlign: "center", padding: "18px 0" }}>
  <h2 style={{ fontSize: 18, fontWeight: 900, color: C.white, marginBottom: 8 }}>Check je inbox</h2>
  <p style={{ fontSize: 14, color: C.dim, lineHeight: 1.6 }}>We hebben een loginlink gestuurd naar <strong style={{ color: C.white }}>{email}</strong>.</p>
- <button onClick={() => setSent(false)} style={{ marginTop: 18, border: `1px solid ${C.border}`, background: "transparent", color: C.white, borderRadius: 8, padding: "10px 14px", cursor: "pointer", fontWeight: 800 }}>Terug</button>
+ <button type="button" onClick={() => setSent(false)} style={{ marginTop: 18, border: `1px solid ${C.border}`, background: "transparent", color: C.white, borderRadius: 8, padding: "10px 14px", cursor: "pointer", fontWeight: 800 }}>Terug</button>
  </div>
  ) : (
  <>
- <button onClick={handleGoogle} style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", marginBottom: 18 }}>
+ <button type="button" onClick={handleGoogle} style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.white, fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", marginBottom: 18 }}>
  Doorgaan met Google
  </button>
 
  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, background: "rgba(15,23,42,0.6)", border: `1px solid ${C.border}`, borderRadius: 8, padding: 4, marginBottom: 18 }}>
  {(["password", "magic"] as Mode[]).map((item) => (
- <button key={item} onClick={() => { setMode(item); setError(""); }} style={{ border: 0, borderRadius: 6, padding: "9px 8px", background: mode === item ? `linear-gradient(135deg, ${C.blue}, ${C.indigo})` : "transparent", color: mode === item ? "#fff" : C.gray, fontSize: 13, fontWeight: 900, cursor: "pointer" }}>
+ <button type="button" key={item} onClick={() => { setMode(item); setError(""); }} style={{ border: 0, borderRadius: 6, padding: "9px 8px", background: mode === item ? `linear-gradient(135deg, ${C.blue}, ${C.indigo})` : "transparent", color: mode === item ? "#fff" : C.gray, fontSize: 13, fontWeight: 900, cursor: "pointer" }}>
  {item === "password" ? "Wachtwoord" : "Magic link"}
  </button>
  ))}
@@ -145,19 +133,19 @@ function LoginContent() {
 
  <form onSubmit={mode === "password" ? handlePasswordLogin : handleMagicLink} style={{ display: "grid", gap: 12 }}>
  <div>
- <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>E-mail</label>
- <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="jouw@email.nl" required style={inputStyle} />
+ <label htmlFor="login-email" style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>E-mail</label>
+ <input id="login-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="jouw@email.nl" autoComplete="email" required style={inputStyle} />
  </div>
  {mode === "password" && (
  <div>
- <label style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>Wachtwoord</label>
- <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} style={inputStyle} />
+ <label htmlFor="login-password" style={{ display: "block", fontSize: 13, fontWeight: 800, color: C.gray, marginBottom: 6 }}>Wachtwoord</label>
+ <input id="login-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required minLength={8} style={inputStyle} />
  <div style={{ marginTop: 8, textAlign: "right" }}>
  <Link href="/wachtwoord-vergeten" style={{ color: C.blue, textDecoration: "none", fontSize: 12, fontWeight: 800 }}>Wachtwoord vergeten?</Link>
  </div>
  </div>
  )}
- {error && <p style={{ fontSize: 13, color: "#f87171", margin: 0 }}>{error}</p>}
+ {error && <p role="alert" style={{ fontSize: 13, color: "#f87171", margin: 0 }}>{error}</p>}
  <button type="submit" disabled={loading} style={{ width: "100%", padding: "12px 0", borderRadius: 8, border: "none", background: `linear-gradient(135deg, ${C.blue}, ${C.indigo})`, color: "#fff", fontSize: 14, fontWeight: 900, cursor: loading ? "wait" : "pointer", fontFamily: "inherit", opacity: loading ? 0.72 : 1 }}>
  {loading ? "Even geduld..." : mode === "password" ? "Inloggen" : "Verstuur magic link"}
  </button>
@@ -166,7 +154,7 @@ function LoginContent() {
  )}
 
  <div style={{ marginTop: 24, textAlign: "center" }}>
- <p style={{ fontSize: 12, color: `${C.dim}88`, margin: 0 }}>
+ <p style={{ fontSize: 12, color: C.gray, margin: 0 }}>
  Nog geen account?{" "}
  <Link href={registerHref} style={{ color: C.blue, textDecoration: "none", fontWeight: 800 }}>Registreer</Link>
  </p>

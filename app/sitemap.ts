@@ -7,9 +7,13 @@ const rootRoutes = [
   "/peppol-verplicht-belgie",
   "/pdf-naar-ubl",
   "/prijzen",
-  "/login",
-  "/register",
-  "/upgrade",
+  "/over-ons",
+  "/contact",
+  "/privacy",
+  "/cookiebeleid",
+  "/voorwaarden",
+  "/annuleren-terugbetaling",
+  "/avg-gdpr",
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -17,7 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: canonical(route),
     lastModified: new Date(),
     changeFrequency: route === "/" ? "weekly" as const : "monthly" as const,
-    priority: route === "/" ? 1 : 0.7,
+    priority: route === "/" ? 1 : route === "/prijzen" ? 0.9 : 0.7,
   }));
 
   const monitor = monitorRoutes.map((route) => ({

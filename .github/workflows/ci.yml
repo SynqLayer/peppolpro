@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  checks:
+  migration-drift:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,6 +27,21 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/check-migration-drift.mjs
 
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
       - name: Lint
         run: npm run lint
 
@@ -34,7 +49,24 @@ jobs:
         run: npm run typecheck
 
       - name: Test
-        run: npm test
+        shell: bash
+        run: |
+          set +e
+          npm test > /tmp/peppolpro-test.log 2>&1
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            tail -n 12 /tmp/peppolpro-test.log
+          else
+            failures=$(grep -E -A20 -B5 'not ok|AssertionError|ERR_ASSERTION|failureType|error:' /tmp/peppolpro-test.log | tail -n 260 || true)
+            printf '%s\n' "$failures"
+            {
+              echo '## Test failures'
+              echo '```text'
+              printf '%s\n' "$failures"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$status"
 
       - name: Build
         env:

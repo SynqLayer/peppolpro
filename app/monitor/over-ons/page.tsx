@@ -19,10 +19,10 @@ export default function Page() {
         <li>E-mail: <a href={`mailto:${site.email}`}>{site.email}</a></li>
       </ul>
       <h2>Waarom deze tool?</h2>
-      <p>Peppol en e-facturatie worden voor steeds meer organisaties belangrijk. Ondernemers willen snel weten of een klant of leverancier vindbaar is op het netwerk, zonder direct een volledig boekhoudpakket te openen.</p>
+      <p>Peppol en e-facturatie worden voor steeds meer organisaties belangrijk. Ondernemers willen snel weten of een klant of leverancier gepubliceerd is in de Directory, zonder direct een volledig boekhoudpakket te openen.</p>
       <p>Wil je een bedrijf controleren? Gebruik dan de <Link href="/monitor">Peppol checker</Link>.</p>
       <h2>Geen juridisch advies</h2>
-      <p>We formuleren verplichtingen bewust als indicatie. Het Nederlandse mandaat is in consultatie / nog niet definitief en kan veranderen.</p>
+      <p>We formuleren verplichtingen bewust met hun status en datum. Het Nederlandse kabinet koos op 11 september 2026 voor verplichte e-facturatie vanaf 1 juli 2030 voor nationale en internationale B2B-transacties; de nationale wetgeving en uitvoeringsdetails worden nog uitgewerkt.</p>
       <CheckCta />
     </InfoPage>
   );
