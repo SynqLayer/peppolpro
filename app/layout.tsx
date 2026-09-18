@@ -44,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   <Script
    src="https://synq-analytics-ingest.vercel.app/synq.js"
    data-site="peppolpro"
+   data-cta="/register"
    strategy="afterInteractive"
   />
  </body>
