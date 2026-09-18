@@ -12,6 +12,7 @@ import {
  checkoutResumePath,
  readCheckoutIntentFromSearch,
 } from "@/lib/checkout-intent";
+import { meldStap } from "@/lib/synq-stap";
 
 function registerErrorMessage(message: string) {
  const lower = message.toLowerCase();
@@ -52,6 +53,9 @@ function RegisterContent() {
  }
 
  const acceptedAt = new Date().toISOString();
+ // Een geldige poging om te registreren. Dit is de stap die laat zien hoeveel
+ // mensen het formulier echt indienen; paginaweergaven alleen zeggen dat niet.
+ meldStap("signup_started");
  setLoading(true);
  const { data, error } = await supabase.auth.signUp({
  email,
@@ -72,6 +76,8 @@ function RegisterContent() {
  setError(registerErrorMessage(error.message));
  return;
  }
+ // Het account staat. Vanaf hier is het een klant, geen bezoeker meer.
+ meldStap("signup_completed");
  if (checkoutPlan) document.cookie = checkoutIntentCookieValue(checkoutPlan);
  if (data.session) router.push(checkoutPlan ? checkoutResumePath(checkoutPlan) : "/onboarding");
  else setSent(true);
