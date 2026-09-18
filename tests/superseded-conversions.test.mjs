@@ -45,9 +45,11 @@ test('de dashboardpagina haalt de verwijzing en de kolommen op', () => {
 test('de send-route leest de kolom en blokkeert achterhaald vóór elke creditering', () => {
   assert.match(sendRoute, /superseded_by_conversion_id/);
   const guardIndex = sendRoute.indexOf('isSuperseded(existing)');
-  const reservationIndex = sendRoute.indexOf('await reserveSendCredit(');
+  // P0 reserveert het verzendtegoed via claimTargetForSending -> rpc claim_recommand_send_with_credit
+  const reservationIndex = sendRoute.indexOf('await claimTargetForSending(');
   assert.ok(guardIndex > -1, 'grendel op achterhaalde conversies ontbreekt');
   assert.ok(reservationIndex > -1, 'creditering niet gevonden');
+  assert.match(sendRoute, /claim_recommand_send_with_credit/);
   assert.ok(guardIndex < reservationIndex, 'de grendel moet vóór de creditering staan');
 });
 

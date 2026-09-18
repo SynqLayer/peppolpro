@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { ensureCreditInvoice, ensurePaymentInvoice } from "@/lib/billing";
+import { ensurePaymentInvoice, sendBillingInvoiceEmail } from "@/lib/billing";
+import { getPaymentAdjustments, mollieWebhookEventKey, type PaymentAdjustment } from "@/lib/mollie-adjustments";
 import { cancelSubscription, createSubscription, getPayment, getSubscription, MolliePayment, MollieSubscription } from "@/lib/mollie";
 import { getCreditBundle, getPlan } from "@/lib/plans";
 
@@ -48,8 +49,8 @@ async function markWebhook(supabase: ReturnType<typeof createAdminClient>, event
  if (error) throw error;
 }
 
-async function startWebhook(supabase: ReturnType<typeof createAdminClient>, payment: MolliePayment) {
- const eventKey = `${payment.id}:${payment.status}`;
+async function startWebhook(supabase: ReturnType<typeof createAdminClient>, payment: MolliePayment, adjustments: PaymentAdjustment[]) {
+ const eventKey = mollieWebhookEventKey(payment.id, payment.status, adjustments);
  const { data, error } = await supabase
   .rpc("claim_mollie_webhook_event", {
    p_event_key: eventKey,
@@ -131,7 +132,8 @@ async function ensureRecurringSubscription({
  return row;
 }
 
-async function grantSendCredits({ supabase, userId, bundleId, payment, paymentRow }: {
+async function grantSendCredits({ supabase, userId, bundleId, payment, paymentRow, adjustments }: {
+ adjustments: PaymentAdjustment[];
  supabase: ReturnType<typeof createAdminClient>;
  userId: string;
  bundleId: string;
@@ -150,17 +152,21 @@ async function grantSendCredits({ supabase, userId, bundleId, payment, paymentRo
  const currentExpiry = profile?.send_credits_expires_at ? new Date(profile.send_credits_expires_at) : null;
  const start = currentExpiry && currentExpiry > now ? currentExpiry : now;
  const expiresAt = addMonths(start, bundle.validMonths).toISOString();
- const { error: grantError } = await supabase.rpc("grant_send_credit_bundle", {
-  p_user_id: userId,
-  p_bundle_id: bundle.id,
-  p_credits: bundle.credits,
-  p_amount: Number(payment.amount?.value || bundle.amount),
-  p_payment_id: payment.id,
-  p_expires_at: expiresAt,
+ const { error: grantError } = await supabase.rpc("apply_mollie_payment_adjustments", {
+  p_payment_id: paymentRow.id, p_adjustments: adjustments, p_expires_at: expiresAt,
  });
  if (grantError) throw grantError;
  await ensurePaymentInvoice({ supabase, payment, paymentRow, subscription: null });
  return { credits: bundle.credits, expiresAt };
+}
+
+async function sendAdjustmentInvoices(supabase: ReturnType<typeof createAdminClient>, paymentId: string) {
+ const { data, error } = await supabase.from("invoices").select("id, email_status")
+  .eq("payment_id", paymentId).not("payment_adjustment_key", "is", null);
+ if (error) throw error;
+ for (const invoice of data || []) {
+  if (!["accepted", "delivered"].includes(invoice.email_status)) await sendBillingInvoiceEmail(supabase, invoice.id);
+ }
 }
 
 export async function POST(req: NextRequest) {
@@ -175,17 +181,18 @@ export async function POST(req: NextRequest) {
    return NextResponse.json({ ok: false, error: "Ongeldige webhook-body" }, { status: 400 });
   }
   paymentId = body.get("id") as string | null;
-  if (!paymentId) return NextResponse.json({ ok: false }, { status: 400 });
+  if (!paymentId || !/^tr_[A-Za-z0-9]+$/.test(paymentId)) return NextResponse.json({ ok: false }, { status: 400 });
 
   const payment = await getPayment(paymentId);
   if (payment.mode === "test") return NextResponse.json({ ok: true, test: true });
-  const event = await startWebhook(supabase, payment);
+  const adjustments = payment.status === "paid" ? await getPaymentAdjustments(payment.id) : [];
+  const event = await startWebhook(supabase, payment, adjustments);
   eventKey = event.eventKey;
   if (event.duplicate) return NextResponse.json({ ok: true, duplicate: true });
 
   const { data: existingPayment, error: existingPaymentError } = await supabase
    .from("payments")
-   .select("id, status, mollie_subscription_id")
+   .select("id, status, mollie_subscription_id, user_id, amount, plan")
    .eq("mollie_payment_id", paymentId)
    .maybeSingle();
   if (existingPaymentError) throw existingPaymentError;
@@ -196,6 +203,10 @@ export async function POST(req: NextRequest) {
   if (!userId || (!bundle && !planConfig.paid)) {
    await markWebhook(supabase, eventKey, "failed", "Ontbrekende user_id of betaald product in Mollie metadata");
    return NextResponse.json({ ok: false }, { status: 400 });
+  }
+
+  if (existingPayment && (existingPayment.user_id !== userId || Number(existingPayment.amount) !== Number(payment.amount?.value) || (existingPayment.plan && existingPayment.plan !== (bundle?.id || planConfig.id)))) {
+   throw new Error("Betaalidentiteit of oorspronkelijk bedrag komt niet overeen");
   }
 
   const { data: paymentRow, error: paymentError } = await supabase.from("payments").upsert({
@@ -217,22 +228,30 @@ export async function POST(req: NextRequest) {
 
   if (bundle) {
    if (payment.status === "paid") {
-    await grantSendCredits({ supabase, userId, bundleId: bundle.id, payment, paymentRow });
-   } else if (payment.status === "refunded" || payment.status === "charged_back") {
-    await ensureCreditInvoice({ supabase, payment, paymentRow, subscription: null });
+    await grantSendCredits({ supabase, userId, bundleId: bundle.id, payment, paymentRow, adjustments });
+    await sendAdjustmentInvoices(supabase, paymentRow.id);
+
    }
    await markWebhook(supabase, eventKey, "processed");
    return NextResponse.json({ ok: true, purchase_type: purchaseType || "send_credit_bundle" });
   }
 
-  if (payment.status === "refunded" || payment.status === "charged_back") {
-   const { data: subscription, error: subscriptionError } = await supabase.from("subscriptions").select("id, user_id, plan").eq("user_id", userId).maybeSingle();
-   if (subscriptionError) throw subscriptionError;
-   await ensureCreditInvoice({ supabase, payment, paymentRow, subscription });
-   await cancelKnownSubscription(supabase, userId);
-   await setFree(supabase, userId, "canceled");
+  if (payment.status === "paid" && adjustments.length > 0) {
+   const { data, error } = await supabase.rpc("apply_mollie_payment_adjustments", { p_payment_id: paymentRow.id, p_adjustments: adjustments });
+   if (error) throw error;
+   const result = Array.isArray(data) ? data[0] : data;
+   if (!result) throw new Error("Betaalcorrectie kon niet worden bevestigd");
+   await ensurePaymentInvoice({ supabase, payment, paymentRow, subscription: null });
+   await sendAdjustmentInvoices(supabase, paymentRow.id);
+   if (Number(result.net_refunded_cents) > 0) {
+    const { data: current, error: currentError } = await supabase.from("subscriptions").select("last_payment_id").eq("user_id", userId).maybeSingle();
+    if (currentError) throw currentError;
+    if (current?.last_payment_id === payment.id) await cancelKnownSubscription(supabase, userId);
+   }
+   // A chargeback reversal is invoiced and restores bundle rights, but must not
+   // create a second recurring subscription or extend a previously paid period.
    await markWebhook(supabase, eventKey, "processed");
-   return NextResponse.json({ ok: true });
+   return NextResponse.json({ ok: true, adjustments: adjustments.length });
   }
 
   let mollieSubscription: MollieSubscription | null = null;

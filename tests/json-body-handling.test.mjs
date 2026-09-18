@@ -12,9 +12,18 @@ const read = (relative) => readFileSync(path.join(root, relative), 'utf8');
 const jsonRoutes = [
   ['app/api/generate/route.ts', 'Ongeldige JSON-body'],
   ['app/api/checkout/route.ts', 'Ongeldige JSON-body'],
-  ['app/api/webhooks/auth/route.ts', 'Ongeldige JSON-body'],
   ['app/api/monitor-lookup/route.ts', 'Ongeldige JSON-body'],
 ];
+
+// De P0-audit heeft de verouderde auth-callback dichtgezet: die leest geen body meer en
+// weigert alles met 401, dus hier geldt de 400-regel bewust niet meer.
+test('de verouderde auth-webhook leest geen body en weigert met 401', () => {
+  const source = read('app/api/webhooks/auth/route.ts');
+  assert.ok(!source.includes('await req.json()'), 'deze callback hoort geen body te parsen');
+  assert.match(source, /status:\s*401/);
+  assert.ok(!source.includes('sendWelcomeEmail'), 'geen welkomstmail meer vanaf dit publieke pad');
+  assert.ok(!source.includes('upsert'), 'geen accountmutatie meer vanaf dit publieke pad');
+});
 
 for (const [file, message] of jsonRoutes) {
   test(`${file} geeft 400 bij een onparseerbare body`, () => {

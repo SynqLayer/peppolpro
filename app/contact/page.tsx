@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { createClient } from "../../lib/supabase-client";
 import { C } from "../../lib/constants";
 
 export default function ContactPage() {
@@ -18,14 +17,16 @@ export default function ContactPage() {
  setLoading(true);
  setError("");
 
- const supabase = createClient();
- const { error: dbError } = await supabase
- .from("contact_messages")
- .insert({ name, email, company, message, subject: "Contact via website" });
-
- setLoading(false);
- if (dbError) setError("Er ging iets mis. Probeer opnieuw.");
- else setSent(true);
+ try {
+  const response = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, company, message }) });
+  const result = await response.json();
+  if (!response.ok) setError(result.error || "Er ging iets mis. Probeer opnieuw.");
+  else setSent(true);
+ } catch {
+  setError("Er ging iets mis. Probeer opnieuw.");
+ } finally {
+  setLoading(false);
+ }
  };
 
  const inputStyle: React.CSSProperties = {

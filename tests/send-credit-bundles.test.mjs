@@ -75,8 +75,8 @@ test('paid bundle webhook grants exact credits, extends expiry 12 months and cre
  assert.match(mollieWebhookRoute, /grantSendCredits/);
  assert.match(mollieWebhookRoute, /bundle\.validMonths/);
  assert.match(mollieWebhookRoute, /addMonths\(start, bundle\.validMonths\)/);
- assert.match(mollieWebhookRoute, /rpc\("grant_send_credit_bundle"/);
- assert.match(mollieWebhookRoute, /grant_send_credit_bundle/);
+ assert.match(mollieWebhookRoute, /rpc\("apply_mollie_payment_adjustments"/);
+ assert.match(mollieWebhookRoute, /p_adjustments: adjustments/);
  assert.match(mollieWebhookRoute, /credits: bundle\.credits/);
  assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription: null \}\)/);
  assert.match(billingLib, /invoiceKind: product\.recurring \? "subscription" : "credits"/);
@@ -228,8 +228,8 @@ test('routes call credit RPCs with the service-role admin client after auth', ()
  assert.match(confirmConvertRoute, /admin\.rpc\("confirm_conversion_draft"/);
  assert.doesNotMatch(confirmConvertRoute, /supabase\.rpc\("use_credit"/);
  assert.match(recommandRoute, /createAdminSupabase/);
- assert.match(recommandRoute, /reserveSendCredit\(admin, user\.id\)/);
- assert.match(recommandRoute, /releaseSendCredit\(admin, user\.id\)/);
+ assert.match(recommandRoute, /claimTargetForSending\(admin, targetTable, targetId, user\.id\)/);
+ assert.match(recommandRoute, /releaseSendCredit\(admin, user\.id, claim\)/);
 });
 
 test('send route is idempotent for already-sent targets before validation, provider calls or debit', () => {
@@ -243,20 +243,20 @@ test('send route is idempotent for already-sent targets before validation, provi
 
 test('send route claims a target and reserves credits atomically before provider calls', () => {
  assert.match(recommandRoute, /function claimTargetForSending/);
- assert.match(recommandRoute, /rpc\("claim_recommand_send_target"/);
- assert.match(recommandRoute, /p_stale_after_minutes: RECOMMAND_SEND_STALE_AFTER_MINUTES/);
+ assert.match(recommandRoute, /rpc\("claim_recommand_send_with_credit"/);
+ assert.match(recommandRoute, /p_user_id: userId/);
  assert.match(recommandRoute, /recommand_claimed_at/);
- assert.match(recommandRoute, /rpc\("reserve_send_credit"/);
- const reserveBeforeProvider = recommandRoute.match(/const reserved = await reserveSendCredit[\s\S]*?const verify = await verifyRecipient/)?.[0] || '';
- assert.match(reserveBeforeProvider, /reserveSendCredit/);
+ assert.match(recommandRoute, /rpc\("claim_recommand_send_with_credit"/);
+ const reserveBeforeProvider = recommandRoute.match(/const reserved = \{ send_credits: claim\.send_credits \}[\s\S]*?const verify = await verifyRecipient/)?.[0] || '';
+ assert.match(reserveBeforeProvider, /claim\.send_credits/);
  assert.doesNotMatch(recommandRoute, /send_credits: sendCredits - 1/);
  assert.doesNotMatch(recommandRoute, /const sendCredits = profile\.send_credits/);
 });
 
 test('send route releases reserved credits on provider-side failure paths', () => {
- assert.match(recommandRoute, /rpc\("release_send_credit"/);
+ assert.match(recommandRoute, /rpc\("release_recommand_reservation"/);
  assert.match(recommandRoute, /const releaseAfterFailure = async \(\) => \{/);
- assert.match(recommandRoute, /if \(!creditReleased\)[\s\S]*releaseSendCredit\(admin, user\.id\)/);
+ assert.match(recommandRoute, /if \(!creditReleased\)[\s\S]*releaseSendCredit\(admin, user\.id, claim\)/);
  const recipientFailBlock = recommandRoute.match(/if \(!verify\.isValid\) \{[\s\S]*?return jsonError\("Ontvanger is niet gevonden/)?.[0] || '';
  const supportFailBlock = recommandRoute.match(/if \(!support\.isValid\) \{[\s\S]*?return jsonError\("Ontvanger ondersteunt/)?.[0] || '';
  const sendFailBlock = recommandRoute.match(/if \(sendOutcome === "safe_to_release"\) \{[\s\S]*?return jsonError\("Recommand heeft/)?.[0] || '';

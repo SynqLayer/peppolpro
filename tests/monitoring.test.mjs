@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mollieWebhookEventKey, normalizePaymentAdjustments } from '../lib/mollie-adjustments.ts';
+import * as plansRuntime from '../lib/plans.ts';
+import { createDbClient, loadTsModule, nextServer } from './behavior-harness.mjs';
 
 const plans = readFileSync(new URL('../lib/plans.ts', import.meta.url), 'utf8');
 const migration0003 = readFileSync(new URL('../supabase/migrations/0003_monitoring_tier.sql', import.meta.url), 'utf8');
@@ -372,9 +375,9 @@ test('mollie webhook handles subscription renewals, grace period, cancellation a
  assert.match(mollieWebhookRoute, /subscription_status: "active"/);
  assert.match(mollieWebhookRoute, /GRACE_DAYS/);
  assert.match(mollieWebhookRoute, /current_period_end: addDays\(new Date\(\), GRACE_DAYS\)/);
- assert.match(mollieWebhookRoute, /payment\.status === "refunded" \|\| payment\.status === "charged_back"/);
+ assert.match(mollieWebhookRoute, /getPaymentAdjustments\(payment\.id\)/);
  assert.match(mollieWebhookRoute, /cancelKnownSubscription/);
- assert.match(mollieWebhookRoute, /setFree\(supabase, userId, "canceled"\)/);
+ assert.match(mollieWebhookRoute, /current\?\.last_payment_id === payment\.id/);
  assert.match(mollieWebhookRoute, /subscription\.status === "canceled" \|\| subscription\.status === "suspended"/);
 });
 
@@ -413,7 +416,7 @@ test('paid subscription payments create invoices and refunds create separate cre
  assert.match(billingLib, /invoiceKind: "credit"/);
  assert.match(billingLib, /original_invoice_number/);
  assert.match(mollieWebhookRoute, /ensurePaymentInvoice/);
- assert.match(mollieWebhookRoute, /ensureCreditInvoice/);
+ assert.match(mollieWebhookRoute, /apply_mollie_payment_adjustments/);
 });
 
 test('paid and credit billing invoices are emailed with generated PDF attachments', () => {
@@ -427,7 +430,7 @@ test('paid and credit billing invoices are emailed with generated PDF attachment
  assert.match(billingLib, /await sendBillingInvoiceEmail\(supabase, invoice\.id\)/);
  assert.match(billingLib, /await sendBillingInvoiceEmail\(supabase, creditInvoice\.id\)/);
  assert.match(mollieWebhookRoute, /await ensurePaymentInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
- assert.match(mollieWebhookRoute, /await ensureCreditInvoice\(\{ supabase, payment, paymentRow, subscription \}\)/);
+ assert.match(mollieWebhookRoute, /await sendAdjustmentInvoices\(supabase, paymentRow\.id\)/);
 });
 
 test('monitoring paid plans start a Mollie recurring subscription and invoice flow while credit bundles stay one-off', () => {
@@ -473,22 +476,70 @@ test('dashboard lists only the signed-in users billing invoices with download li
  assert.match(dashboard, />Download<\/a>/);
 });
 
-test('mollie webhook records idempotency events and reclaims stale processing rows', () => {
- assert.match(mollieWebhookRoute, /startWebhook/);
- assert.match(mollieWebhookRoute, /eventKey = `\$\{payment\.id\}:\$\{payment\.status\}`/);
- assert.match(mollieWebhookRoute, /rpc\("claim_mollie_webhook_event"/);
- assert.match(mollieWebhookRoute, /p_processing_stale_after: "2 minutes"/);
- assert.match(mollieWebhookRoute, /processed_duplicate/);
- assert.match(mollieWebhookRoute, /processing_duplicate/);
- assert.match(mollieWebhookRoute, /reclaimed/);
- assert.match(migration0018, /create or replace function public\.claim_mollie_webhook_event/);
- assert.match(migration0018, /v_existing\.status = 'processed'/);
- assert.match(migration0018, /v_existing\.status = 'failed'/);
- assert.match(migration0018, /v_existing\.status = 'processing'[\s\S]*now\(\) - p_processing_stale_after/);
- assert.match(migration0018, /set status = 'processing'/);
- assert.match(mollieWebhookRoute, /markWebhook\(supabase, eventKey, "processed"\)/);
- assert.match(mollieWebhookRoute, /markWebhook\(supabase, eventKey, "failed", message\)/);
- assert.match(mollieWebhookRoute, /failed_preprocess/);
+async function runWebhookAudit({ metadata, adjustmentError = null }) {
+ const payment = {
+  id: 'tr_Audit', status: 'paid', mode: 'live', amount: { value: '9.00' },
+  metadata: metadata ?? { user_id: '00000000-0000-4000-8000-000000000001', plan: 'send_credits_10', bundle_id: 'send_credits_10' },
+ };
+ const trace = [];
+ const paymentRow = { id: '00000000-0000-4000-8000-000000000010', user_id: payment.metadata.user_id, amount: 9, plan: payment.metadata.plan, status: 'paid' };
+ const admin = createDbClient({
+  'rpc:claim_mollie_webhook_event': { data: { action: 'claimed' }, error: null },
+  'rpc:apply_mollie_payment_adjustments': { data: {}, error: null },
+  payments: { data: paymentRow, error: null },
+  subscriptions: { data: null, error: null },
+  user_profiles: { data: { send_credits_expires_at: null }, error: null },
+  invoices: { data: [], error: null },
+  webhook_events: { data: null, error: null },
+ }, trace);
+ const route = loadTsModule('app/api/mollie/webhook/route.ts', {
+  'next/server': nextServer,
+  '@supabase/supabase-js': { createClient: () => admin },
+  '@/lib/billing': { ensurePaymentInvoice: async () => {}, sendBillingInvoiceEmail: async () => {} },
+  '@/lib/mollie-adjustments': {
+   getPaymentAdjustments: async () => { if (adjustmentError) throw adjustmentError; return []; },
+   mollieWebhookEventKey,
+  },
+  '@/lib/mollie': {
+   getPayment: async () => payment, getSubscription: async () => null, cancelSubscription: async () => {},
+   createSubscription: async () => ({ id: 'sub-fixture', status: 'active', nextPaymentDate: '2026-10-14' }),
+  },
+  '@/lib/plans': plansRuntime,
+ }, { env: { NEXT_PUBLIC_SUPABASE_URL: 'http://fixture.invalid', SUPABASE_SERVICE_ROLE_KEY: 'fixture', NEXT_PUBLIC_APP_URL: 'https://app.invalid' }, console: { ...console, error: () => {} } });
+ const response = await route.POST({ formData: async () => ({ get: () => payment.id }) });
+ return { response, trace };
+}
+
+test('mollie webhook event identity keeps retries idempotent and separates adjustments', () => {
+ const paymentId='tr_Fixture';
+ const status='paid';
+ const refund={id:'re_First',paymentId,status:'refunded',amount:{currency:'EUR',value:'4.50'}};
+ const chargeback={id:'chb_First',paymentId,amount:{currency:'EUR',value:'4.50'}};
+ const refundRows=normalizePaymentAdjustments(paymentId,[refund],[]);
+ const chargebackRows=normalizePaymentAdjustments(paymentId,[],[chargeback]);
+ const base=mollieWebhookEventKey(paymentId,status,[]);
+ const refundKey=mollieWebhookEventKey(paymentId,status,refundRows);
+ const chargebackKey=mollieWebhookEventKey(paymentId,status,chargebackRows);
+
+ assert.equal(base,mollieWebhookEventKey(paymentId,status,[]));
+ assert.notEqual(refundKey,base);
+ assert.notEqual(chargebackKey,base);
+ assert.notEqual(refundKey,chargebackKey);
+ assert.equal(refundKey,mollieWebhookEventKey(paymentId,status,[...refundRows,...refundRows]));
+});
+
+test('mollie webhook records processed, failed and failed-preprocess audit states', async () => {
+ const processed = await runWebhookAudit({});
+ assert.equal(processed.response.status, 200);
+ assert.ok(processed.trace.some((entry) => entry.table === 'webhook_events' && entry.method === 'update' && entry.args[0].status === 'processed'));
+
+ const failed = await runWebhookAudit({ metadata: {} });
+ assert.equal(failed.response.status, 400);
+ assert.ok(failed.trace.some((entry) => entry.table === 'webhook_events' && entry.method === 'update' && entry.args[0].status === 'failed'));
+
+ const preprocess = await runWebhookAudit({ adjustmentError: new Error('fixture adjustment failure') });
+ assert.equal(preprocess.response.status, 500);
+ assert.ok(preprocess.trace.some((entry) => entry.table === 'webhook_events' && entry.method === 'upsert' && entry.args[0].event_key === 'tr_Audit:failed_preprocess' && entry.args[0].status === 'failed'));
 });
 
 test('dashboard uses honest UBL statuses and shows generated UBL count instead of amount', () => {
@@ -523,10 +574,10 @@ test('Recommand send route refuses duplicate voided targets before provider call
  assert.match(recommandRoute, /function isVoidedDuplicate/);
  assert.match(recommandRoute, /recommand_status === "duplicate_voided"/);
  assert.match(recommandRoute, /if \(isVoidedDuplicate\(existing\)\) return jsonError\("Deze factuur is gemarkeerd als dubbel\/voided/);
- assert.match(recommandRoute, /rpc\("claim_recommand_send_target"/);
+ assert.match(recommandRoute, /rpc\("claim_recommand_send_with_credit"/);
  assert.match(recommandRoute, /if \(hasCompletedSend\(existing\)\) return existingSendResponse\(existing\)/);
  assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('fromUbl = buildRecommandPayloadFromUbl'));
- assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const reserved = await reserveSendCredit'));
+ assert.ok(recommandRoute.indexOf('if (isVoidedDuplicate(existing))') < recommandRoute.indexOf('const claim = await claimTargetForSending'));
 });
 
 test('dashboard keeps Peppol Inbox notice only in action points without upgrade plan button', () => {
@@ -553,7 +604,7 @@ test('Recommand integration verifies recipients before send, gates plan limit, a
  assert.match(recommandRoute, /recommand_company_id, recommand_verified/);
  assert.match(recommandRoute, /profile\.recommand_company_id/);
  assert.doesNotMatch(recommandRoute, /process\.env\.RECOMMAND_COMPANY_ID/);
- assert.match(recommandRoute, /rpc\("reserve_send_credit"/);
+ assert.match(recommandRoute, /rpc\("claim_recommand_send_with_credit"/);
  assert.match(recommandRoute, /sent_via_recommand_at/);
  assert.match(recommandRoute, /Je hebt geen geldig verzendtegoed/);
  assert.match(recommandRoute, /verifyRecipient\(recipient\)/);
