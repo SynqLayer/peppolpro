@@ -3,6 +3,7 @@ import { assertMonitoringAccess } from "@/lib/monitoring-access";
 import { redirect } from "next/navigation";
 import { isSuperseded, supersededDetail } from "@/lib/superseded";
 import DashboardClient, { ApiKeyRecord, BillingInvoice, Conversion, MonitoringEvent, MonitoringTarget, Profile, SubscriptionState, TeamMember, WebhookConfig } from "./DashboardClient";
+import MeldStap from "@/components/MeldStap";
 
 export default async function DashboardPage({
  searchParams,
@@ -116,6 +117,9 @@ export default async function DashboardPage({
  });
 
  return (
+ <>
+ {/* Eerste keer in het product na een aanmelding. Telt één keer per browser. */}
+ <MeldStap stap="activated" />
  <DashboardClient
  user={{ id: user.id, email: user.email || "" }}
  profile={effectiveProfile}
@@ -130,5 +134,6 @@ export default async function DashboardPage({
  billingInvoices={(billingInvoicesData || []) as BillingInvoice[]}
  paid={params.betaald === "1"}
  />
+ </>
  );
 }
